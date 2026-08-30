@@ -1,0 +1,75 @@
+import json
+
+from supermarkt.http import HttpClient
+from supermarkt.region import AldiRegionResolver
+
+
+class FakeHttp(HttpClient):
+    def __init__(self):
+        super().__init__(5)
+        self.calls = 0
+
+    def get_bytes(self, url, headers=None):
+        self.calls += 1
+        if "postalcode=" in url:
+            return json.dumps([{"lat": "51.05", "lon": "13.74"}]).encode()
+        return json.dumps(
+            [
+                {
+                    "lat": "51.051",
+                    "lon": "13.741",
+                    "display_name": "ALDI Nord",
+                    "address": {"postcode": "01067"},
+                    "namedetails": {"name": "ALDI Nord"},
+                    "extratags": {"website": "https://www.aldi-nord.de/"},
+                }
+            ]
+        ).encode()
+
+
+def test_region_resolver_prefers_versioned_official_evidence():
+    http = FakeHttp()
+    resolver = AldiRegionResolver(http)
+    resolver.http = http
+    assert resolver.detect("01067") == "nord"
+    assert resolver.last_provider.startswith("Offizielle ALDI")
+    assert http.calls == 0
+
+
+def test_region_resolver_uses_bounded_fallback_and_cache():
+    http = FakeHttp()
+    resolver = AldiRegionResolver(http)
+    resolver.http = http
+    assert resolver.detect("01100") == "nord"
+    assert http.calls == 2
+    assert resolver.detect("01100") == "nord"
+    assert http.calls == 2
+
+
+def test_unknown_52_postcode_is_not_classified_by_prefix():
+    http = FakeHttp()
+    resolver = AldiRegionResolver(http)
+    resolver.http = http
+    assert "52000" not in resolver.OFFICIAL_EVIDENCE
+    assert resolver.detect("52000") == "nord"
+    assert resolver.last_provider == "Nominatim"
+    assert http.calls == 2
+    assert resolver.detect("52000") == "nord"
+    assert http.calls == 2
+
+
+def test_leverkusen_is_aldi_sued_without_geocoding():
+    """ALDI Süd betreibt 14 Filialen in Leverkusen, ALDI Nord keine.
+
+    Ohne diesen Nachweis lieferte die Nominatim-Umkreissuche "nord", weil im
+    gesamten Suchfenster nur zwei Filialen ein verwertbares Nord/Süd-Merkmal
+    tragen und beide zu ALDI Nord gehören.
+    """
+    http = FakeHttp()
+    resolver = AldiRegionResolver(http)
+    resolver.http = http
+    for code in ("51371", "51373", "51375", "51377", "51379", "51381"):
+        assert resolver.detect(code) == "sued", code
+        assert resolver.last_provider.startswith("Offizielle ALDI")
+        assert resolver.last_confidence == "hoch"
+    assert http.calls == 0

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "korb-klar"
+version = "0.1.8"
+description = "KorbKlar: self-hosted comparison of regional supermarket offers in Germany."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BSD-3-Clause"
+authors = [{name = "lesecuritae"}]
+dependencies = [
+  "fastapi>=0.141,<1",
+  "pydantic>=2.13,<3",
+  "curl-cffi>=0.16,<0.17",
+  # Verlässliche Wurzelzertifikate; Windows-Python erreicht den
+  # Systemspeicher oft nicht. Kommt ohnehin mit curl-cffi.
+  "certifi>=2024.7.4",
+  "beautifulsoup4>=4.12,<5",
+  "uvicorn>=0.52,<1",
+  "python-multipart>=0.0.20,<1",
+  # Windows ships no IANA time zone database; zoneinfo needs this for Europe/Berlin.
+  "tzdata>=2025.2; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9,<10", "httpx>=0.28,<1"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+supermarkt = ["static/*.html", "static/*.css", "static/*.js", "static/*.mjs", "static/*.svg"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]
+markers = ["live: performs live requests against retailer websites"]

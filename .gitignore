@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+.DS_Store
+*.log
+*.tmp
+*.orig
+*.rej
+*.bak
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+
+# Build-Ausgaben
+dist/
+build/
+*.egg-info/
+
+# Laufzeitdaten
+data/
+artifacts/
+compose.override.yml

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="title desc">
+  <title id="title">KorbKlar</title>
+  <desc id="desc">KorbKlar vergleicht regionale Supermarktangebote von REWE, Kaufland, EDEKA, ALDI und weiteren Händlern.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f4faf6"/>
+      <stop offset="1" stop-color="#dcefe5"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="480" rx="32" fill="url(#bg)"/>
+  <circle cx="1100" cy="38" r="180" fill="#c8e5d4" opacity=".62"/>
+  <circle cx="42" cy="470" r="150" fill="#ffffff" opacity=".56"/>
+
+  <g transform="translate(82 82)">
+    <rect width="104" height="104" rx="26" fill="#116149"/>
+    <path d="M25 43h54l-7 38H32l-7-38Z" fill="#fff"/>
+    <path d="M36 43c2-14 7-21 16-21s14 7 16 21" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+    <path d="m40 60 7 7 16-18" fill="none" stroke="#116149" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="212" y="150" fill="#14201b" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="72" font-weight="760" letter-spacing="-3">Korb<tspan fill="#116149">Klar</tspan></text>
+  <text x="84" y="235" fill="#263d33" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="30" font-weight="650">Supermarktangebote direkt vergleichen</text>
+  <text x="84" y="276" fill="#64736b" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="20">Compare regional supermarket offers</text>
+  <text x="84" y="338" fill="#405249" font-family="system-ui,-apple-system,'Segoe UI',sans-serif" font-size="18">Selbst gehostet · regionale Preise · keine LLM erforderlich</text>
+
+  <rect x="670" y="76" width="446" height="326" rx="28" fill="#0a3c2d" opacity=".10"/>
+  <g transform="translate(658 64)" font-family="system-ui,-apple-system,'Segoe UI',sans-serif">
+    <rect width="446" height="326" rx="28" fill="#fff" stroke="#d7e5de"/>
+    <text x="30" y="46" fill="#63716a" font-size="15" font-weight="700" letter-spacing="1.6">HÄNDLER IM VERGLEICH</text>
+    <text x="30" y="78" fill="#8a9791" font-size="14">SUPPORTED RETAILERS</text>
+
+    <g font-size="22" font-weight="720" fill="#163a2d">
+      <rect x="30" y="104" width="178" height="58" rx="16" fill="#eef7f2" stroke="#d7e8df"/>
+      <text x="119" y="141" text-anchor="middle">REWE</text>
+
+      <rect x="226" y="104" width="190" height="58" rx="16" fill="#eef7f2" stroke="#d7e8df"/>
+      <text x="321" y="141" text-anchor="middle">Kaufland</text>
+
+      <rect x="30" y="178" width="178" height="58" rx="16" fill="#eef7f2" stroke="#d7e8df"/>
+      <text x="119" y="215" text-anchor="middle">EDEKA</text>
+
+      <rect x="226" y="178" width="190" height="58" rx="16" fill="#eef7f2" stroke="#d7e8df"/>
+      <text x="321" y="215" text-anchor="middle">ALDI</text>
+    </g>
+
+    <text x="30" y="274" fill="#405249" font-size="17" font-weight="650">Lidl · PENNY · Netto · GLOBUS</text>
+    <text x="30" y="302" fill="#7b8982" font-size="14">und weitere regionale Quellen / and more</text>
+  </g>
+</svg>

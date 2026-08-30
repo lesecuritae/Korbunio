@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="alternate icon" href="/favicon.ico">
+<meta name="description" content="KorbKlar vergleicht aktuelle regionale Supermarktangebote.">
+<meta name="theme-color" content="#116149">
+<script src="/static/theme.js"></script>
+<title>KorbKlar</title>
+<link rel="stylesheet" href="/static/home.css">
+</head>
+<body>
+<main class="card">
+<div class="homeTitlebar"><h1>Korb<span style="color:var(--accent)">Klar</span></h1><button class="themeToggle" type="button">Design</button></div>
+<p><a href="/shopping">Einkaufsliste öffnen</a></p>
+<p>Postleitzahl eingeben. Der Dienst sucht die verfügbaren Wochenangebote automatisch und öffnet anschließend den vollständigen Vergleich.</p>
+__ERROR_HTML__
+<form method="post" action="/search" id="searchForm">
+<input name="postal_code" value="__POSTAL_CODE__" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{5}" minlength="5" maxlength="5" placeholder="Postleitzahl" aria-label="Postleitzahl" required autofocus>
+<div class="reweMarketPicker" id="reweMarketPicker" hidden>
+<label for="reweMarket">REWE-Markt auswählen</label>
+<select name="rewe_market_id" id="reweMarket" disabled><option value="">Automatische Auswahl</option></select>
+<div class="marketHint" id="reweMarketHint" aria-live="polite"></div>
+</div>
+<div class="reweMarketPicker" id="nettoMarketPicker" hidden>
+<label for="nettoMarket">Netto-Marken-Discount-Filiale auswählen</label>
+<select name="netto_market_id" id="nettoMarket" disabled><option value="">Automatische Auswahl</option></select>
+<div class="marketHint" id="nettoMarketHint" aria-live="polite"></div>
+</div>
+<details class="retailerPicker" id="retailerPicker" open>
+<summary><span>Welche Märkte möchtest du vergleichen?</span><span class="retailerSummary" id="retailerSummary">Alle Händler ausgewählt</span><span class="changeLabel" id="retailerChangeLabel">ändern</span></summary>
+<div class="retailerPickerBody">
+<p>Wähle die Händler aus, deren Angebote geladen werden sollen.</p>
+<div class="retailerGrid">
+<label><input type="checkbox" name="retailers" value="ALDI Nord" checked> Aldi Nord</label>
+<label><input type="checkbox" name="retailers" value="ALDI Süd" checked> Aldi Süd</label>
+<label><input type="checkbox" name="retailers" value="Lidl" checked> Lidl</label>
+<label><input type="checkbox" name="retailers" value="REWE" checked> REWE</label>
+<label><input type="checkbox" name="retailers" value="EDEKA" checked> EDEKA</label>
+<label><input type="checkbox" name="retailers" value="Marktkauf" checked> Marktkauf</label>
+<label><input type="checkbox" name="retailers" value="Kaufland" checked> Kaufland</label>
+<label><input type="checkbox" name="retailers" value="PENNY" checked> Penny</label>
+<label><input type="checkbox" name="retailers" value="Netto Marken-Discount" checked> Netto Marken-Discount</label>
+<label><input type="checkbox" name="retailers" value="Netto schwarz" checked> Netto schwarz</label>
+<label><input type="checkbox" name="retailers" value="Globus" checked> Globus</label>
+<label><input type="checkbox" name="retailers" value="HOL’AB!" checked> HOL'AB!</label>
+<label><input type="checkbox" name="retailers" value="Rossmann" checked> Rossmann</label>
+<label><input type="checkbox" name="retailers" value="Müller" checked> Müller</label>
+</div>
+</div>
+</details>
+<label for="offerWeek">Angebotszeitraum<select name="offer_week" id="offerWeek"><option value="current">Aktuelle Woche</option><option value="next">Folgewoche, soweit verfügbar</option></select></label>
+<label class="refreshRow" for="refreshToggle"><input type="checkbox" name="refresh" value="1" id="refreshToggle">Angebote neu laden statt aus dem Zwischenspeicher</label>
+<button type="submit" id="submitButton">Angebote suchen</button>
+</form>
+<section class="monitor" id="monitor" aria-live="polite" hidden>
+<div class="monitorHead"><span class="spinner" aria-hidden="true"></span><strong id="statusLabel">Aktiv</strong></div>
+<div class="progressRow"><progress id="statusProgress" max="100" value="0">0%</progress><strong id="statusPercent">0%</strong></div>
+<dl><div><dt>Quelle</dt><dd id="statusSource">KorbKlar</dd></div><div><dt>Händler</dt><dd id="statusRetailer">Alle Händler</dd></div><div><dt>Kategorie</dt><dd id="statusCategory">Alle Kategorien</dd></div><div><dt>Schritt</dt><dd id="statusStep">Suche wird vorbereitet</dd></div><div><dt>Verarbeitet</dt><dd id="statusCount">Datenquellen werden geplant · 0 Produkte</dd></div></dl>
+</section>
+<div class="hint">Keine LLM erforderlich. Bonusprogramme, Kategorien und Sortierung wählst du anschließend in der Ergebnisansicht.</div>
+<section class="supportNote" aria-labelledby="supportTitle">
+<h2 id="supportTitle">KorbKlar freiwillig unterstützen</h2>
+<p>KorbKlar bleibt kostenlos für alle. Wenn dir KorbKlar beim Einkauf geholfen und Geld gespart hat, kannst du das Projekt freiwillig unterstützen.</p>
+<p>Neue Händler, Datenquellen und Schnittstellen müssen recherchiert, entwickelt und regelmäßig angepasst werden. Deine Unterstützung hilft dabei, KorbKlar weiterhin kostenlos, werbefrei und ohne Nutzertracking anzubieten.</p>
+<a href="https://tarnkappe.info/spenden/" target="_blank" rel="noopener noreferrer">Projekt freiwillig unterstützen</a>
+</section>
+</main>
+<script src="/static/home-v2.js" defer></script>
+</body>
+</html>

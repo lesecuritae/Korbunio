@@ -1,0 +1,51 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e '.[dev]'
+
+      - name: Python checks
+        run: |
+          python -m compileall -q src tests
+          pytest -m 'not live'
+          pip wheel --no-build-isolation --no-deps . -w dist
+
+      - name: Docker smoke test
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker compose config >/dev/null
+          SUPERMARKT_PORT=7333 docker compose config | grep -q 'published: "7333"'
+          docker compose up -d --build
+          trap 'docker compose down -v' EXIT
+
+          ready=0
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null \
+              && curl --fail --silent http://127.0.0.1:8000/ | grep -q 'Postleitzahl'; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            docker compose ps
+            docker compose logs --no-color
+            exit 1
+          fi
