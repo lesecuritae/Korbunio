@@ -1,5 +1,7 @@
 from supermarkt.categories import category_decision, normalize_category
 
+import pytest
+
 
 def test_product_name_overrides_wrong_pet_source_category():
     assert normalize_category(
@@ -57,3 +59,32 @@ def test_audited_cross_domain_products_are_normalized():
     assert normalize_category("Drogerie, Tiernahrung", name="AJAX Allzweckreiniger") == "Haushalt & Reinigung"
     assert normalize_category("Feinkost, Konserven", name="TYMBARK Frucht-Mischsaft") == "Getränke"
     assert normalize_category("Grundnahrungsmittel", name="Franzbrötchen") == "Backwaren"
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("Softdrinks", "Getränke"),
+        ("Cocktails", "Getränke"),
+        ("Würste", "Fleisch & Wurst"),
+        ("Reinigen", "Haushalt & Reinigung"),
+        ("Exotische Früchte", "Obst & Gemüse"),
+        ("Melonen", "Obst & Gemüse"),
+        ("Pflanzen", "Wohnen, Freizeit & Non-Food"),
+        ("Töpfe", "Wohnen, Freizeit & Non-Food"),
+        ("Küchenzubehör", "Wohnen, Freizeit & Non-Food"),
+        ("Aufbewahrungsbehälter", "Wohnen, Freizeit & Non-Food"),
+        ("Wassersport", "Wohnen, Freizeit & Non-Food"),
+        ("Eis", "Tiefkühl / Eis & Dessert"),
+        ("Desserts", "Tiefkühl / Eis & Dessert"),
+        ("Sahne, Schmand und Crème fraîche", "Molkereiprodukte & Eier"),
+    ],
+)
+def test_real_source_categories_do_not_fall_through(source, expected):
+    assert normalize_category(source) == expected
+
+
+def test_source_category_substrings_do_not_hijack_unrelated_categories():
+    assert normalize_category("Meeresfrüchte", name="Garnelen") == "Fisch & Meeresfrüchte"
+    assert normalize_category("Wassersport") == "Wohnen, Freizeit & Non-Food"
+    assert normalize_category("Spirituosen", name="Eierlikör") == "Getränke"

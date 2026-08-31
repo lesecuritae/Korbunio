@@ -18,6 +18,17 @@ def test_deposit_is_parsed_only_when_explicitly_published():
     assert parse_deposit_text("Energy Drink in der Dose") is None
 
 
+def test_deposit_accepts_leading_euro_sign_but_rejects_ambiguous_variants():
+    from supermarkt.common import parse_deposit_text
+
+    assert parse_deposit_text("je 1,25 l Flasche zzgl. € 0.25 Pfand") == 0.25
+    assert parse_deposit_text("500 g Glas zzgl. € 0.15 Pfand") == 0.15
+    assert parse_deposit_text("je Packung = 6 x 0,33 l zzgl. € 1.50 Pfand") == 1.5
+    assert parse_deposit_text(
+        "20 x 0,5 l / 24 x 0,33 l zzgl. € 3.10 / € 3.42 Pfand"
+    ) is None
+
+
 def test_crate_deposit_adds_bottles_and_returnable_crate():
     from supermarkt.common import parse_deposit_components, parse_deposit_text
 

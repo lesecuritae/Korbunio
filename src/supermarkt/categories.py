@@ -36,24 +36,24 @@ _PRODUCT_RULES = (
 )
 
 _SOURCE_RULES = (
-    ("Obst & Gemüse", r"obst|gemuese|gemüse|salat"),
-    ("Fleisch & Wurst", r"fleisch|wurst|gefluegel|geflügel"),
+    ("Obst & Gemüse", r"obst|gemuese|gemüse|salat|(?<!meeres)frucht|(?<!meeres)fruechte|(?<!meeres)früchte|beere|zitrus|melone"),
+    ("Fleisch & Wurst", r"fleisch|wurst|wuerst|würst|gefluegel|geflügel|steak|schnitzel"),
     ("Fisch & Meeresfrüchte", r"fisch|meeresfr"),
-    ("Molkereiprodukte & Eier", r"molkerei|milch|kaese|käse|eier"),
-    ("Tiefkühl / Eis & Dessert", r"tiefkuehl|tiefkühl|tk\b|eiscreme|speiseeis|dessert"),
+    ("Molkereiprodukte & Eier", r"molkerei|milch|kaese|käse|eier|sahne|schmand"),
+    ("Tiefkühl / Eis & Dessert", r"tiefkuehl|tiefkühl|tk\b|eiscreme|speiseeis|dessert|\beis\b"),
     ("Backwaren", r"backwaren|baeck|bäck|brot"),
     ("Kühlprodukte", r"kuehl|kühl|frische convenience|feinkost"),
     ("Konserven & Fertiggerichte", r"konserve|fertiggericht|instant"),
     ("Frühstück & Brotaufstriche", r"fruehst|frühst|brotaufstrich|muesli|müsli|cerealien"),
-    ("Getränke", r"getraenk|getränk|bier|wein|spirituose|wasser|saft|limonade"),
+    ("Getränke", r"getraenk|getränk|bier|wein|spirituose|wasser\b|saft|limonade|softdrink|cocktail|sekt|prosecco|likoer|likör|schnaps|whisk|aperitif"),
     ("Snacks", r"\bsnacks?\b|chips|knabber|flips"),
     ("Snacks", r"suess|süss|schokolade|keks|bonbon"),
     ("Drogerie & Körperpflege", r"drogerie|koerper|körper|pflege|hygiene|kosmetik"),
-    ("Haushalt & Reinigung", r"haushalt|reinigung|waschmittel|spuel|spül|papier|putz"),
+    ("Haushalt & Reinigung", r"haushalt|reinig|waschmittel|spuel|spül|papier|putz"),
     ("Tierbedarf", r"tier|hund|katze|haustier"),
     ("Baby & Kind", r"baby|kind|windel"),
-    ("Wohnen, Freizeit & Non-Food", r"non.?food|wohnen|freizeit|garten|textil|mode|technik|werkzeug|spielzeug"),
-    ("Vorräte & Grundnahrungsmittel", r"vorrat|grundnahr|nudel|reis|mehl|zucker|oel|öl|gewuerz|gewürz|backzutat"),
+    ("Wohnen, Freizeit & Non-Food", r"non.?food|wohnen|freizeit|garten|textil|mode|technik|werkzeug|spielzeug|pflanze|blume|topf|toepfe|töpfe|aufbewahr|behaelter|behälter|kuechenzubehoer|küchenzubehör|kuechengeraet|küchengerät|geschirr|dekoration|sport|filtersystem"),
+    ("Vorräte & Grundnahrungsmittel", r"vorrat|grundnahr|nudel|reis|mehl|zucker|oel|öl|gewuerz|gewürz|backzutat|\bdip|mayonnaise|senf|ketchup"),
 )
 
 

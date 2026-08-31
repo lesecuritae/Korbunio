@@ -25,7 +25,7 @@ def parse_deposit_text(value: Any, *, container_count: Optional[int] = None) -> 
     text = clean_text(value)
     total_patterns = (
         r"\b(?:gesamtpfand|pfand\s*gesamt)\s*:?\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*€?",
-        r"(?:zzgl\.?|zuz(?:ü|ue)glich|\+)\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*€?\s*pfand\s*/\s*(?:kiste|kasten)\b",
+        r"(?:zzgl\.?|zuz(?:ü|ue)glich|\+)\s*€?\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*€?\s*pfand\s*/\s*(?:kiste|kasten)\b",
         r"\bpfand\s*/\s*(?:kiste|kasten)\s*:?\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*€?",
     )
     for pattern in total_patterns:
@@ -53,8 +53,19 @@ def parse_deposit_text(value: Any, *, container_count: Optional[int] = None) -> 
         bottles_total = (bottle or 0.0) * max(1, int(container_count or 1))
         return round(crate + bottles_total, 2)
 
+    # A slash-separated list describes different deposits for different pack
+    # sizes. Without a selected variant there is no single truthful value.
+    ambiguous = re.search(
+        r"(?:zzgl\.?|zuz(?:ü|ue)glich|\+)\s*€?\s*\d{1,4}(?:[.,]\d{1,2})?"
+        r"\s*€?\s*/\s*€?\s*\d{1,4}(?:[.,]\d{1,2})?\s*€?\s*pfand\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if ambiguous:
+        return None
+
     patterns = (
-        r"(?:zzgl\.?|zuz(?:ü|ue)glich|\+)\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*€?\s*pfand\b",
+        r"(?:zzgl\.?|zuz(?:ü|ue)glich|\+)\s*€?\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*€?\s*pfand\b",
         r"\bpfand(?:\s*/\s*\w+)?\s*(?:je\s*)?(\d{1,4}(?:[.,]\d{1,2})?)\s*€?",
     )
     for pattern in patterns:
