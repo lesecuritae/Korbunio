@@ -1,6 +1,9 @@
+import threading
 import time
 
-from supermarkt.jobs import SearchJobStore
+import pytest
+
+from supermarkt.jobs import SearchCapacityError, SearchJobStore
 
 
 def test_job_progress_never_exceeds_total_sources():
@@ -65,6 +68,31 @@ def test_search_job_reports_failures():
         time.sleep(0.01)
     assert job["status"] == "failed"
     assert job["error"] == "synthetic failure"
+
+
+def test_search_job_queue_is_bounded_and_recovers_capacity():
+    started = threading.Event()
+    release = threading.Event()
+
+    class BlockingEngine:
+        def snapshot(self, *_args, **_kwargs):
+            started.set()
+            release.wait(timeout=2)
+            return {"search_id": "done", "offers": []}, False
+
+    jobs = SearchJobStore(BlockingEngine(), max_pending=2)
+    first = jobs.start("01067")
+    second = jobs.start("01067")
+    assert started.wait(timeout=1)
+    with pytest.raises(SearchCapacityError):
+        jobs.start("01067")
+
+    release.set()
+    for _ in range(100):
+        if jobs.get(first)["status"] == "completed" and jobs.get(second)["status"] == "completed":
+            break
+        time.sleep(0.01)
+    assert jobs.start("01067")
 
 
 def test_search_job_forwards_refresh_request():

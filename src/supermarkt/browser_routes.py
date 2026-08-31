@@ -9,6 +9,7 @@ from .access import build_result_path, verify_result_token
 from .assets import FAVICON_SVG
 from .common import clean_text, normalize_aldi_region, validate_postal_code
 from .loyalty import normalize_program_ids
+from .jobs import SearchCapacityError
 from .models import ToolError, resolve_retailer_names
 from . import runtime
 from .ui import build_home_html, build_results_html, build_shopping_html
@@ -58,13 +59,13 @@ def browser_netto_markets(postal_code: str = Query(default="", min_length=5, max
 
 
 @router.post("/search", include_in_schema=False)
-def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str], Form(alias="retailers")] = [], rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "") -> Response:
+def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str] | None, Form(alias="retailers")] = None, rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "") -> Response:
     raw_postal_code = clean_text(postal_code_input)
     postal_code = validate_postal_code(raw_postal_code)
     if postal_code is None:
         return HTMLResponse(build_home_html(error="Bitte eine gültige fünfstellige deutsche Postleitzahl eingeben.", postal_code=raw_postal_code), status_code=400, headers={"Cache-Control": "no-store"})
     try:
-        retailers, unknown = resolve_retailer_names(retailers_input)
+        retailers, unknown = resolve_retailer_names(retailers_input or [])
         if unknown:
             raise ToolError("Unbekannte Händler: " + ", ".join(unknown))
         snapshot_kwargs = {"retailers": retailers, "rewe_market_id": clean_text(rewe_market_id_input), "netto_market_id": clean_text(netto_market_id_input)}
@@ -77,15 +78,19 @@ def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] 
 
 
 @router.post("/search/jobs", include_in_schema=False)
-def start_search_job(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str], Form(alias="retailers")] = [], rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "") -> dict[str, str]:
+def start_search_job(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str] | None, Form(alias="retailers")] = None, rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "") -> dict[str, str]:
     postal_code = validate_postal_code(clean_text(postal_code_input))
     if postal_code is None:
         raise HTTPException(status_code=400, detail="Bitte eine gültige fünfstellige deutsche Postleitzahl eingeben.")
-    retailers, unknown = resolve_retailer_names(retailers_input)
+    retailers, unknown = resolve_retailer_names(retailers_input or [])
     if unknown:
         raise HTTPException(status_code=400, detail="Unbekannte Händler: " + ", ".join(unknown))
     args = (postal_code, normalize_aldi_region(aldi_region_input), _wants_refresh(refresh_input), retailers, clean_text(rewe_market_id_input), clean_text(netto_market_id_input))
-    return {"job_id": runtime.get_jobs().start(*args, offer_week="next") if clean_text(offer_week_input).casefold() == "next" else runtime.get_jobs().start(*args)}
+    try:
+        job_id = runtime.get_jobs().start(*args, offer_week="next") if clean_text(offer_week_input).casefold() == "next" else runtime.get_jobs().start(*args)
+    except SearchCapacityError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    return {"job_id": job_id}
 
 
 @router.get("/search/jobs/{job_id}", include_in_schema=False)

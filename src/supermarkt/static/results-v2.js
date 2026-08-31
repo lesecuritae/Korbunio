@@ -27,7 +27,7 @@ function query(reset=false){
     .finally(()=>{if(seq===requestSeq)loading=false});
 }
 
-function persistKeywords(){localStorage.setItem(KEYWORD_STORAGE_KEY,JSON.stringify(keywords));renderKeywords();if(keywordEnabled)query(true)}
+function persistKeywords(){try{localStorage.setItem(KEYWORD_STORAGE_KEY,JSON.stringify(keywords))}catch(_error){}renderKeywords();if(keywordEnabled)query(true)}
 function renderKeywords(){
   $("keywordSummary").textContent=keywords.length?`${keywords.length} gespeichert`:"Keine gespeichert";
   const list=$("keywordList");

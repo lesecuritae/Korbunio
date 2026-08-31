@@ -3,7 +3,7 @@ import json
 
 from supermarkt.common import deduplicate_offers
 from supermarkt.http import HttpClient
-from supermarkt.models import Offer
+from supermarkt.models import Offer, ToolError
 from supermarkt.sources.aldi import OfficialAldiSource
 
 

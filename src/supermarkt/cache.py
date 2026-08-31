@@ -94,6 +94,13 @@ class PersistentSnapshotStore:
                 [(row["search_id"],) for row in rows],
             )
 
+    def _decoded_row(self, db: sqlite3.Connection, row: sqlite3.Row) -> Optional[dict[str, Any]]:
+        try:
+            return self._decode(row["payload"])
+        except (OSError, UnicodeDecodeError, ValueError, zlib.error, ToolError):
+            db.execute(f"DELETE FROM {self.TABLE} WHERE search_id = ?", (row["search_id"],))
+            return None
+
     def get_by_key(self, cache_key: str) -> Optional[dict[str, Any]]:
         now = time.time()
         with self._lock, self._connect() as db:
@@ -110,7 +117,9 @@ class PersistentSnapshotStore:
             ).fetchone()
             if row is None:
                 return None
-            payload = self._decode(row["payload"])
+            payload = self._decoded_row(db, row)
+            if payload is None:
+                return None
             payload["search_id"] = row["search_id"]
             payload["created_at"] = float(row["created_at"])
             return payload
@@ -120,12 +129,14 @@ class PersistentSnapshotStore:
         with self._lock, self._connect() as db:
             self._cleanup(db, now)
             row = db.execute(
-                f"SELECT created_at, payload FROM {self.TABLE} WHERE search_id = ? AND expires_at > ?",
+                f"SELECT search_id, created_at, payload FROM {self.TABLE} WHERE search_id = ? AND expires_at > ?",
                 (search_id, now),
             ).fetchone()
             if row is None:
                 return None
-            payload = self._decode(row["payload"])
+            payload = self._decoded_row(db, row)
+            if payload is None:
+                return None
             payload["search_id"] = search_id
             payload["created_at"] = float(row["created_at"])
             return payload

@@ -806,6 +806,7 @@ class OfficialAldiSource:
         pages: list[dict[str, Any]] = []
         brochure_urls: list[str] = []
         brochure_collected: list[Offer] = []
+        brochure_errors: list[str] = []
         while queue and len(seen) < 30:
             source_url = queue.pop(0)
             if source_url in seen:
@@ -828,11 +829,13 @@ class OfficialAldiSource:
             try:
                 brochure_offers = self._south_brochure_offers(publication_url, reference_date) if reference_date else self._south_brochure_offers(publication_url)
             except Exception as exc:
-                errors.append(f"{urlsplit(publication_url).path}: {type(exc).__name__}: {exc}")
+                brochure_errors.append(f"{urlsplit(publication_url).path}: {type(exc).__name__}: {exc}")
                 continue
             if brochure_offers:
                 brochure_collected.extend(brochure_offers)
                 pages.append({"url": publication_url, "offers": len(brochure_offers), "bytes": 0})
+        if not brochure_collected:
+            errors.extend(brochure_errors)
         self.last_south_pages = pages
         self.last_south_errors = errors
         # A current structured brochure is ALDI Süd's complete weekly source.

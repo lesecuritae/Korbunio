@@ -137,6 +137,20 @@ def test_search_job_passes_explicit_next_week(monkeypatch):
     assert recorded["offer_week"] == "next"
 
 
+def test_search_job_capacity_error_returns_too_many_requests(monkeypatch):
+    from supermarkt import runtime
+    from supermarkt.jobs import SearchCapacityError
+
+    class BusyJobs:
+        def start(self, *_args, **_kwargs):
+            raise SearchCapacityError("busy")
+
+    monkeypatch.setattr(runtime, "get_jobs", lambda: BusyJobs())
+    response = TestClient(app).post("/search/jobs", data={"postal_code": "01067"})
+    assert response.status_code == 429
+    assert response.json()["detail"] == "busy"
+
+
 def test_home_persists_retailer_selection_locally():
     script = ui.static_text("home-v2.js")
     assert "korbklar.selectedRetailers.v1" in script
@@ -146,6 +160,12 @@ def test_home_persists_retailer_selection_locally():
     assert "korbklar.reweMarket." in script
     assert "/netto/markets?postal_code=" in script
     assert "korbklar.nettoMarket." in script
+
+
+def test_home_ignores_stale_market_responses():
+    script = ui.static_text("home-v2.js")
+    assert "const request=++marketRequest" in script
+    assert "request!==marketRequest||postal!==postalInput.value.trim()" in script
 
 
 def test_retailer_tiles_have_equal_grid_rows_and_height():

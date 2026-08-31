@@ -6,7 +6,7 @@ import threading
 from functools import lru_cache
 from typing import Any, Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import SplitResult, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 import certifi
@@ -39,9 +39,7 @@ class HttpClient:
         self.timeout_seconds = max(3, timeout_seconds)
 
     def get_bytes(self, url: str, headers: Optional[dict[str, str]] = None) -> bytes:
-        parsed = urlsplit(url)
-        if parsed.scheme != "https" or not parsed.hostname:
-            raise ToolError("Nur HTTPS-Quellen sind erlaubt")
+        self._validate_https_url(url)
         request_headers = {
             "User-Agent": USER_AGENT,
             "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
@@ -50,7 +48,8 @@ class HttpClient:
         request_headers.update(headers or {})
         request = Request(url, headers=request_headers)
         try:
-            with urlopen(request, timeout=self.timeout_seconds, context=trusted_ssl_context()) as response:  # nosec B310: scheme and host validated above
+            with urlopen(request, timeout=self.timeout_seconds, context=trusted_ssl_context()) as response:  # nosec B310
+                self._validate_https_url(response.geturl())
                 data = response.read(10 * 1024 * 1024 + 1)
                 if len(data) > 10 * 1024 * 1024:
                     raise ToolError("Quellantwort überschreitet das Größenlimit")
@@ -70,9 +69,7 @@ class HttpClient:
         return payload
 
     def post_form_json(self, url: str, fields: dict[str, str]) -> dict[str, Any]:
-        parsed = urlsplit(url)
-        if parsed.scheme != "https" or not parsed.hostname:
-            raise ToolError("Nur HTTPS-Quellen sind erlaubt")
+        parsed = self._validate_https_url(url)
         request = Request(
             url,
             data=urlencode(fields).encode("ascii"),
@@ -84,7 +81,8 @@ class HttpClient:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.timeout_seconds, context=trusted_ssl_context()) as response:
+            with urlopen(request, timeout=self.timeout_seconds, context=trusted_ssl_context()) as response:  # nosec B310
+                self._validate_https_url(response.geturl())
                 data = response.read(10 * 1024 * 1024 + 1)
             if len(data) > 10 * 1024 * 1024:
                 raise ToolError("Quellantwort überschreitet das Größenlimit")
@@ -96,6 +94,13 @@ class HttpClient:
         if not isinstance(payload, dict):
             raise ToolError(f"Unerwartete JSON-Antwort von {parsed.netloc}")
         return payload
+
+    @staticmethod
+    def _validate_https_url(url: str) -> SplitResult:
+        parsed = urlsplit(url)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ToolError("Nur HTTPS-Quellen sind erlaubt")
+        return parsed
 
 class PostalCodeLocator:
     def __init__(self, http: HttpClient) -> None:
@@ -109,39 +114,14 @@ class PostalCodeLocator:
             cached = self._cache.get(postal_code)
         if cached is not None:
             return cached
-
-        query = urlencode(
-            {
-                "postalcode": postal_code,
-                "country": "Germany",
-                "format": "jsonv2",
-                "addressdetails": 1,
-                "limit": 1,
-            }
+        address = self._address(postal_code)
+        locality = next(
+            (address[field] for field in ("city", "town", "municipality", "village", "county") if address.get(field)),
+            "",
         )
-        locality = ""
-        normalized_address: dict[str, str] = {}
-        try:
-            payload = json.loads(
-                self.http.get_bytes(
-                    f"https://nominatim.openstreetmap.org/search?{query}",
-                    {"Accept": "application/json"},
-                ).decode("utf-8", errors="replace")
-            )
-            if isinstance(payload, list) and payload and isinstance(payload[0], dict):
-                address = payload[0].get("address")
-                if isinstance(address, dict):
-                    normalized_address = {str(key): clean_text(value) for key, value in address.items()}
-                    for field in ("city", "town", "municipality", "village", "county"):
-                        locality = normalized_address.get(field, "")
-                        if locality:
-                            break
-        except Exception:
-            locality = ""
-
-        with self._lock:
-            self._cache[postal_code] = locality
-            self._address_cache[postal_code] = normalized_address
+        if address:
+            with self._lock:
+                self._cache[postal_code] = locality
         return locality
 
     def state(self, postal_code: str) -> str:
@@ -151,10 +131,21 @@ class PostalCodeLocator:
         if cached is not None:
             return cached.get("state", "")
 
-        query = urlencode(
-            {"postalcode": postal_code, "country": "Germany", "format": "jsonv2", "addressdetails": 1, "limit": 1}
-        )
-        address: dict[str, str] = {}
+        return self._address(postal_code).get("state", "")
+
+    def _address(self, postal_code: str) -> dict[str, str]:
+        with self._lock:
+            cached = self._address_cache.get(postal_code)
+        if cached is not None:
+            return cached
+
+        query = urlencode({
+            "postalcode": postal_code,
+            "country": "Germany",
+            "format": "jsonv2",
+            "addressdetails": 1,
+            "limit": 1,
+        })
         try:
             payload = json.loads(self.http.get_bytes(
                 f"https://nominatim.openstreetmap.org/search?{query}", {"Accept": "application/json"}
@@ -163,8 +154,9 @@ class PostalCodeLocator:
                 raw = payload[0].get("address")
                 if isinstance(raw, dict):
                     address = {str(key): clean_text(value) for key, value in raw.items()}
+                    with self._lock:
+                        self._address_cache[postal_code] = address
+                    return address
         except Exception:
-            address = {}
-        with self._lock:
-            self._address_cache[postal_code] = address
-        return address.get("state", "")
+            pass
+        return {}

@@ -116,7 +116,7 @@ class _SafeRedirects(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def _sniff_image(data: bytes, declared: str = "") -> str:
+def _sniff_image(data: bytes, _declared: str = "") -> str:
     if data.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png"
     if data.startswith(b"\xff\xd8\xff"):
@@ -127,9 +127,6 @@ def _sniff_image(data: bytes, declared: str = "") -> str:
         return "image/webp"
     if len(data) >= 12 and data[4:12] in {b"ftypavif", b"ftypavis"}:
         return "image/avif"
-    content_type = _clean(declared).split(";", 1)[0].casefold()
-    if content_type in {"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"}:
-        return content_type
     return ""
 
 
@@ -150,7 +147,7 @@ class ImageService:
         self.max_cache_bytes = max(16 * 1024 * 1024, int(max_cache_bytes))
         self.max_file_bytes = max(128 * 1024, min(int(max_file_bytes), 8 * 1024 * 1024))
         self.timeout_seconds = max(5, min(int(timeout_seconds), 60))
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._cleanup_lock = threading.Lock()
         self._cleanup_next = 0.0
         self._opener = build_opener(_SafeRedirects())
@@ -227,6 +224,10 @@ class ImageService:
         return self.cache_dir / f"{key}.bin", self.cache_dir / f"{key}.json"
 
     def _read(self, key: str) -> ImageResult | None:
+        with self._lock:
+            return self._read_unlocked(key)
+
+    def _read_unlocked(self, key: str) -> ImageResult | None:
         data_path, meta_path = self._paths(key)
         try:
             stat = data_path.stat()
@@ -238,8 +239,12 @@ class ImageService:
             data = data_path.read_bytes()
             content_type = _clean(meta.get("content_type"))
         except (OSError, ValueError, json.JSONDecodeError):
+            data_path.unlink(missing_ok=True)
+            meta_path.unlink(missing_ok=True)
             return None
         if not data or not _sniff_image(data, content_type):
+            data_path.unlink(missing_ok=True)
+            meta_path.unlink(missing_ok=True)
             return None
         return ImageResult(data, content_type, "cache")
 
@@ -317,6 +322,8 @@ class ImagePrefetcher:
         key = self.service.cache_key(source_url=source_url, product=product, retailer=retailer)
         now = time.monotonic()
         with self._lock:
+            cutoff = now - self.retry_seconds
+            self._queued = {queued_key: queued_at for queued_key, queued_at in self._queued.items() if queued_at > cutoff}
             previous = self._queued.get(key)
             if previous is not None and now - previous < self.retry_seconds:
                 return

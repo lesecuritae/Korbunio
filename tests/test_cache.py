@@ -78,3 +78,37 @@ def test_old_snapshot_table_is_discarded(monkeypatch, tmp_path):
         names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert "supermarket_snapshots_old" not in names
     assert "supermarket_snapshots" in names
+
+
+def test_corrupt_snapshot_is_removed_instead_of_breaking_cache(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "cache.sqlite3"
+    store = PersistentSnapshotStore(path, freshness_minutes=30, retention_hours=1, max_snapshots=100)
+    result = store.put("postal:01067", {"postal_code": "01067"})
+
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "UPDATE supermarket_snapshots SET payload = ? WHERE search_id = ?",
+            (b"not-zlib", result["search_id"]),
+        )
+
+    assert store.get_by_key("postal:01067") is None
+    assert store.get_by_id(result["search_id"]) is None
+
+
+def test_corrupt_snapshot_lookup_by_id_removes_entry(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "cache.sqlite3"
+    store = PersistentSnapshotStore(path, freshness_minutes=30, retention_hours=1, max_snapshots=100)
+    result = store.put("postal:01067", {"postal_code": "01067"})
+
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "UPDATE supermarket_snapshots SET payload = ? WHERE search_id = ?",
+            (PersistentSnapshotStore._encode(["not", "a", "mapping"]), result["search_id"]),
+        )
+
+    assert store.get_by_id(result["search_id"]) is None
+    assert store.get_by_key("postal:01067") is None

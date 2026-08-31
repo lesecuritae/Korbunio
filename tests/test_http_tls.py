@@ -32,6 +32,9 @@ def test_requests_are_sent_with_that_context(monkeypatch):
         def read(self, size):
             return b"ok"
 
+        def geturl(self):
+            return "https://www.marktguru.de/"
+
     def fake_urlopen(request, timeout=None, context=None):
         seen["context"] = context
         return FakeResponse()

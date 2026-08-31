@@ -26,9 +26,10 @@ RUN addgroup -S -g 10001 korbklar \
 
 FROM scratch AS final
 ARG PYTHON_BASE
+ARG APP_VERSION=0.1.8
 COPY --from=runtime-rootfs / /
 LABEL org.opencontainers.image.source="https://github.com/lesecuritae/KorbKlar" \
-      org.opencontainers.image.version="0.1.5" \
+      org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.base.name="${PYTHON_BASE}"
 # trivy:ignore:AVD-DS-0031 -- this is a path to a runtime-generated file, not secret material.
 ENV PYTHONDONTWRITEBYTECODE=1 \
