@@ -51,7 +51,7 @@ class AldiOfferChain:
         payload = json.dumps([offer_to_dict(item) for item in result.offers], ensure_ascii=False, separators=(",", ":"))
         with self._lock, self._connect() as db:
             db.execute(
-                f"INSERT INTO {self.TABLE}(retailer,schema_version,fetched_at,payload) VALUES(?,?,?,?) "
+                "INSERT INTO aldi_region_catalogues(retailer,schema_version,fetched_at,payload) VALUES(?,?,?,?) "
                 "ON CONFLICT(retailer) DO UPDATE SET schema_version=excluded.schema_version,fetched_at=excluded.fetched_at,payload=excluded.payload",
                 (retailer, self.SCHEMA_VERSION, now, payload),
             )
@@ -59,7 +59,7 @@ class AldiOfferChain:
     def _get(self, retailer: str, now: float) -> LoadResult | None:
         with self._lock, self._connect() as db:
             row = db.execute(
-                f"SELECT schema_version,fetched_at,payload FROM {self.TABLE} WHERE retailer=?",
+                "SELECT schema_version,fetched_at,payload FROM aldi_region_catalogues WHERE retailer=?",
                 (retailer,),
             ).fetchone()
         if row is None or int(row[0]) != self.SCHEMA_VERSION or now - float(row[1]) > self.ttl_seconds:

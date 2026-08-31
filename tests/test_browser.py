@@ -166,6 +166,8 @@ def test_home_ignores_stale_market_responses():
     script = ui.static_text("home-v2.js")
     assert "const request=++marketRequest" in script
     assert "request!==marketRequest||postal!==postalInput.value.trim()" in script
+    assert "marketController?.abort()" in script
+    assert "error.name!==\"AbortError\"" in script
 
 
 def test_retailer_tiles_have_equal_grid_rows_and_height():

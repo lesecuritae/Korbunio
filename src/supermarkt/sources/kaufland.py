@@ -297,7 +297,7 @@ class OfficialKauflandSource:
         if not re.fullmatch(r"\d{5}", requested or "") or not re.fullmatch(r"\d{5}", candidate or ""):
             return 0
         common = 0
-        for left, right in zip(requested, candidate):
+        for left, right in zip(requested, candidate, strict=True):
             if left != right:
                 break
             common += 1
@@ -323,7 +323,7 @@ class OfficialKauflandSource:
         folded = path.casefold()
         if host != OfficialKauflandSource.STORE_HOST:
             return ""
-        if not (folded.startswith("/service/filiale/") or folded.startswith("/service/filiale.storename%3d")):
+        if not folded.startswith(("/service/filiale/", "/service/filiale.storename%3d")):
             return ""
         if folded.rstrip("/") in {"/service/filiale", "/service/filiale/"}:
             return ""
@@ -442,11 +442,11 @@ class OfficialKauflandSource:
             return {}
         if not isinstance(value, dict):
             return {}
-        result: dict[str, dict[str, Any]] = {}
-        for postal, item in value.items():
-            if isinstance(postal, str) and isinstance(item, dict):
-                result[postal] = item
-        return result
+        return {
+            postal: item
+            for postal, item in value.items()
+            if isinstance(postal, str) and isinstance(item, dict)
+        }
 
     def _write_store_map(self, value: dict[str, dict[str, Any]]) -> None:
         path = self._store_cache_path

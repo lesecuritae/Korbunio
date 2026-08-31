@@ -29,7 +29,7 @@ class OfficialHolabSource:
                 if offers:start=parse_iso_date(offers[0].get("validFrom"));end=parse_iso_date(offers[0].get("validThrough"));break
         result=[]
         for index,card in enumerate(page.select("li.offer"),1):
-            def text(selector):
+            def text(selector, card=card):
                 node=card.select_one(selector);return clean_text(node.get_text(" ",strip=True) if node else "")
             name=text(".offer__title");subtitle=text(".offer__subtitle");price_node=card.select_one("data.offer__price");price=parse_number(price_node.get("value") if price_node else None);details=text(".offer__details")
             if not name or price is None or price<=0:continue

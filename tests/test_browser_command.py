@@ -1,6 +1,3 @@
-import os
-from pathlib import Path
-
 from supermarkt.sources.browser import chromium_command
 
 

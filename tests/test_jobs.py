@@ -95,6 +95,21 @@ def test_search_job_queue_is_bounded_and_recovers_capacity():
     assert jobs.start("01067")
 
 
+def test_search_job_history_is_bounded_without_removing_active_jobs():
+    jobs = SearchJobStore(object(), max_pending=2, max_records=4)
+    jobs._jobs = {
+        f"done-{index}": {"status": "completed", "updated_at": float(index)}
+        for index in range(6)
+    }
+    jobs._jobs["active"] = {"status": "loading", "updated_at": 0.0}
+
+    jobs._purge(6.0)
+
+    assert "active" in jobs._jobs
+    assert len(jobs._jobs) == 3
+    assert set(jobs._jobs) == {"active", "done-4", "done-5"}
+
+
 def test_search_job_forwards_refresh_request():
     """Der Haken auf der Startseite muss den Servercache wirklich übergehen."""
     class RecordingEngine(ProgressEngine):

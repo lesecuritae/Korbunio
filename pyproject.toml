@@ -25,7 +25,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9,<10", "httpx>=0.28,<1"]
+dev = [
+  "bandit>=1.9,<2",
+  "httpx2>=2.12,<3",
+  "pip-audit>=2.10,<3",
+  "pytest>=9,<10",
+  "ruff>=0.16,<1",
+]
+
+[tool.ruff.lint]
+select = ["F", "B", "PERF", "C4", "PIE"]
+ignore = ["B008"]  # FastAPI uses Query/Form objects as declarative defaults.
 
 [tool.setuptools]
 package-dir = {"" = "src"}

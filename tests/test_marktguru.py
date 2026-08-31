@@ -47,7 +47,7 @@ def test_marktguru_retailer_pagination_stops_on_repeated_page():
 
 def test_marktguru_primary_path_never_uses_empty_retailer_query(monkeypatch):
     client = MarktguruClient(object(), page_size=500, max_workers=1)
-    monkeypatch.setattr(client, "_headers", lambda: {})
+    monkeypatch.setattr(client, "_headers", dict)
     seen = []
 
     def fake_pages(postal_code, query_text, headers):
@@ -62,7 +62,7 @@ def test_marktguru_primary_path_never_uses_empty_retailer_query(monkeypatch):
 
 def test_marktguru_broad_terms_use_paginated_fetch(monkeypatch):
     client = MarktguruClient(object(), page_size=2, max_workers=1)
-    monkeypatch.setattr(client, "_headers", lambda: {})
+    monkeypatch.setattr(client, "_headers", dict)
     monkeypatch.setattr("supermarkt.sources.marktguru.SEARCH_TERMS", ("Kaffee", "Milch"))
     seen = []
 

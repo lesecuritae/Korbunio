@@ -83,14 +83,14 @@ class PersistentSnapshotStore:
         return value
 
     def _cleanup(self, db: sqlite3.Connection, now: float) -> None:
-        db.execute(f"DELETE FROM {self.TABLE} WHERE expires_at <= ?", (now,))
+        db.execute("DELETE FROM supermarket_snapshots WHERE expires_at <= ?", (now,))
         rows = db.execute(
-            f"SELECT search_id FROM {self.TABLE} ORDER BY created_at DESC LIMIT -1 OFFSET ?",
+            "SELECT search_id FROM supermarket_snapshots ORDER BY created_at DESC LIMIT -1 OFFSET ?",
             (self.max_snapshots,),
         ).fetchall()
         if rows:
             db.executemany(
-                f"DELETE FROM {self.TABLE} WHERE search_id = ?",
+                "DELETE FROM supermarket_snapshots WHERE search_id = ?",
                 [(row["search_id"],) for row in rows],
             )
 
@@ -98,7 +98,7 @@ class PersistentSnapshotStore:
         try:
             return self._decode(row["payload"])
         except (OSError, UnicodeDecodeError, ValueError, zlib.error, ToolError):
-            db.execute(f"DELETE FROM {self.TABLE} WHERE search_id = ?", (row["search_id"],))
+            db.execute("DELETE FROM supermarket_snapshots WHERE search_id = ?", (row["search_id"],))
             return None
 
     def get_by_key(self, cache_key: str) -> Optional[dict[str, Any]]:
@@ -106,9 +106,9 @@ class PersistentSnapshotStore:
         with self._lock, self._connect() as db:
             self._cleanup(db, now)
             row = db.execute(
-                f"""
+                """
                 SELECT search_id, created_at, payload
-                FROM {self.TABLE}
+                FROM supermarket_snapshots
                 WHERE cache_key = ? AND fresh_until > ? AND expires_at > ?
                 ORDER BY created_at DESC
                 LIMIT 1
@@ -129,7 +129,7 @@ class PersistentSnapshotStore:
         with self._lock, self._connect() as db:
             self._cleanup(db, now)
             row = db.execute(
-                f"SELECT search_id, created_at, payload FROM {self.TABLE} WHERE search_id = ? AND expires_at > ?",
+                "SELECT search_id, created_at, payload FROM supermarket_snapshots WHERE search_id = ? AND expires_at > ?",
                 (search_id, now),
             ).fetchone()
             if row is None:
@@ -150,8 +150,8 @@ class PersistentSnapshotStore:
         blob = self._encode(stored)
         with self._lock, self._connect() as db:
             db.execute(
-                f"""
-                INSERT INTO {self.TABLE}(search_id, cache_key, created_at, fresh_until, expires_at, payload)
+                """
+                INSERT INTO supermarket_snapshots(search_id, cache_key, created_at, fresh_until, expires_at, payload)
                 VALUES(?,?,?,?,?,?)
                 """,
                 (
@@ -174,7 +174,7 @@ class PersistentSnapshotStore:
         with self._lock, self._connect() as db:
             self._cleanup(db, now)
             row = db.execute(
-                f"SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(payload)),0) AS bytes FROM {self.TABLE}"
+                "SELECT COUNT(*) AS n, COALESCE(SUM(LENGTH(payload)),0) AS bytes FROM supermarket_snapshots"
             ).fetchone()
         return {
             "snapshots": int(row["n"]),

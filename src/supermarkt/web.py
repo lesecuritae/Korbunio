@@ -18,6 +18,21 @@ from .health_routes import router as health_router
 from .media_routes import router as media_router, supermarket_image
 from .runtime import get_engine, get_image_service as _image_service_instance
 
+__all__ = [
+    "SupermarketRequest",
+    "_image_service_instance",
+    "build_image_proxy_url",
+    "build_result_path",
+    "build_result_url",
+    "get_engine",
+    "image_proxy_signature",
+    "require_api_auth",
+    "result_token",
+    "router",
+    "supermarket_image",
+    "verify_result_token",
+]
+
 router = APIRouter(tags=["Supermarkt"])
 router.include_router(browser_router)
 router.include_router(api_router)

@@ -181,7 +181,7 @@ class SourceLoader:
                     raise
                 store_warnings.append(f"Netto Marken-Discount: Filialauflösung nicht verfügbar ({type(exc).__name__}: {exc}).")
 
-        source_states = {name: "keine Treffer" for name in active_contexts}
+        source_states = dict.fromkeys(active_contexts, "keine Treffer")
         final_by_retailer: dict[str, list[Offer]] = {}
         failed_primary: set[str] = set()
 

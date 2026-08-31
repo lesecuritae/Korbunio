@@ -14,9 +14,10 @@ class SearchCapacityError(RuntimeError):
 class SearchJobStore:
     """Bounded process-local status registry; durable results stay in SQLite."""
 
-    def __init__(self, engine: Any, retention_seconds: int = 3600, max_pending: int = 8) -> None:
+    def __init__(self, engine: Any, retention_seconds: int = 3600, max_pending: int = 8, max_records: int = 256) -> None:
         self.engine = engine
         self.retention_seconds = retention_seconds
+        self.max_records = max(max(2, int(max_pending)), int(max_records))
         self._jobs: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="korbklar-search")
@@ -71,4 +72,13 @@ class SearchJobStore:
 
     def _purge(self, now: float) -> None:
         for key in [key for key, value in self._jobs.items() if now - value["updated_at"] > self.retention_seconds]:
+            self._jobs.pop(key, None)
+        terminal = sorted(
+            (
+                (value["updated_at"], key)
+                for key, value in self._jobs.items()
+                if value.get("status") in {"completed", "failed"}
+            )
+        )
+        for _updated_at, key in terminal[:max(0, len(self._jobs) - self.max_records + 1)]:
             self._jobs.pop(key, None)
