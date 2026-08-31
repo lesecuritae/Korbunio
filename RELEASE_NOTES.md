@@ -1,3 +1,14 @@
+# 0.1.9
+
+KorbKlar 0.1.9 ergänzt einen eigenständigen Android-Client. Ein eigener
+KorbKlar-Server lässt sich in der App konfigurieren; bereits geladene Angebote
+und die lokale Einkaufsliste bleiben auch ohne Serververbindung verfügbar.
+
+Die App kann die Postleitzahl nach Zustimmung aus dem Gerätestandort ermitteln,
+speichert dabei aber keine GPS-Koordinaten. KitchenOwl lässt sich optional
+direkt anbinden. Zugangstoken liegen ausschließlich im sicheren Android-Speicher
+und werden über unverschlüsselte Verbindungen nicht übertragen.
+
 # 0.1.8
 
 KorbKlar 0.1.8 löst HOL’AB!-Märkte anhand der tatsächlich angefragten PLZ auf.
