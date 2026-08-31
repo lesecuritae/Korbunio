@@ -1,0 +1,81 @@
+name: Build Android app
+
+# Produces an installable APK as a build artifact. The Gradle toolchain does
+# not work on every developer machine, so building here keeps the app
+# installable regardless.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - ".github/workflows/android-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Resolved rather than pinned, so the build follows each stable
+          # release. A pin would go stale silently; this fails loudly instead.
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: app
+        run: flutter analyze
+
+      - name: Test
+        working-directory: app
+        # The golden and live suites are opt-in: goldens are platform
+        # dependent and the live suite needs a reachable server.
+        run: flutter test --exclude-tags "golden,live"
+
+      - name: Build APK
+        working-directory: app
+        # Split per ABI so the download stays small; the arm64 file fits
+        # every phone from the last several years.
+        run: flutter build apk --release --split-per-abi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: korbklar-apk
+          path: app/build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Explain how to install it
+        run: |
+          {
+            echo "### KorbKlar app"
+            echo
+            echo "Download the **korbklar-apk** artifact from this run and install"
+            echo "\`app-arm64-v8a-release.apk\` on the phone."
+            echo
+            echo "The build is signed with Flutter's debug key, which is fine for"
+            echo "sideloading but means Android asks to allow installation from"
+            echo "this source, and a differently signed build cannot replace it"
+            echo "without uninstalling first."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,27 @@
+name: korbklar_app
+description: KorbKlar mobile client for comparing regional supermarket offers.
+publish_to: "none"
+version: 0.1.8+8
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  shared_preferences: ^2.3.3
+  flutter_secure_storage: ^9.2.4
+  path_provider: ^2.1.5
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+  url_launcher: ^6.3.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  KorbKlar is self-hosted. A typical instance runs plain HTTP on a LAN, a
+  VPN or a home server, so Android's default cleartext block would make the
+  app unusable for most operators.
+
+  Cleartext is therefore permitted, but certificate validation stays fully
+  enabled for every HTTPS address: nothing here trusts user-added or invalid
+  certificates. An instance reachable over HTTPS is still verified normally.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>
