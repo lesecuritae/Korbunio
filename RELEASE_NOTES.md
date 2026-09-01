@@ -1,3 +1,13 @@
+# 0.1.11
+
+Die Android-App bietet jetzt dieselbe freie Händlerauswahl wie die
+KorbKlar-Weboberfläche. Die gewählten Händler bleiben lokal gespeichert und
+werden bei der nächsten Angebotssuche automatisch wieder verwendet.
+
+Die lokale Einkaufsliste ist nun auch direkt aus der Angebotsübersicht
+erreichbar. Damit lassen sich gespeicherte Artikel während der Suche und beim
+Vergleichen jederzeit öffnen, ohne zur Startseite zurückzugehen.
+
 # 0.1.10
 
 KorbKlar 0.1.10 liefert die Android-App erstmals mit einer dauerhaften
