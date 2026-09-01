@@ -153,15 +153,36 @@ def test_search_job_capacity_error_returns_too_many_requests(monkeypatch):
     assert response.json()["detail"] == "busy"
 
 
-def test_home_persists_retailer_selection_locally():
+def test_home_persists_postal_code_and_retailer_selection_locally():
     script = ui.static_text("home-v2.js")
     assert "korbklar.selectedRetailers.v1" in script
     assert "localStorage.getItem(retailerStorageKey)" in script
     assert "localStorage.setItem(retailerStorageKey" in script
+    assert "korbklar.postalCode.v1" in script
+    assert "localStorage.getItem(postalStorageKey)" in script
+    assert "localStorage.setItem(postalStorageKey,postal)" in script
     assert "/rewe/markets?postal_code=" in script
     assert "korbklar.reweMarket." in script
     assert "/netto/markets?postal_code=" in script
     assert "korbklar.nettoMarket." in script
+
+
+def test_home_exposes_valid_instance_defaults(monkeypatch):
+    monkeypatch.setenv("SUPERMARKT_DEFAULT_POSTAL_CODE", "01067")
+    monkeypatch.setenv("SUPERMARKT_DEFAULT_RETAILERS", "rewe, Lidl;dm, nicht-echt")
+
+    response = TestClient(app).get("/")
+
+    assert response.status_code == 200
+    assert 'data-default-postal-code="01067"' in response.text
+    assert 'data-default-retailers="[&quot;REWE&quot;, &quot;Lidl&quot;, &quot;dm&quot;]"' in response.text
+    assert "nicht-echt" not in response.text
+
+
+def test_home_ignores_invalid_instance_postal_code(monkeypatch):
+    monkeypatch.setenv("SUPERMARKT_DEFAULT_POSTAL_CODE", "123")
+    response = TestClient(app).get("/")
+    assert 'data-default-postal-code=""' in response.text
 
 
 def test_home_ignores_stale_market_responses():

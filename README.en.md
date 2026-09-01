@@ -238,6 +238,8 @@ Common tracking pixels, logos, placeholders, loyalty badges, and unsupported ima
 The default setup needs no `.env`. [`.env.example`](.env.example) documents every current variable:
 
 - `SUPERMARKT_PORT`
+- `SUPERMARKT_DEFAULT_POSTAL_CODE`
+- `SUPERMARKT_DEFAULT_RETAILERS`
 - `SUPERMARKT_API_KEY`
 - `SUPERMARKT_DATA_DIR`
 - `SUPERMARKT_CACHE_DB`
@@ -261,6 +263,8 @@ The default setup needs no `.env`. [`.env.example`](.env.example) documents ever
 - `SUPERMARKT_IMAGE_MAX_FILE_BYTES`
 
 The historical internal prefixes remain part of the current technical interface. `.env.example` is authoritative for meanings, defaults, and Docker paths.
+
+The web interface stores the last postal code and retailer selection locally in the browser. A shared Docker instance can instead provide initial values through `SUPERMARKT_DEFAULT_POSTAL_CODE` and the comma-separated `SUPERMARKT_DEFAULT_RETAILERS`. Personal browser values take precedence; without either setting the regular selection page remains unchanged.
 
 ## Running without Docker
 

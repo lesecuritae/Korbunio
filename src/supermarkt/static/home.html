@@ -18,7 +18,7 @@
 <p><a href="/shopping">Einkaufsliste öffnen</a></p>
 <p>Postleitzahl eingeben. Der Dienst sucht die verfügbaren Wochenangebote automatisch und öffnet anschließend den vollständigen Vergleich.</p>
 __ERROR_HTML__
-<form method="post" action="/search" id="searchForm">
+<form method="post" action="/search" id="searchForm" data-default-postal-code="__DEFAULT_POSTAL_CODE__" data-default-retailers="__DEFAULT_RETAILERS__">
 <input name="postal_code" value="__POSTAL_CODE__" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{5}" minlength="5" maxlength="5" placeholder="Postleitzahl" aria-label="Postleitzahl" required autofocus>
 <div class="reweMarketPicker" id="reweMarketPicker" hidden>
 <label for="reweMarket">REWE-Markt auswählen</label>

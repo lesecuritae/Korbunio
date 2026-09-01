@@ -268,6 +268,8 @@ KorbKlar erzeugt beim ersten Start selbstständig einen zufälligen HMAC-Schlüs
 
 Für den Standardbetrieb ist keine Konfiguration nötig. Die vollständige Liste der optionalen Variablen steht in [`.env.example`](.env.example). Dazu gehören unter anderem Host-Port, API-Key, Cache-Laufzeiten, Timeouts, Parallelität und Größenbegrenzungen des Bildcaches.
 
+Die zuletzt verwendete PLZ und Händlerauswahl speichert die Weboberfläche lokal im Browser. Für eine gemeinsame Vorauswahl einer Docker-Instanz können zusätzlich `SUPERMARKT_DEFAULT_POSTAL_CODE` und die kommagetrennte Liste `SUPERMARKT_DEFAULT_RETAILERS` in der `.env` gesetzt werden. Persönliche Browserwerte haben Vorrang; ohne Vorgaben bleibt die normale Auswahlseite erhalten.
+
 ## Python ohne Docker
 
 Docker ist der empfohlene Weg. Für Entwicklung oder eine manuelle Installation kann KorbKlar auch direkt mit Python **3.12 oder neuer** betrieben werden:

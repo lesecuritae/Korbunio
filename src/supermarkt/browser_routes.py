@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, Query
@@ -15,6 +16,24 @@ from . import runtime
 from .ui import build_home_html, build_results_html, build_shopping_html
 
 router = APIRouter()
+
+
+def _home_defaults() -> tuple[str, tuple[str, ...]]:
+    postal_code = validate_postal_code(os.getenv("SUPERMARKT_DEFAULT_POSTAL_CODE", "")) or ""
+    raw_retailers = os.getenv("SUPERMARKT_DEFAULT_RETAILERS", "")
+    requested = [value.strip() for value in raw_retailers.replace(";", ",").split(",") if value.strip()]
+    retailers, _unknown = resolve_retailer_names(requested)
+    return postal_code, retailers
+
+
+def _home_html(*, error: str = "", postal_code: str = "") -> str:
+    default_postal_code, default_retailers = _home_defaults()
+    return build_home_html(
+        error=error,
+        postal_code=postal_code,
+        default_postal_code=default_postal_code,
+        default_retailers=default_retailers,
+    )
 
 
 def _wants_refresh(value: str) -> bool:
@@ -34,7 +53,7 @@ def favicon_ico() -> Response:
 @router.get("/", include_in_schema=False, response_class=HTMLResponse)
 def home(postal_code: str = Query(default="", max_length=5)) -> HTMLResponse:
     postal = validate_postal_code(clean_text(postal_code)) or ""
-    return HTMLResponse(build_home_html(postal_code=postal), headers={"Cache-Control": "no-store"})
+    return HTMLResponse(_home_html(postal_code=postal), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/shopping", include_in_schema=False, response_class=HTMLResponse)
@@ -63,7 +82,7 @@ def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] 
     raw_postal_code = clean_text(postal_code_input)
     postal_code = validate_postal_code(raw_postal_code)
     if postal_code is None:
-        return HTMLResponse(build_home_html(error="Bitte eine gültige fünfstellige deutsche Postleitzahl eingeben.", postal_code=raw_postal_code), status_code=400, headers={"Cache-Control": "no-store"})
+        return HTMLResponse(_home_html(error="Bitte eine gültige fünfstellige deutsche Postleitzahl eingeben.", postal_code=raw_postal_code), status_code=400, headers={"Cache-Control": "no-store"})
     try:
         retailers, unknown = resolve_retailer_names(retailers_input or [])
         if unknown:
@@ -73,7 +92,7 @@ def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] 
             snapshot_kwargs["offer_week"] = "next"
         snapshot, _ = runtime.get_engine().snapshot(postal_code, normalize_aldi_region(aldi_region_input), _wants_refresh(refresh_input), **snapshot_kwargs)
     except ToolError as exc:
-        return HTMLResponse(build_home_html(error=str(exc), postal_code=postal_code), status_code=502, headers={"Cache-Control": "no-store"})
+        return HTMLResponse(_home_html(error=str(exc), postal_code=postal_code), status_code=502, headers={"Cache-Control": "no-store"})
     return RedirectResponse(build_result_path(snapshot["search_id"]), status_code=303)
 
 
