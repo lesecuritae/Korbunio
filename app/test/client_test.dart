@@ -44,6 +44,25 @@ void main() {
         isNull,
       );
     });
+
+    test('exchanges an admin key for a separate app token', () async {
+      late http.Request request;
+      final client = KorbKlarClient(
+        baseUrl: 'https://korb.example',
+        apiKey: 'admin-secret',
+        httpClient: MockClient((incoming) {
+          request = incoming as http.Request;
+          return http.Response(
+            jsonEncode({'token': 'personal-app-token'}),
+            200,
+          );
+        }),
+      );
+      expect(await client.createAppToken(), 'personal-app-token');
+      expect(request.url.path, '/api/v1/access-tokens');
+      expect(request.headers['Authorization'], 'Bearer admin-secret');
+      expect(jsonDecode(request.body)['label'], 'KorbKlar Android');
+    });
   });
 
   group('direct KitchenOwl transfer', () {

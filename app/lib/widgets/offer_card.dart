@@ -130,6 +130,16 @@ class OfferCard extends StatelessWidget {
                         decoration: TextDecoration.lineThrough,
                       ),
                     ),
+                  if (offer.selectedComparisonState == 'best')
+                    Text(
+                      'Günstigster Vergleichspreis',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        color: colors.good,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                 ],
               ),
             ],

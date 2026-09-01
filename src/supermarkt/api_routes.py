@@ -4,13 +4,47 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from .access import build_result_url, proxy_page_images, require_api_auth, verify_result_token
-from .api_models import SupermarketRequest
+from .access import build_result_path, build_result_url, proxy_page_images, require_admin_auth, require_api_auth, require_app_result_auth, verify_result_token
+from .api_models import AccessTokenRequest, SearchJobRequest, SupermarketRequest
+from .jobs import SearchCapacityError
 from .loyalty import normalize_program_ids
 from .models import ToolError
+from .security import create_client_token
 from . import runtime
 
 router = APIRouter()
+
+
+@router.get("/api/v1/client", include_in_schema=False)
+def client_connection(_: None = Depends(require_api_auth)) -> dict[str, str]:
+    return {"status": "ok", "service": "korbklar"}
+
+
+@router.post("/api/v1/access-tokens", include_in_schema=False)
+def issue_access_token(request_data: AccessTokenRequest, _: None = Depends(require_admin_auth)) -> dict[str, str]:
+    try:
+        return {"token": create_client_token(request_data.label)}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/v1/search/jobs", include_in_schema=False)
+def start_api_search_job(request_data: SearchJobRequest, _: None = Depends(require_api_auth)) -> dict[str, str]:
+    try:
+        job_id = runtime.get_jobs().start(request_data.postal_code, "auto", request_data.refresh, ())
+    except SearchCapacityError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    return {"job_id": job_id}
+
+
+@router.get("/api/v1/search/jobs/{job_id}", include_in_schema=False)
+def api_search_job(job_id: str, _: None = Depends(require_api_auth)) -> dict[str, Any]:
+    job = runtime.get_jobs().get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Suchauftrag nicht gefunden oder abgelaufen.")
+    if job.get("search_id"):
+        job["result_url"] = build_result_path(job["search_id"])
+    return job
 
 
 @router.post(
@@ -54,6 +88,7 @@ def netto_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r
 
 
 @router.get("/api/results/{search_id}", include_in_schema=False)
+@router.get("/api/v1/results/{search_id}", include_in_schema=False)
 def result_data(
     search_id: str,
     token: str = Query(default=""),
@@ -67,6 +102,7 @@ def result_data(
     view: Literal["best_only", "all"] = Query(default="best_only"),
     loyalty: str = Query(default="", max_length=500),
     sort: Literal["price", "unit_price", "retailer", "product"] = Query(default="price"),
+    _: None = Depends(require_app_result_auth),
 ) -> dict[str, Any]:
     verify_result_token(search_id, token)
     try:

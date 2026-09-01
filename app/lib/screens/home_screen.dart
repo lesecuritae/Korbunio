@@ -22,11 +22,13 @@ class HomeScreen extends StatefulWidget {
     required this.settings,
     required this.offlineStore,
     required this.localShoppingList,
+    required this.onThemeChanged,
   });
 
   final Settings settings;
   final OfflineStore offlineStore;
   final LocalShoppingListStore localShoppingList;
+  final VoidCallback onThemeChanged;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -139,7 +141,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _openSettings() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SettingsScreen(settings: widget.settings),
+        builder: (_) => SettingsScreen(
+          settings: widget.settings,
+          onThemeChanged: widget.onThemeChanged,
+        ),
       ),
     );
     _server.text = widget.settings.serverUrl;

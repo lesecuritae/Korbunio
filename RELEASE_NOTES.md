@@ -1,3 +1,26 @@
+# 0.1.10
+
+KorbKlar 0.1.10 liefert die Android-App erstmals mit einer dauerhaften
+Release-Signatur aus. Künftige APK-Aktualisierungen können dadurch installiert
+werden, ohne die lokal gespeicherten App-Daten zu verlieren.
+
+Eigene KorbKlar-Server lassen sich jetzt sicher mit der App koppeln: Ein
+Admin-API-Key erzeugt einmalig einen getrennten App-Token, dessen Klartext nur
+im sicheren Android-Speicher liegt. Der Server speichert ausschließlich einen
+Hash. Die App bietet außerdem eine ausdrückliche Auswahl zwischen System-,
+heller und dunkler Darstellung.
+
+dm ist über den offiziellen, frei erreichbaren Ausverkaufskatalog als Händler
+verfügbar. KorbKlar zeigt dabei ausschließlich tatsächlich gekennzeichnete
+Ausverkaufsartikel und weist transparent darauf hin, dass Onlinepreise keine
+Filialverfügbarkeit zusichern. Eine Erläuterung in der Ergebnisansicht macht
+zudem deutlich, dass grüne Preise den günstigsten direkt vergleichbaren Preis
+und keine allgemeine Preisbewertung kennzeichnen.
+
+Die direkte KitchenOwl-Anbindung wurde zusätzlich gegen eine laufende
+KitchenOwl-Instanz geprüft: Anmeldung, Listenerkennung sowie Übergabe und
+Rücklesen der Angebotsinformationen funktionieren mit der aktuellen API.
+
 # 0.1.9
 
 KorbKlar 0.1.9 ergänzt einen eigenständigen Android-Client. Ein eigener

@@ -20,7 +20,7 @@ Future<void> main() async {
   );
 }
 
-class KorbKlarApp extends StatelessWidget {
+class KorbKlarApp extends StatefulWidget {
   const KorbKlarApp({
     super.key,
     required this.settings,
@@ -33,19 +33,29 @@ class KorbKlarApp extends StatelessWidget {
   final LocalShoppingListStore localShoppingList;
 
   @override
+  State<KorbKlarApp> createState() => _KorbKlarAppState();
+}
+
+class _KorbKlarAppState extends State<KorbKlarApp> {
+  ThemeMode get _themeMode => switch (widget.settings.themeMode) {
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
+  };
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'KorbKlar',
       debugShowCheckedModeBanner: false,
       theme: korbLightTheme(),
       darkTheme: korbDarkTheme(),
-      // The web interface declares `color-scheme: light dark`, so the app
-      // follows the system setting the same way.
-      themeMode: ThemeMode.system,
+      themeMode: _themeMode,
       home: HomeScreen(
-        settings: settings,
-        offlineStore: offlineStore,
-        localShoppingList: localShoppingList,
+        settings: widget.settings,
+        offlineStore: widget.offlineStore,
+        localShoppingList: widget.localShoppingList,
+        onThemeChanged: () => setState(() {}),
       ),
     );
   }

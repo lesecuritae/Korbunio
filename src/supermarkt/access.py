@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import secrets
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 
@@ -11,17 +10,31 @@ from .config import MARKTGURU_HOME
 from .images import is_rejected_image_url, normalize_image_url
 from .loyalty import normalize_program_ids
 from .models import AGGREGATOR_RETAILERS
-from .security import api_key, signature, valid_signature
+from .security import api_auth_configured, api_key, signature, valid_api_key, valid_signature
 
 
 def require_api_auth(request: Request) -> None:
-    expected = api_key()
-    if not expected:
+    if not api_auth_configured():
         return
     authorization = request.headers.get("authorization", "")
     scheme, _, credential = authorization.partition(" ")
-    if scheme.casefold() != "bearer" or not credential or not secrets.compare_digest(credential, expected):
+    if scheme.casefold() != "bearer" or not valid_api_key(credential):
         raise HTTPException(status_code=401, detail="Ungültiger Bearer-Token")
+
+
+def require_admin_auth(request: Request) -> None:
+    if not api_key():
+        raise HTTPException(status_code=409, detail="Auf dem Server ist kein Admin-API-Key konfiguriert")
+    authorization = request.headers.get("authorization", "")
+    scheme, _, credential = authorization.partition(" ")
+    if scheme.casefold() != "bearer" or not valid_api_key(credential, admin_only=True):
+        raise HTTPException(status_code=401, detail="Für die App-Kopplung ist der Admin-API-Key erforderlich")
+
+
+def require_app_result_auth(request: Request) -> None:
+    """Protect the app alias while retaining the signed browser endpoint."""
+    if request.url.path.startswith("/api/v1/"):
+        require_api_auth(request)
 
 
 def result_token(search_id: str) -> str:

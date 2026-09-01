@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from .config import CACHE_TTL_MINUTES
-from .security import api_key
+from .security import api_auth_configured
 from . import runtime
 
 router = APIRouter()
@@ -19,7 +19,7 @@ def health() -> dict[str, Any]:
         "service": "korbklar",
         "backend": "persistent-sqlite-cache",
         "cache_ttl_minutes": CACHE_TTL_MINUTES,
-        "api_auth_configured": bool(api_key()),
+        "api_auth_configured": api_auth_configured(),
         **runtime.get_image_service().health(),
         "sources": {
             "REWE": "official primary with Marktguru fallback",
@@ -33,6 +33,7 @@ def health() -> dict[str, Any]:
             "Netto schwarz": "official weekly offers",
             "Rossmann": "official advertising offers",
             "Müller": "official online offers",
+            "dm": "official clearance catalogue; branch availability unknown",
             "Globus": "official primary with Marktguru fallback",
             "Combi": "Marktguru regional catalogue",
             "famila Nordwest": "Marktguru regional catalogue",

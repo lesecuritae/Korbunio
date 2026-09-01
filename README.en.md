@@ -211,7 +211,13 @@ Optional fields include offer week, persistent product-name keywords, loyalty pr
 available preview fall back to their current catalogue. `keywords` are cleaned,
 deduplicated, and matched against product names using OR semantics.
 
-Browser access remains unauthenticated. If `SUPERMARKT_API_KEY` is set, a bearer token protects only `POST /api/v1/compare`. See [`.env.example`](.env.example) for current settings.
+Browser access remains unauthenticated. If `SUPERMARKT_API_KEY` is set, bearer
+authentication protects the REST and app endpoints. The Android app can
+exchange this administrator key once for a dedicated app token. The server
+stores only its SHA-256 digest in `/data/access-tokens.json`; the clear token is
+kept in Android secure storage and the administrator key is discarded. A
+private server without an administrator key remains usable without a token. See
+[`.env.example`](.env.example) for current settings.
 
 ## Cache and data
 
@@ -236,6 +242,7 @@ The default setup needs no `.env`. [`.env.example`](.env.example) documents ever
 - `SUPERMARKT_DATA_DIR`
 - `SUPERMARKT_CACHE_DB`
 - `SUPERMARKT_SIGNING_SECRET_FILE`
+- `SUPERMARKT_ACCESS_TOKENS_FILE`
 - `SUPERMARKT_SIGNING_SECRET`
 - `SUPERMARKT_IMAGE_CACHE_DIR`
 - `SUPERMARKT_KAUFLAND_CACHE_DIR`

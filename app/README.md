@@ -79,16 +79,22 @@ flutter run
 ```
 
 On first start the app asks for the server address, for example
-`http://192.0.2.10:8000`, plus an optional API key, and verifies both against
-`/health` before saving them. Connections can later be changed without deleting
-the offline result cache.
+`http://192.0.2.10:8000`, plus an optional API token, and verifies the service
+before saving it. Connections can later be changed without deleting the offline
+result cache.
 
-The key is only needed when the server is publicly reachable and has
-`SUPERMARKT_API_KEY` set. `/health` answers without authorisation but withholds
-its detail fields, which lets the app tell a wrong address from a wrong or
-missing key without triggering a search. Bearer tokens are accepted only for
-HTTPS server addresses. Tokenless HTTP remains available for an explicitly
-chosen LAN or VPN server.
+The administrator sets `SUPERMARKT_API_KEY` on a protected server. In the app,
+enter that key once and choose **Create personal app token**. The server creates
+a separate random credential, stores only its SHA-256 digest, and the app
+replaces the administrator key with that credential in Android's secure
+storage. The administrator key therefore does not remain on the phone. A
+tokenless server remains usable without this pairing step.
+
+`/health` answers without authorisation but withholds its detail fields. The app
+then verifies access through `/api/v1/client`, so it can distinguish a wrong
+address from a missing token without triggering a search. Bearer tokens are
+accepted only for HTTPS server addresses. Tokenless HTTP remains available for
+an explicitly chosen LAN or VPN server.
 
 ### Installing on Android
 
@@ -103,10 +109,11 @@ Building locally works too, when the machine's Gradle toolchain is healthy:
 flutter build apk --release
 ```
 
-Both builds are signed with Flutter's debug key. That is fine for sideloading
-a personal build, but a differently signed build cannot replace it without
-uninstalling first. For a stable signing identity, create a keystore and a
-`android/key.properties` referencing it; keep both out of the repository.
+Official release artifacts are signed with KorbKlar's persistent release key.
+CI receives the key exclusively through encrypted repository secrets; no key or
+password is stored in Git. Local release builds must provide the corresponding
+signing environment variables and keystore. Unsigned or debug-signed release
+builds fail instead of silently producing a differently signed APK.
 
 ### Cleartext HTTP
 

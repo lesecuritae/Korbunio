@@ -40,7 +40,7 @@ class ResultHandle {
 
 /// Talks to a KorbKlar server.
 ///
-/// The app deliberately drives the same endpoints as the browser interface:
+/// The app uses the authenticated API equivalents of the browser endpoints:
 /// the comparison engine, normalisation and loyalty logic stay on the server,
 /// exactly as the project intends. No price is computed here.
 /// What a connection check found.
@@ -158,15 +158,44 @@ class KorbKlarClient {
   Future<ServerCheck> check() => _guard(() async {
     final securityError = connectionSecurityError(baseUrl, apiKey);
     if (securityError != null) throw KorbKlarException(securityError);
+    final health = await _http.get(_uri('/health')).timeout(_timeout);
+    final healthPayload = _json(health);
+    if (healthPayload['service'] != 'korbklar') return ServerCheck.notKorbKlar;
     final response = await _http
-        .get(_uri('/health'), headers: _headers())
+        .get(_uri('/api/v1/client'), headers: _headers())
         .timeout(_timeout);
+    if (response.statusCode == 401) return ServerCheck.needsApiKey;
     final payload = _json(response);
-    if (payload['service'] != 'korbklar') return ServerCheck.notKorbKlar;
-    return payload.containsKey('api_auth_configured')
+    return payload['service'] == 'korbklar'
         ? ServerCheck.ok
-        : ServerCheck.needsApiKey;
+        : ServerCheck.notKorbKlar;
   });
+
+  /// Exchanges the server's administrator key for a separate app token.
+  /// The administrator key is only sent in this request and can then be
+  /// replaced in encrypted storage by the returned client token.
+  Future<String> createAppToken({String label = 'KorbKlar Android'}) =>
+      _guard(() async {
+        final securityError = connectionSecurityError(baseUrl, apiKey);
+        if (securityError != null) throw KorbKlarException(securityError);
+        if (apiKey.isEmpty) {
+          throw KorbKlarException('Bitte zuerst den Admin-API-Key eingeben.');
+        }
+        final response = await _http
+            .post(
+              _uri('/api/v1/access-tokens'),
+              headers: _headers({
+                'Content-Type': 'application/json; charset=utf-8',
+              }),
+              body: jsonEncode({'label': label}),
+            )
+            .timeout(_timeout);
+        final token = _json(response)['token'];
+        if (token is! String || token.isEmpty) {
+          throw KorbKlarException('Der Server lieferte keinen App-Token.');
+        }
+        return token;
+      });
 
   /// Starts a background search and returns its job id.
   /// Starts a background search. ``refresh`` skips the server's snapshot
@@ -177,9 +206,11 @@ class KorbKlarClient {
         if (securityError != null) throw KorbKlarException(securityError);
         final response = await _http
             .post(
-              _uri('/search/jobs'),
-              headers: _headers(),
-              body: {'postal_code': postalCode, if (refresh) 'refresh': '1'},
+              _uri('/api/v1/search/jobs'),
+              headers: _headers({
+                'Content-Type': 'application/json; charset=utf-8',
+              }),
+              body: jsonEncode({'postal_code': postalCode, 'refresh': refresh}),
             )
             .timeout(_timeout);
         final jobId = _json(response)['job_id'];
@@ -191,7 +222,7 @@ class KorbKlarClient {
 
   Future<SearchProgress> searchProgress(String jobId) => _guard(() async {
     final response = await _http
-        .get(_uri('/search/jobs/$jobId'), headers: _headers())
+        .get(_uri('/api/v1/search/jobs/$jobId'), headers: _headers())
         .timeout(_timeout);
     return SearchProgress.fromJson(_json(response));
   });
@@ -245,7 +276,7 @@ class KorbKlarClient {
   }) => _guard(() async {
     final response = await _http
         .get(
-          _uri('/api/results/${Uri.encodeComponent(handle.searchId)}', {
+          _uri('/api/v1/results/${Uri.encodeComponent(handle.searchId)}', {
             'token': handle.token,
             'q': filterText,
             'retailer': retailer,

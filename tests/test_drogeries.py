@@ -1,4 +1,4 @@
-from supermarkt.sources.drogeries import OfficialMuellerSource, OfficialRossmannSource
+from supermarkt.sources.drogeries import OfficialDmSource, OfficialMuellerSource, OfficialRossmannSource
 
 
 ROSSMANN_HTML = """
@@ -26,6 +26,44 @@ MUELLER_HTML = """
 class FakeHttp:
     def get_bytes(self, url, headers=None):
         return MUELLER_HTML.encode()
+
+
+class FakeDmHttp:
+    calls = 0
+
+    def get_json(self, url, headers=None):
+        self.calls += 1
+        assert url.startswith(OfficialDmSource.SEARCH_API)
+        assert headers["Referer"] == OfficialDmSource.OFFERS_URL
+        return {
+            "count": 2,
+            "products": [
+                {
+                    "dan": 3061034,
+                    "brandName": "ebelin",
+                    "title": "Seifendose stapelbar, 1 St",
+                    "tileData": {
+                        "dan": 3061034,
+                        "self": "/p/d/3061034/ebelin-seifendose-stapelbar",
+                        "eyecatchers": [{"alt": "Ausverkauf Grafik"}],
+                        "images": [{"tileSrc": "https://products.dm-static.com/item.jpg"}],
+                        "price": {
+                            "price": {
+                                "current": {"value": "1,95 €"},
+                                "previous": {"value": "2,55 €"},
+                            },
+                            "tileInfos": ["1 St (1,95 € je 1 St)"],
+                        },
+                        "trackingData": {"categories": ["Seifenspender & Zahnputzbecher"]},
+                    },
+                },
+                {
+                    "dan": 1,
+                    "title": "Reguläres Produkt",
+                    "tileData": {"eyecatchers": [], "price": {"price": {"current": {"value": "3,00 €"}}}},
+                },
+            ],
+        }
 
 
 def test_rossmann_official_advertising_card_mapping():
@@ -66,3 +104,19 @@ def test_mueller_online_offer_mapping_is_labelled_as_online():
     )
     assert "Online" in offer.coverage_note
     assert offer.product_url.endswith("/p/testprodukt-IPN2998372/")
+
+
+def test_dm_maps_only_official_clearance_products_and_caches_catalogue():
+    http = FakeDmHttp()
+    source = OfficialDmSource(http, cache_ttl_seconds=3600)
+    offers = source.load("10115")
+    again = source.load("50667")
+    assert http.calls == 1
+    assert again == offers
+    assert len(offers) == 1
+    offer = offers[0]
+    assert (offer.retailer, offer.price, offer.pack_signature) == ("dm", 1.95, "")
+    assert offer.category == "Haushalt & Reinigung"
+    assert offer.description == "Vorher 2,55 €"
+    assert "Filialverfügbarkeit unbekannt" in offer.coverage_note
+    assert offer.product_url == "https://www.dm.de/p/d/3061034/ebelin-seifendose-stapelbar"

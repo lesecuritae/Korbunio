@@ -5,8 +5,13 @@ import '../api/kitchenowl_client.dart';
 import '../services/settings.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.settings});
+  const SettingsScreen({
+    super.key,
+    required this.settings,
+    required this.onThemeChanged,
+  });
   final Settings settings;
+  final VoidCallback onThemeChanged;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -23,6 +28,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   );
   bool _busy = false;
   String _message = '';
+
+  Future<void> _setTheme(String value) async {
+    await widget.settings.setThemeMode(value);
+    widget.onThemeChanged();
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
@@ -60,6 +71,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await widget.settings.setApiKey(token);
       _server.text = url;
       _show('KorbKlar-Server verbunden.');
+    } on KorbKlarException catch (error) {
+      _show(error.message);
+    } finally {
+      client.close();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _createAppToken() async {
+    final url = KorbKlarClient.normalizeBaseUrl(_server.text);
+    final adminToken = _apiToken.text.trim();
+    final security = KorbKlarClient.connectionSecurityError(url, adminToken);
+    if (security != null) return _show(security);
+    if (url.isEmpty || adminToken.isEmpty) {
+      return _show(
+        'Serveradresse und Admin-API-Key werden zur Kopplung benötigt.',
+      );
+    }
+    setState(() => _busy = true);
+    final client = KorbKlarClient(baseUrl: url, apiKey: adminToken);
+    try {
+      final appToken = await client.createAppToken();
+      await widget.settings.setServerUrl(url);
+      await widget.settings.setApiKey(appToken);
+      _server.text = url;
+      _apiToken.text = appToken;
+      _show('Eigener App-Token erstellt und sicher gespeichert.');
     } on KorbKlarException catch (error) {
       _show(error.message);
     } finally {
@@ -109,6 +147,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         const Text(
+          'Darstellung',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(
+              value: 'system',
+              label: Text('System'),
+              icon: Icon(Icons.settings_brightness),
+            ),
+            ButtonSegment(
+              value: 'light',
+              label: Text('Hell'),
+              icon: Icon(Icons.light_mode),
+            ),
+            ButtonSegment(
+              value: 'dark',
+              label: Text('Dunkel'),
+              icon: Icon(Icons.dark_mode),
+            ),
+          ],
+          selected: {widget.settings.themeMode},
+          onSelectionChanged: _busy
+              ? null
+              : (values) => _setTheme(values.first),
+        ),
+        const Divider(height: 40),
+        const Text(
           'Eigener KorbKlar-Server',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
@@ -142,6 +209,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         FilledButton(
           onPressed: _busy ? null : _saveServer,
           child: const Text('Server prüfen und speichern'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _createAppToken,
+          icon: const Icon(Icons.key),
+          label: const Text('Eigenen App-Token erstellen'),
+        ),
+        const Text(
+          'Dafür einmalig den Admin-API-Key des Servers eingeben. Danach ersetzt die App ihn durch einen eigenen Token; der Admin-Key bleibt nicht in der App gespeichert.',
+          style: TextStyle(fontSize: 12),
         ),
         const Divider(height: 40),
         const Text(

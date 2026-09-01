@@ -12,7 +12,7 @@ def test_all_expected_retailers_exist():
     assert {
         "REWE", "EDEKA", "Marktkauf", "ALDI Nord", "ALDI Süd", "Kaufland",
         "Lidl", "PENNY", "Netto Marken-Discount", "Globus", "Combi", "famila Nordwest",
-        "Netto schwarz", "Rossmann", "Müller",
+        "Netto schwarz", "Rossmann", "Müller", "dm",
     } <= names
 
 

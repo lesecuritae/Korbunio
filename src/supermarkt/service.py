@@ -33,7 +33,7 @@ from .presentation import offer_for_response, offer_sort_key, resolve_retailer_n
 from .region import AldiRegionResolver
 
 LOGGER = logging.getLogger(__name__)
-from .sources import KaufdaGlobusImageSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAldiSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialMuellerSource, OfficialRossmannSource
+from .sources import KaufdaGlobusImageSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialMuellerSource, OfficialRossmannSource
 from .sources.aldi_chain import AldiOfferChain
 
 class SourceLoader:
@@ -59,6 +59,7 @@ class SourceLoader:
         self.netto_marken_markets = NettoMarkenMarketResolver(http)
         self.official_rossmann = OfficialRossmannSource(timeout_seconds=TIMEOUT_SECONDS)
         self.official_mueller = OfficialMuellerSource(http)
+        self.official_dm = OfficialDmSource(http)
         self.official_marktkauf = OfficialMarktkaufSource(TIMEOUT_SECONDS)
         self.official_kaufland = OfficialKauflandSource(
             http,
@@ -225,6 +226,8 @@ class SourceLoader:
             official_jobs["Rossmann"] = lambda: self.official_rossmann.load(postal_code)
         if hasattr(self, "official_mueller") and "Müller" in active_contexts:
             official_jobs["Müller"] = lambda: self.official_mueller.load(postal_code)
+        if hasattr(self, "official_dm") and "dm" in active_contexts:
+            official_jobs["dm"] = lambda: self.official_dm.load(postal_code)
         if hasattr(self, "official_holab") and "HOL’AB!" in active_contexts:
             official_jobs["HOL’AB!"] = lambda: self.official_holab.load(postal_code)
         initial_aggregator = any(

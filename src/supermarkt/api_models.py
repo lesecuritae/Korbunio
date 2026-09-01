@@ -73,3 +73,20 @@ class SupermarketRequest(BaseModel):
     @classmethod
     def valid_keywords(cls, values: list[str]) -> list[str]:
         return list(normalize_keywords(values))
+
+
+class SearchJobRequest(BaseModel):
+    postal_code: str
+    refresh: bool = False
+
+    @field_validator("postal_code")
+    @classmethod
+    def valid_postal_code(cls, value: str) -> str:
+        normalized = validate_postal_code(value)
+        if normalized is None:
+            raise ValueError("Postleitzahl muss genau fünf Ziffern enthalten")
+        return normalized
+
+
+class AccessTokenRequest(BaseModel):
+    label: str = Field(default="KorbKlar Android", min_length=1, max_length=80)

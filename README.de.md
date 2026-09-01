@@ -236,7 +236,14 @@ für einen Händler noch nicht verfügbar, werden dessen aktuellen Angebote nich
 verworfen. `keywords` werden normalisiert, dedupliziert und mit ODER-Logik nur
 gegen den Produktnamen geprüft.
 
-Der Browserbetrieb funktioniert ohne Schlüssel. Soll nur der REST-Vergleichsendpunkt zusätzlich mit Bearer-Authentifizierung geschützt werden, kann `SUPERMARKT_API_KEY` gesetzt werden. Die weiteren optionalen Einstellungen stehen in [`.env.example`](.env.example).
+Der Browserbetrieb funktioniert ohne Schlüssel. Mit `SUPERMARKT_API_KEY` werden
+die REST- und App-Endpunkte durch Bearer-Authentifizierung geschützt. In der
+Android-App kann dieser Admin-Key einmalig gegen einen eigenen App-Token
+getauscht werden. Der Server speichert davon nur den SHA-256-Hash in
+`/data/access-tokens.json`; die App legt den Klartext im Android-Keystore ab und
+behält den Admin-Key nicht. Ohne konfigurierten Admin-Key bleibt ein privater
+Server tokenlos nutzbar. Die weiteren optionalen Einstellungen stehen in
+[`.env.example`](.env.example).
 
 ## Daten, Cache und Bildproxy
 

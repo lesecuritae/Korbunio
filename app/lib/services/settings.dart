@@ -45,6 +45,7 @@ class Settings {
   static const _apiKey = 'korbklar_api_token';
   static const _kitchenOwlUrl = 'kitchenowl_url';
   static const _kitchenOwlTokenKey = 'kitchenowl_token';
+  static const _themeMode = 'theme_mode';
 
   String get serverUrl => _prefs.getString(_serverUrl) ?? '';
   Future<void> setServerUrl(String value) =>
@@ -88,4 +89,12 @@ class Settings {
   String get shoppingListEntity => _prefs.getString(_listEntity) ?? '';
   Future<void> setShoppingListEntity(String value) =>
       _prefs.setString(_listEntity, value);
+
+  static String normalizeThemeMode(String value) =>
+      const {'system', 'light', 'dark'}.contains(value) ? value : 'system';
+
+  String get themeMode =>
+      normalizeThemeMode(_prefs.getString(_themeMode) ?? 'system');
+  Future<void> setThemeMode(String value) =>
+      _prefs.setString(_themeMode, normalizeThemeMode(value));
 }

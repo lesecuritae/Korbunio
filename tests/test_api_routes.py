@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from supermarkt.asgi import app
 from supermarkt.api_models import SupermarketRequest
 from supermarkt import runtime
+from supermarkt import security
 
 
 def test_api_returns_one_absolute_result_url():
@@ -23,6 +24,32 @@ def test_api_preserves_loyalty_programs_and_optional_auth(monkeypatch):
     monkeypatch.setenv("SUPERMARKT_API_KEY", "correct-key")
     assert client.post("/api/v1/compare", json={"postal_code": "01067"}).status_code == 401
     assert client.post("/api/v1/compare", json={"postal_code": "01067"}, headers={"Authorization": "Bearer correct-key"}).status_code == 200
+
+
+def test_admin_key_issues_separate_hashed_app_token(monkeypatch, tmp_path):
+    monkeypatch.setenv("SUPERMARKT_API_KEY", "admin-key")
+    monkeypatch.setattr(security, "ACCESS_TOKENS_FILE", tmp_path / "access-tokens.json")
+    client = TestClient(app)
+    assert client.get("/api/v1/client").status_code == 401
+    issued = client.post(
+        "/api/v1/access-tokens",
+        json={"label": "Testtelefon"},
+        headers={"Authorization": "Bearer admin-key"},
+    )
+    assert issued.status_code == 200
+    token = issued.json()["token"]
+    assert len(token) >= 48
+    stored = security.ACCESS_TOKENS_FILE.read_text(encoding="utf-8")
+    assert token not in stored
+    assert "Testtelefon" in stored
+    assert client.get(
+        "/api/v1/client", headers={"Authorization": f"Bearer {token}"}
+    ).status_code == 200
+    assert client.post(
+        "/api/v1/access-tokens",
+        json={"label": "Nicht erlaubt"},
+        headers={"Authorization": f"Bearer {token}"},
+    ).status_code == 401
 
 
 def test_result_endpoint_passes_multiple_retailer_filters(monkeypatch):

@@ -25,11 +25,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("KORBKLAR_STORE_FILE")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KORBKLAR_STORE_PASSWORD")
+                keyAlias = System.getenv("KORBKLAR_KEY_ALIAS")
+                keyPassword = System.getenv("KORBKLAR_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            require(!System.getenv("KORBKLAR_STORE_FILE").isNullOrBlank()) {
+                "KORBKLAR_STORE_FILE is required for a signed release build"
+            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

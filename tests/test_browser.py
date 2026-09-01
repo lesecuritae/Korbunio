@@ -17,7 +17,8 @@ def test_home_and_static_assets():
     assert 'src="/static/home-v2.js"' in response.text
     assert '<progress id="statusProgress"' in response.text
     assert "Welche Märkte möchtest du vergleichen?" in response.text
-    assert response.text.count('name="retailers"') == 14
+    assert response.text.count('name="retailers"') == 15
+    assert 'value="dm" checked' in response.text
     assert 'value="Globus" checked' in response.text
     assert 'name="rewe_market_id"' in response.text
     assert 'name="offer_week"' in response.text
@@ -76,6 +77,7 @@ def test_results_page_uses_external_assets_and_data_attributes():
     assert 'id="category"' in response.text
     assert 'data-search-id="synthetic-link-test"' in response.text
     assert 'data-loyalty="lidl_plus,payback"' in response.text
+    assert "günstigsten Preis innerhalb einer direkt vergleichbaren Produktgruppe" in response.text
 
 
 def test_ui_javascript_keeps_expected_behaviour():
