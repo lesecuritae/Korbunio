@@ -78,6 +78,7 @@ class SupermarketRequest(BaseModel):
 class SearchJobRequest(BaseModel):
     postal_code: str
     refresh: bool = False
+    retailers: list[str] = Field(default_factory=list, max_length=20)
 
     @field_validator("postal_code")
     @classmethod
@@ -86,6 +87,14 @@ class SearchJobRequest(BaseModel):
         if normalized is None:
             raise ValueError("Postleitzahl muss genau fünf Ziffern enthalten")
         return normalized
+
+    @field_validator("retailers")
+    @classmethod
+    def valid_retailers(cls, values: list[str]) -> list[str]:
+        resolved, unknown = resolve_retailer_names(values)
+        if unknown:
+            raise ValueError("Unbekannte Händler: " + ", ".join(unknown))
+        return list(resolved)
 
 
 class AccessTokenRequest(BaseModel):

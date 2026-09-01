@@ -65,6 +65,25 @@ void main() {
     });
   });
 
+  test('search sends the locally selected retailers to the server', () async {
+    late http.Request request;
+    final client = KorbKlarClient(
+      baseUrl: 'https://korb.example',
+      httpClient: MockClient((incoming) {
+        request = incoming as http.Request;
+        return http.Response(jsonEncode({'job_id': 'job-1'}), 200);
+      }),
+    );
+    addTearDown(client.close);
+
+    expect(
+      await client.startSearch('06108', retailers: ['REWE', 'dm']),
+      'job-1',
+    );
+    expect(request.url.path, '/api/v1/search/jobs');
+    expect(jsonDecode(request.body)['retailers'], ['REWE', 'dm']);
+  });
+
   group('direct KitchenOwl transfer', () {
     test('discovers lists and transfers the real offer fields', () async {
       final requests = <http.BaseRequest>[];

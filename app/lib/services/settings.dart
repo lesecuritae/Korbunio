@@ -40,6 +40,7 @@ class Settings {
   static const _serverUrl = 'server_url';
   static const _postalCode = 'postal_code';
   static const _loyalty = 'loyalty_programs';
+  static const _retailers = 'selected_retailers';
   static const _listEntity = 'shopping_list_entity';
   static const _legacyApiKey = 'api_key';
   static const _apiKey = 'korbklar_api_token';
@@ -85,6 +86,11 @@ class Settings {
       _prefs.getStringList(_loyalty) ?? const [];
   Future<void> setLoyaltyPrograms(List<String> value) =>
       _prefs.setStringList(_loyalty, value);
+
+  List<String> get selectedRetailers =>
+      _prefs.getStringList(_retailers) ?? const [];
+  Future<void> setSelectedRetailers(List<String> value) =>
+      _prefs.setStringList(_retailers, value);
 
   String get shoppingListEntity => _prefs.getString(_listEntity) ?? '';
   Future<void> setShoppingListEntity(String value) =>

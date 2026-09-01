@@ -10,6 +10,7 @@ import '../services/settings.dart';
 import '../services/offline_store.dart';
 import '../services/local_shopping_list.dart';
 import '../theme.dart';
+import '../widgets/local_shopping_list_button.dart';
 import '../widgets/offer_card.dart';
 
 const _sortLabels = {
@@ -484,6 +485,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               padding: EdgeInsets.symmetric(horizontal: 8),
               child: Center(child: Chip(label: Text('Offline'))),
             ),
+          LocalShoppingListButton(store: widget.localShoppingList),
           IconButton(
             tooltip: 'Ergebnisse neu laden',
             onPressed: _refreshing || page == null ? null : _refreshFromCache,

@@ -11,9 +11,9 @@ import '../services/offline_store.dart';
 import '../services/local_shopping_list.dart';
 import '../services/postal_location.dart';
 import '../theme.dart';
+import '../widgets/local_shopping_list_button.dart';
 import 'results_screen.dart';
 import 'settings_screen.dart';
-import 'local_shopping_list_screen.dart';
 
 /// Postal-code entry and live search progress, mirroring the web home page.
 class HomeScreen extends StatefulWidget {
@@ -35,6 +35,23 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  static const _retailers = [
+    'ALDI Nord',
+    'ALDI Süd',
+    'Lidl',
+    'REWE',
+    'EDEKA',
+    'Marktkauf',
+    'Kaufland',
+    'PENNY',
+    'Netto Marken-Discount',
+    'Netto schwarz',
+    'Globus',
+    'HOL’AB!',
+    'Rossmann',
+    'Müller',
+    'dm',
+  ];
   late final TextEditingController _postalCode = TextEditingController(
     text: widget.settings.postalCode,
   );
@@ -51,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _busy = false;
   bool _offlineAvailable = false;
   bool _locating = false;
+  late List<String> _selectedRetailers = [...widget.settings.selectedRetailers];
 
   /// The search running on the server, kept so a lost connection can be
   /// picked back up instead of starting the whole comparison again.
@@ -137,6 +155,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   bool get _serverConfigured => widget.settings.serverUrl.isNotEmpty;
+
+  Future<void> _chooseRetailers() async {
+    final initial = _selectedRetailers.isEmpty
+        ? _retailers.toSet()
+        : _selectedRetailers.toSet();
+    final selected = await showDialog<Set<String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Händler auswählen'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final retailer in _retailers)
+                  CheckboxListTile(
+                    value: initial.contains(retailer),
+                    title: Text(retailer),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    onChanged: (enabled) => update(() {
+                      if (enabled == true) {
+                        initial.add(retailer);
+                      } else {
+                        initial.remove(retailer);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: initial.isEmpty
+                  ? null
+                  : () => Navigator.pop(dialogContext, initial),
+              child: const Text('Übernehmen'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    final normalized = selected.length == _retailers.length
+        ? <String>[]
+        : _retailers.where(selected.contains).toList();
+    await widget.settings.setSelectedRetailers(normalized);
+    if (mounted) setState(() => _selectedRetailers = normalized);
+  }
 
   Future<void> _openSettings() async {
     await Navigator.of(context).push(
@@ -233,7 +304,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
 
     try {
-      _jobId = await client.startSearch(postalCode);
+      _jobId = await client.startSearch(
+        postalCode,
+        retailers: _selectedRetailers,
+      );
       _watchJob();
     } on KorbKlarException catch (exception) {
       _finish();
@@ -340,16 +414,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          tooltip: 'Lokale Einkaufsliste',
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => LocalShoppingListScreen(
-                                store: widget.localShoppingList,
-                              ),
-                            ),
-                          ),
-                          icon: const Icon(Icons.shopping_basket_outlined),
+                        LocalShoppingListButton(
+                          store: widget.localShoppingList,
                         ),
                         IconButton(
                           tooltip: 'Verbindungen und Einstellungen',
@@ -495,6 +561,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
             onSubmitted: (_) => _search(),
             onChanged: (_) => _checkOffline(),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _chooseRetailers,
+            icon: const Icon(Icons.storefront_outlined),
+            label: Text(
+              _selectedRetailers.isEmpty
+                  ? 'Alle Händler'
+                  : '${_selectedRetailers.length} Händler ausgewählt',
+            ),
           ),
           const SizedBox(height: 12),
           FilledButton(

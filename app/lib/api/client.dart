@@ -200,25 +200,32 @@ class KorbKlarClient {
   /// Starts a background search and returns its job id.
   /// Starts a background search. ``refresh`` skips the server's snapshot
   /// cache and re-queries every source.
-  Future<String> startSearch(String postalCode, {bool refresh = false}) =>
-      _guard(() async {
-        final securityError = connectionSecurityError(baseUrl, apiKey);
-        if (securityError != null) throw KorbKlarException(securityError);
-        final response = await _http
-            .post(
-              _uri('/api/v1/search/jobs'),
-              headers: _headers({
-                'Content-Type': 'application/json; charset=utf-8',
-              }),
-              body: jsonEncode({'postal_code': postalCode, 'refresh': refresh}),
-            )
-            .timeout(_timeout);
-        final jobId = _json(response)['job_id'];
-        if (jobId is! String || jobId.isEmpty) {
-          throw KorbKlarException('Server lieferte keine Auftragsnummer.');
-        }
-        return jobId;
-      });
+  Future<String> startSearch(
+    String postalCode, {
+    bool refresh = false,
+    List<String> retailers = const [],
+  }) => _guard(() async {
+    final securityError = connectionSecurityError(baseUrl, apiKey);
+    if (securityError != null) throw KorbKlarException(securityError);
+    final response = await _http
+        .post(
+          _uri('/api/v1/search/jobs'),
+          headers: _headers({
+            'Content-Type': 'application/json; charset=utf-8',
+          }),
+          body: jsonEncode({
+            'postal_code': postalCode,
+            'refresh': refresh,
+            'retailers': retailers,
+          }),
+        )
+        .timeout(_timeout);
+    final jobId = _json(response)['job_id'];
+    if (jobId is! String || jobId.isEmpty) {
+      throw KorbKlarException('Server lieferte keine Auftragsnummer.');
+    }
+    return jobId;
+  });
 
   Future<SearchProgress> searchProgress(String jobId) => _guard(() async {
     final response = await _http

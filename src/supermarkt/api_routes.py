@@ -31,7 +31,12 @@ def issue_access_token(request_data: AccessTokenRequest, _: None = Depends(requi
 @router.post("/api/v1/search/jobs", include_in_schema=False)
 def start_api_search_job(request_data: SearchJobRequest, _: None = Depends(require_api_auth)) -> dict[str, str]:
     try:
-        job_id = runtime.get_jobs().start(request_data.postal_code, "auto", request_data.refresh, ())
+        job_id = runtime.get_jobs().start(
+            request_data.postal_code,
+            "auto",
+            request_data.refresh,
+            tuple(request_data.retailers),
+        )
     except SearchCapacityError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     return {"job_id": job_id}

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from supermarkt.asgi import app
-from supermarkt.api_models import SupermarketRequest
+from supermarkt.api_models import SearchJobRequest, SupermarketRequest
 from supermarkt import runtime
 from supermarkt import security
 
@@ -93,6 +93,49 @@ def test_request_accepts_one_or_multiple_known_retailers():
 def test_request_rejects_unknown_retailer():
     with pytest.raises(ValidationError, match="Unbekannte Händler"):
         SupermarketRequest(postal_code="01067", retailers=["REWE", "Nicht Echt"])
+
+
+def test_app_search_request_normalizes_selected_retailers():
+    request = SearchJobRequest(
+        postal_code="01067",
+        retailers=["rewe", "dm", "ALDI Süd"],
+    )
+    assert request.retailers == ["REWE", "dm", "ALDI Süd"]
+    with pytest.raises(ValidationError, match="Unbekannte Händler"):
+        SearchJobRequest(postal_code="01067", retailers=["Nicht Echt"])
+
+
+def test_app_search_job_passes_selected_retailers_to_search(monkeypatch):
+    captured = {}
+
+    class FakeJobs:
+        def start(self, postal_code, region, refresh, retailers):
+            captured.update(
+                postal_code=postal_code,
+                region=region,
+                refresh=refresh,
+                retailers=retailers,
+            )
+            return "app-search-job"
+
+    monkeypatch.setattr(runtime, "get_jobs", lambda: FakeJobs())
+    response = TestClient(app).post(
+        "/api/v1/search/jobs",
+        json={
+            "postal_code": "01067",
+            "refresh": True,
+            "retailers": ["rewe", "dm"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"job_id": "app-search-job"}
+    assert captured == {
+        "postal_code": "01067",
+        "region": "auto",
+        "refresh": True,
+        "retailers": ("REWE", "dm"),
+    }
 
 
 def test_request_normalizes_persistent_product_keywords():
