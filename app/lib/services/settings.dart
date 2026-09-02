@@ -47,6 +47,9 @@ class Settings {
   static const _kitchenOwlUrl = 'kitchenowl_url';
   static const _kitchenOwlTokenKey = 'kitchenowl_token';
   static const _themeMode = 'theme_mode';
+  static const _updateCheck = 'update_check_on_start';
+  static const _updateSkipped = 'update_skipped_tag';
+  static const _updateLast = 'update_last_check';
 
   String get serverUrl => _prefs.getString(_serverUrl) ?? '';
   Future<void> setServerUrl(String value) =>
@@ -105,4 +108,22 @@ class Settings {
       normalizeThemeMode(_prefs.getString(_themeMode) ?? 'system');
   Future<void> setThemeMode(String value) =>
       _prefs.setString(_themeMode, normalizeThemeMode(value));
+
+  /// Whether the app asks GitHub for a newer release when it starts.
+  bool get updateCheckOnStart => _prefs.getBool(_updateCheck) ?? true;
+  Future<void> setUpdateCheckOnStart(bool value) =>
+      _prefs.setBool(_updateCheck, value);
+
+  /// The release tag the user chose to skip; offered again only by a manual check.
+  String get skippedUpdateTag => _prefs.getString(_updateSkipped) ?? '';
+  Future<void> setSkippedUpdateTag(String value) =>
+      _prefs.setString(_updateSkipped, value);
+
+  DateTime? get lastUpdateCheck {
+    final raw = _prefs.getString(_updateLast);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  Future<void> setLastUpdateCheck(DateTime value) =>
+      _prefs.setString(_updateLast, value.toUtc().toIso8601String());
 }

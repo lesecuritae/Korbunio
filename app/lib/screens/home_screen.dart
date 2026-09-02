@@ -11,6 +11,7 @@ import '../services/offline_store.dart';
 import '../services/local_shopping_list.dart';
 import '../services/postal_location.dart';
 import '../theme.dart';
+import '../widgets/app_update_flow.dart';
 import '../widgets/local_shopping_list_button.dart';
 import 'results_screen.dart';
 import 'settings_screen.dart';
@@ -74,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// picked back up instead of starting the whole comparison again.
   KorbKlarClient? _client;
   String _jobId = '';
+  late final AppUpdateFlow _updates = AppUpdateFlow(settings: widget.settings);
 
   @override
   void initState() {
@@ -119,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _checkOffline();
     if (mounted && _postalCode.text.isEmpty) await _useLocation();
     if (mounted) setState(() {});
+    if (mounted) await _updates.checkOnStart(context);
   }
 
   Future<void> _useLocation() async {
@@ -175,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _watch?.cancel();
     _client?.close();
+    _updates.close();
     _postalCode.dispose();
     _server.dispose();
     _apiKey.dispose();

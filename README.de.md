@@ -2,7 +2,7 @@
 
 ## Android-App
 
-Unter [`app/`](app/) liegt ein Offline-first-Flutter-Client. In den Einstellungen kann eine eigene KorbKlar-Docker-Instanz verbunden werden; API-Tokens liegen im Android Keystore und werden nur über HTTPS übertragen. Bereits geladene Angebote bleiben ohne Server verfügbar. Eine eigene KitchenOwl-Instanz kann direkt per HTTPS angebunden werden, ohne den Token an KorbKlar weiterzugeben. Details und APK-Bauanleitung stehen in [`app/README.md`](app/README.md).
+Unter [`app/`](app/) liegt ein Offline-first-Flutter-Client. In den Einstellungen kann eine eigene KorbKlar-Docker-Instanz verbunden werden; API-Tokens liegen im Android Keystore und werden nur über HTTPS übertragen. Bereits geladene Angebote bleiben ohne Server verfügbar. Unter Android aktualisiert sich die App selbst aus den GitHub-Releases dieses Repositories und prüft jede APK vor der Installation gegen die von GitHub veröffentlichte Prüfsumme. Eine eigene KitchenOwl-Instanz kann direkt per HTTPS angebunden werden, ohne den Token an KorbKlar weiterzugeben. Details und APK-Bauanleitung stehen in [`app/README.md`](app/README.md).
 
 [← Sprachauswahl](README.md) · [English](README.en.md)
 

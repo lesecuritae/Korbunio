@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../api/kitchenowl_client.dart';
+import '../services/app_update.dart';
 import '../services/settings.dart';
+import '../widgets/app_update_flow.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -28,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   );
   bool _busy = false;
   String _message = '';
+  late final AppUpdateFlow _updates = AppUpdateFlow(settings: widget.settings);
 
   Future<void> _setTheme(String value) async {
     await widget.settings.setThemeMode(value);
@@ -41,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _apiToken.dispose();
     _kitchenOwl.dispose();
     _kitchenOwlToken.dispose();
+    _updates.close();
     super.dispose();
   }
 
@@ -138,6 +142,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _show(String value) {
     if (mounted) setState(() => _message = value);
+  }
+
+  Future<void> _checkForUpdates() async {
+    setState(() => _busy = true);
+    try {
+      await _updates.check(context, manual: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -257,6 +270,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(top: 16),
             child: Text(_message),
           ),
+        if (AppUpdateService.supported) ...[
+          const Divider(height: 40),
+          const Text(
+            'App-Updates',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Neue Versionen kommen als signierte APK aus den GitHub-Releases '
+            'von KorbKlar und werden vor der Installation gegen die dort '
+            'hinterlegte Prüfsumme geprüft.',
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Beim Start nach Updates suchen'),
+            value: widget.settings.updateCheckOnStart,
+            onChanged: _busy
+                ? null
+                : (value) async {
+                    await widget.settings.setUpdateCheckOnStart(value);
+                    if (mounted) setState(() {});
+                  },
+          ),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _checkForUpdates,
+            icon: const Icon(Icons.system_update_alt),
+            label: const Text('Jetzt nach Updates suchen'),
+          ),
+        ],
       ],
     ),
   );

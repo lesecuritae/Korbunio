@@ -44,59 +44,51 @@ void main() {
     expect(await client.check(), ServerCheck.ok);
   });
 
-  test(
-    'a search runs to completion and yields a signed result link',
-    () async {
-      final jobId = await client.startSearch(postalCode);
-      expect(jobId, isNotEmpty);
+  test('a search runs to completion and yields a signed result link', () async {
+    final jobId = await client.startSearch(postalCode);
+    expect(jobId, isNotEmpty);
 
-      var last = await client.searchProgress(jobId);
-      await for (final progress in client.watchSearch(jobId)) {
-        last = progress;
-      }
-      expect(last.isFailed, isFalse, reason: last.error);
-      expect(last.isDone, isTrue);
+    var last = await client.searchProgress(jobId);
+    await for (final progress in client.watchSearch(jobId)) {
+      last = progress;
+    }
+    expect(last.isFailed, isFalse, reason: last.error);
+    expect(last.isDone, isTrue);
 
-      final handle = ResultHandle.parse(last.resultPath);
-      expect(handle, isNotNull);
+    final handle = ResultHandle.parse(last.resultPath);
+    expect(handle, isNotNull);
 
-      final page = await client.results(handle!, pageSize: 20);
-      expect(page.postalCode, postalCode);
-      expect(page.offers, isNotEmpty);
-      expect(page.retailerCounts, isNotEmpty);
+    final page = await client.results(handle!, pageSize: 20);
+    expect(page.postalCode, postalCode);
+    expect(page.offers, isNotEmpty);
+    expect(page.retailerCounts, isNotEmpty);
 
-      // Every offer must arrive with a formatted price; the app never formats
-      // or computes one itself.
-      for (final offer in page.offers) {
-        expect(offer.product, isNotEmpty);
-        expect(offer.effectivePriceText, isNotEmpty);
-      }
+    // Every offer must arrive with a formatted price; the app never formats
+    // or computes one itself.
+    for (final offer in page.offers) {
+      expect(offer.product, isNotEmpty);
+      expect(offer.effectivePriceText, isNotEmpty);
+    }
 
-      // Image links come back as signed, server-relative proxy paths.
-      final withImage = page.offers.where((offer) => offer.imageUrl.isNotEmpty);
-      if (withImage.isNotEmpty) {
-        expect(client.imageUrl(withImage.first.imageUrl), startsWith(baseUrl));
-      }
-    },
-    timeout: const Timeout(Duration(minutes: 8)),
-  );
+    // Image links come back as signed, server-relative proxy paths.
+    final withImage = page.offers.where((offer) => offer.imageUrl.isNotEmpty);
+    if (withImage.isNotEmpty) {
+      expect(client.imageUrl(withImage.first.imageUrl), startsWith(baseUrl));
+    }
+  }, timeout: const Timeout(Duration(minutes: 8)));
 
-  test(
-    'an invalid result token is refused',
-    () async {
-      final jobId = await client.startSearch(postalCode);
-      var last = await client.searchProgress(jobId);
-      await for (final progress in client.watchSearch(jobId)) {
-        last = progress;
-      }
-      final handle = ResultHandle.parse(last.resultPath)!;
-      expect(
-        () => client.results(
-          ResultHandle(searchId: handle.searchId, token: 'wrong'),
-        ),
-        throwsA(isA<KorbKlarException>()),
-      );
-    },
-    timeout: const Timeout(Duration(minutes: 8)),
-  );
+  test('an invalid result token is refused', () async {
+    final jobId = await client.startSearch(postalCode);
+    var last = await client.searchProgress(jobId);
+    await for (final progress in client.watchSearch(jobId)) {
+      last = progress;
+    }
+    final handle = ResultHandle.parse(last.resultPath)!;
+    expect(
+      () => client.results(
+        ResultHandle(searchId: handle.searchId, token: 'wrong'),
+      ),
+      throwsA(isA<KorbKlarException>()),
+    );
+  }, timeout: const Timeout(Duration(minutes: 8)));
 }
