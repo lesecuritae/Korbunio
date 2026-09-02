@@ -240,13 +240,15 @@ class AldiRegionResolver:
                 identity = self._market_identity(" ".join(clean_text(value) for value in (
                     names.get("name"), address.get("shop"), tags.get("brand"), tags.get("operator"), item.get("display_name"),
                 )))
-                aliases = tuple(self._market_identity(value) for value in (spec.name, *spec.aliases))
+                aliases = ("aldi",) if retailer.startswith("ALDI ") else tuple(
+                    self._market_identity(value) for value in (spec.name, *spec.aliases)
+                )
                 excluded = tuple(self._market_identity(value) for value in spec.excluded_aliases)
                 if not any(alias and alias in identity for alias in aliases) or any(alias and alias in identity for alias in excluded):
                     continue
                 if retailer.startswith("ALDI "):
                     region = self._region_from_tags({**tags, "name": names.get("name") or address.get("shop")})
-                    if region and retailer != ("ALDI Nord" if region == "nord" else "ALDI Süd"):
+                    if not region or retailer != ("ALDI Nord" if region == "nord" else "ALDI Süd"):
                         continue
                 try:
                     point = (float(item["lat"]), float(item["lon"]))
