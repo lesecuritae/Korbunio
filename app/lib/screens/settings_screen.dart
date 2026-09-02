@@ -30,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   );
   bool _busy = false;
   String _message = '';
-  late final AppUpdateFlow _updates = AppUpdateFlow(settings: widget.settings);
+  late final AppUpdateFlow _updates = AppUpdateFlow();
 
   Future<void> _setTheme(String value) async {
     await widget.settings.setThemeMode(value);
@@ -147,7 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _checkForUpdates() async {
     setState(() => _busy = true);
     try {
-      await _updates.check(context, manual: true);
+      await _updates.check(context);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -280,19 +280,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text(
             'Neue Versionen kommen als signierte APK aus den GitHub-Releases '
             'von KorbKlar und werden vor der Installation gegen die dort '
-            'hinterlegte Prüfsumme geprüft.',
+            'hinterlegte Prüfsumme geprüft. Die App sucht nur auf Wunsch.',
           ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Beim Start nach Updates suchen'),
-            value: widget.settings.updateCheckOnStart,
-            onChanged: _busy
-                ? null
-                : (value) async {
-                    await widget.settings.setUpdateCheckOnStart(value);
-                    if (mounted) setState(() {});
-                  },
-          ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _busy ? null : _checkForUpdates,
             icon: const Icon(Icons.system_update_alt),

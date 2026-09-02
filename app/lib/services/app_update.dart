@@ -202,14 +202,7 @@ class AppUpdateService {
   static Future<String> _packageVersion() async =>
       (await PackageInfo.fromPlatform()).version;
 
-  static bool isNewer(
-    AppVersion remote,
-    AppVersion local,
-    String skippedTag,
-    String remoteTag,
-  ) => remote > local && remoteTag != skippedTag;
-
-  Future<AppUpdateResult> check({String skippedTag = ''}) async {
+  Future<AppUpdateResult> check() async {
     try {
       final current = await _installedVersion();
       final local = AppVersion.tryParse(current) ?? const AppVersion([0]);
@@ -237,7 +230,7 @@ class AppUpdateService {
         );
       }
       final info = AppUpdateInfo.fromRelease(decoded, _abi);
-      if (isNewer(info.version, local, skippedTag, info.tag)) {
+      if (info.version > local) {
         return AppUpdateResult.available(info, current);
       }
       return AppUpdateResult.current(current, info: info);

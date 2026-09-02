@@ -2,49 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_update.dart';
-import '../services/settings.dart';
 
 /// The dialogs around [AppUpdateService]: offer, download with progress,
-/// hand-over to the installer. Shared by the start-up check and the button
-/// in the settings.
+/// hand-over to the installer. Started only from the settings; the app never
+/// checks on its own.
 class AppUpdateFlow {
-  AppUpdateFlow({required this.settings, AppUpdateService? service})
+  AppUpdateFlow({AppUpdateService? service})
     : service = service ?? AppUpdateService();
 
-  final Settings settings;
   final AppUpdateService service;
 
-  /// Checks once per app start, at most every ten minutes, and only when the
-  /// user has not switched the check off. Silent unless an update exists.
-  Future<void> checkOnStart(BuildContext context) async {
-    if (!AppUpdateService.supported || !settings.updateCheckOnStart) return;
+  Future<void> check(BuildContext context) async {
     await service.cleanupCachedApks();
-    final last = settings.lastUpdateCheck;
-    if (last != null &&
-        DateTime.now().toUtc().difference(last) < const Duration(minutes: 10)) {
-      return;
-    }
-    if (!context.mounted) return;
-    await check(context, manual: false);
-  }
-
-  Future<void> check(BuildContext context, {required bool manual}) async {
-    await settings.setLastUpdateCheck(DateTime.now().toUtc());
-    final result = await service.check(
-      skippedTag: manual ? '' : settings.skippedUpdateTag,
-    );
+    final result = await service.check();
     if (!context.mounted) return;
     switch (result.status) {
       case AppUpdateStatus.available:
         await _offer(context, result.info!);
       case AppUpdateStatus.current:
-        if (manual) {
-          _snack(context, 'Du bist aktuell (${result.currentVersion}).');
-        }
+        _snack(context, 'Du bist aktuell (${result.currentVersion}).');
       case AppUpdateStatus.error:
-        if (manual) {
-          _snack(context, result.error ?? 'Update-Suche fehlgeschlagen.');
-        }
+        _snack(context, result.error ?? 'Update-Suche fehlgeschlagen.');
     }
   }
 
@@ -64,10 +42,6 @@ class AppUpdateFlow {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, 'skip'),
-            child: const Text('Überspringen'),
-          ),
-          TextButton(
             onPressed: () => Navigator.pop(ctx, 'later'),
             child: const Text('Später'),
           ),
@@ -85,8 +59,6 @@ class AppUpdateFlow {
     );
     if (!context.mounted) return;
     switch (action) {
-      case 'skip':
-        await settings.setSkippedUpdateTag(info.tag);
       case 'browser':
         await launchUrl(info.releaseUrl!, mode: LaunchMode.externalApplication);
       case 'install':

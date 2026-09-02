@@ -89,21 +89,6 @@ void main() {
       );
     });
 
-    test('honours a skipped release until the next one', () async {
-      expect(
-        (await _service(
-          _release('v0.1.13'),
-        ).check(skippedTag: 'v0.1.13')).status,
-        AppUpdateStatus.current,
-      );
-      expect(
-        (await _service(
-          _release('v0.1.14'),
-        ).check(skippedTag: 'v0.1.13')).status,
-        AppUpdateStatus.available,
-      );
-    });
-
     test('refuses an asset GitHub has no digest for', () async {
       final result = await _service(
         _release('v0.1.13', withDigest: false),

@@ -109,15 +109,13 @@ on the phone; Android asks once to allow installation from that source.
 
 ### Updating from GitHub releases
 
-Once installed, the app keeps itself current from this repository's GitHub
-releases. On start (at most every ten minutes, and only on Android) it asks
-the releases API for the latest tag, compares it with the installed version
-and offers the APK built for the phone's ABI. The download is verified against
-the SHA-256 digest GitHub records for the asset before it is handed to the
-system installer; a mismatch discards the file. "Überspringen" mutes that one
-release, the switch under *App-Updates* in the settings turns the start-up
-check off, and *Jetzt nach Updates suchen* runs it by hand. Because release
-APKs are signed with the persistent key, an update keeps the app's data.
+*Jetzt nach Updates suchen* under **App-Updates** in the settings asks this
+repository's GitHub releases API for the latest tag, compares it with the
+installed version and offers the APK built for the phone's ABI. The app never
+checks on its own. The download is verified against the SHA-256 digest GitHub
+records for the asset before it is handed to the system installer; a mismatch
+discards the file. Because release APKs are signed with the persistent key, an
+update keeps the app's data. Android only.
 
 Building locally works too, when the machine's Gradle toolchain is healthy:
 
@@ -184,7 +182,7 @@ lib/
 │   ├── app_update.dart   release check, verified APK download, installer
 │   └── settings.dart    locally remembered preferences
 ├── widgets/
-│   ├── app_update_flow.dart  update dialogs shared by start-up and settings
+│   ├── app_update_flow.dart  update dialogs behind the settings button
 │   └── offer_card.dart  one offer row
 ├── theme.dart           colour tokens taken from the web stylesheets
 └── main.dart
