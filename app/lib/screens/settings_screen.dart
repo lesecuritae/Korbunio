@@ -176,6 +176,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const Divider(height: 40),
         const Text(
+          'Start',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: widget.settings.autoStart,
+          title: const Text('Direkt mit den Angeboten starten'),
+          subtitle: const Text(
+            'Öffnet beim Start die letzte Suche für die gespeicherte PLZ. '
+            'Die Händler werden nur neu abgefragt, wenn seitdem ein '
+            'Angebotswechsel (Montag oder Donnerstag) lag. Eine andere PLZ '
+            'gibt es über den Titel der Ergebnisliste.',
+          ),
+          onChanged: _busy
+              ? null
+              : (value) async {
+                  await widget.settings.setAutoStart(value);
+                  if (mounted) setState(() {});
+                },
+        ),
+        const Divider(height: 40),
+        const Text(
           'Eigener KorbKlar-Server',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),

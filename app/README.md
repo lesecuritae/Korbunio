@@ -23,8 +23,9 @@ price; it renders the values the comparison engine returns.
 - local result cache: previously loaded offers remain searchable without a server
 - persistent local shopping list with offline view and clipboard export
 - direct optional KitchenOwl connection, independent of the KorbKlar server
-- a refresh action that bypasses the server's snapshot cache and re-queries
-  every source
+- opens straight into the last comparison and re-queries the retailers only
+  after an offer change (Monday, Thursday), see below
+- a refresh action that starts a new search by hand
 
 Server address, postal code, loyalty selection and target list are remembered
 on the device. KorbKlar and KitchenOwl tokens are stored in Android's encrypted
@@ -38,6 +39,26 @@ If no postcode has been saved, Android asks whether the current location may be
 used. Reverse geocoding runs through the device service; only the resulting
 five-digit postcode is stored. Location permission can be denied without
 losing any manual-search or offline feature.
+
+## Starting
+
+The postal code rarely changes, so the app does not ask for it every time.
+With a saved postcode and a connected server it opens **straight into the
+last comparison**: the stored result is shown at once, from the device cache
+if the server is unreachable.
+
+Whether the retailers are queried again is decided by the calendar, not by
+how long the app was closed. German offers change on **Monday** and, for the
+discounters, again on **Thursday**. If one of those lies between the last
+search and now, a fresh search starts in the background while the old result
+stays readable; a slim strip above the list shows its progress and the new
+result replaces the old one when it completes. Between changes the app opens
+in a second and makes no request at all beyond reading the stored result.
+
+A different postcode is one tap away: the **PLZ** title of the result list
+leads back to the search form. The behaviour can be switched off under
+**Settings → Start**; the refresh icon in the result list always starts a new
+search by hand.
 
 ## Shopping list
 

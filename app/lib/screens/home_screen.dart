@@ -7,6 +7,7 @@ import '../api/client.dart';
 import '../api/models.dart';
 import '../main.dart';
 import '../services/settings.dart';
+import '../services/offer_week.dart';
 import '../services/offline_store.dart';
 import '../services/local_shopping_list.dart';
 import '../services/postal_location.dart';
@@ -68,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _busy = false;
   bool _offlineAvailable = false;
   bool _locating = false;
+  bool _autoStarted = false;
   late List<String> _selectedRetailers = [...widget.settings.selectedRetailers];
 
   /// The search running on the server, kept so a lost connection can be
@@ -119,6 +121,73 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _checkOffline();
     if (mounted && _postalCode.text.isEmpty) await _useLocation();
     if (mounted) setState(() {});
+    await _maybeAutoStart();
+  }
+
+  /// Opens the comparison for the remembered postal code without asking.
+  ///
+  /// Runs once per app start. The stored result is shown first; whether the
+  /// retailers are queried again depends on whether an offer change (Monday
+  /// or Thursday) lies between that search and now, not on how long the app
+  /// was closed. A different postal code is one tap away from the results.
+  Future<void> _maybeAutoStart() async {
+    if (_autoStarted || !mounted || _busy) return;
+    if (!widget.settings.autoStart || !_serverConfigured) return;
+    final postalCode = _postalCode.text.trim();
+    if (!RegExp(r'^\d{5}$').hasMatch(postalCode)) return;
+    _autoStarted = true;
+
+    final last = widget.settings.lastSearch;
+    if (last != null && last.matches(postalCode, _selectedRetailers)) {
+      await _openResults(
+        handle: last.handle,
+        refresh: OfferWeek.isStale(last.searchedAt),
+      );
+      return;
+    }
+    if (await widget.offlineStore.hasPostalCode(postalCode)) {
+      // Something to look at while the server works through the sources.
+      await _openResults(handle: _offlineHandle, refresh: true);
+      return;
+    }
+    await _search();
+  }
+
+  static const _offlineHandle = ResultHandle(
+    searchId: 'offline',
+    token: 'offline',
+  );
+
+  /// Shows a result. With [refresh] the screen starts a new search for the
+  /// same postal code in the background and swaps it in when it completes.
+  Future<void> _openResults({
+    required ResultHandle handle,
+    bool refresh = false,
+  }) async {
+    if (!mounted) return;
+    // Without a server the stored pages are all there is; the client then
+    // points nowhere and the results screen falls back to the offline store.
+    final client = _serverConfigured
+        ? KorbKlarClient(
+            baseUrl: widget.settings.serverUrl,
+            apiKey: widget.settings.apiKey,
+          )
+        : KorbKlarClient(baseUrl: 'http://127.0.0.1:1');
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ResultsScreen(
+          client: client,
+          handle: handle,
+          settings: widget.settings,
+          offlineStore: widget.offlineStore,
+          localShoppingList: widget.localShoppingList,
+          retailers: _selectedRetailers,
+          autoRefresh: refresh && _serverConfigured,
+        ),
+      ),
+    );
+    client.close();
+    await _checkOffline();
   }
 
   Future<void> _useLocation() async {
@@ -154,21 +223,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) setState(() => _offlineAvailable = available);
   }
 
-  Future<void> _openOffline() async {
-    final client = KorbKlarClient(baseUrl: 'http://127.0.0.1:1');
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ResultsScreen(
-          client: client,
-          handle: const ResultHandle(searchId: 'offline', token: 'offline'),
-          settings: widget.settings,
-          offlineStore: widget.offlineStore,
-          localShoppingList: widget.localShoppingList,
-        ),
-      ),
-    );
-    client.close();
-  }
+  Future<void> _openOffline() =>
+      _openResults(handle: _offlineHandle, refresh: false);
 
   @override
   void dispose() {
@@ -399,6 +455,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               _busy = false;
               _jobId = '';
             });
+            // Remembered so the next start opens this result directly.
+            await widget.settings.setLastSearch(
+              LastSearch(
+                postalCode: widget.settings.postalCode,
+                retailers: _selectedRetailers,
+                searchId: handle.searchId,
+                token: handle.token,
+                searchedAt: DateTime.now(),
+              ),
+            );
+            if (!mounted) return;
             await Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ResultsScreen(
@@ -407,10 +474,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   settings: widget.settings,
                   offlineStore: widget.offlineStore,
                   localShoppingList: widget.localShoppingList,
+                  retailers: _selectedRetailers,
                 ),
               ),
             );
             _finish();
+            await _checkOffline();
           },
           onError: (Object error) {
             if (!mounted) return;
