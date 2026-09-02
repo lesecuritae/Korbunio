@@ -67,6 +67,20 @@ IMAGE_MAX_FILE_BYTES = _env_int(
     "SUPERMARKT_IMAGE_MAX_FILE_BYTES", 4 * 1024 * 1024, 128 * 1024, 8 * 1024 * 1024
 )
 CACHE_TTL_MINUTES = _env_int("SUPERMARKT_CACHE_TTL_MINUTES", 30, 1, 1440)
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().casefold() in {"1", "true", "yes", "on", "ja"}
+
+
+# A complete snapshot of the current week stays fresh until the next offer
+# change (Monday or Thursday, Berlin time) instead of CACHE_TTL_MINUTES.
+# Snapshots with failed sources and next-week previews keep the short TTL,
+# and refresh=1 always re-queries. Off returns to the fixed TTL for everything.
+CACHE_WEEKLY = _env_bool("SUPERMARKT_CACHE_WEEKLY", True)
 CACHE_MAX_SNAPSHOTS = _env_int("SUPERMARKT_CACHE_MAX_SNAPSHOTS", 100, 4, 500)
 RESULT_RETENTION_HOURS = _env_int("SUPERMARKT_RESULT_RETENTION_HOURS", 168, 1, 24 * 30)
 TIMEOUT_SECONDS = _env_int("SUPERMARKT_TIMEOUT_SECONDS", 25, 5, 120)

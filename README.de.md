@@ -258,6 +258,8 @@ Standardmäßig werden im persistenten Datenpfad gespeichert:
 
 Der Snapshot-Cache verhindert, dass Filter, Sortierung und nachgeladene Ergebnisblöcke dieselben Händlerquellen ständig neu abrufen. Cache-Frische und Lebensdauer bereits erzeugter Ergebnislinks sind voneinander getrennt.
 
+Angebote wechseln montags und donnerstags. Ein vollständig geladener Snapshot der aktuellen Woche bleibt deshalb bis zum nächsten dieser Wechsel (0 Uhr Berliner Zeit) frisch und wird dazwischen nicht neu bei den Händlern abgefragt (`SUPERMARKT_CACHE_WEEKLY=1`, `0` schaltet zurück auf feste TTL). Snapshots mit ausgefallener Quelle und die Vorschau auf die Folgewoche gelten nur `SUPERMARKT_CACHE_TTL_MINUTES` (Standard 30) lang; `refresh=1` fragt immer neu ab.
+
 Der Bildproxy validiert externe Bildziele, blockiert private und Loopback-Adressen und verwirft typische Tracking-, Pixel-, Logo- und Platzhalter-URLs. Bilder werden lokal zwischengespeichert.
 
 ## Signierte Ergebnis- und Bildlinks

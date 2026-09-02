@@ -7,6 +7,7 @@ import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, replace
+from datetime import datetime
 from typing import Any
 
 from .cache import PersistentSnapshotStore
@@ -17,6 +18,7 @@ from .config import (
     CACHE_DB,
     CACHE_MAX_SNAPSHOTS,
     CACHE_TTL_MINUTES,
+    CACHE_WEEKLY,
     KAUFLAND_CACHE_DIR,
     KAUFLAND_STORE_CACHE_TTL_SECONDS,
     REWE_CACHE_DIR,
@@ -28,6 +30,7 @@ from .config import (
 )
 from .http import HttpClient, PostalCodeLocator
 from .loyalty import available_programs, normalize_program_ids
+from .offer_week import next_change_timestamp
 from .models import AGGREGATOR_RETAILERS, RETAILER_SPECS, Offer, RetailerContext, ToolError, offer_from_dict, offer_to_dict
 from .presentation import offer_for_response, offer_sort_key, resolve_retailer_name
 from .region import AldiRegionResolver
@@ -540,7 +543,24 @@ class SupermarketEngine:
                         progress(status="processing", progress=90, source="Cache", retailer="Alle Händler", category="Alle Kategorien", step="Gespeicherter Vergleich wird geöffnet", processed_sources=1, total_sources=1, processed_products=len(cached.get("offers", [])))
                     return cached, True
             fresh = self.loader.load(postal_code, aldi_region, progress=progress, retailers=retailers, rewe_market_id=rewe_market_id, netto_market_id=netto_market_id, offer_week=offer_week)
-            return self.store.put(key, fresh), False
+            return self.store.put(key, fresh, fresh_until=self.freshness_deadline(fresh, offer_week)), False
+
+    @staticmethod
+    def freshness_deadline(snapshot: dict[str, Any], offer_week: str = "current", now: datetime | None = None, weekly: bool = CACHE_WEEKLY) -> float | None:
+        """How long a freshly loaded snapshot may be served from the cache.
+
+        Offers change on Monday and Thursday, so a complete snapshot of the
+        current week is kept until the next of those two moments. ``None``
+        falls back to the store's short TTL: for a disabled weekly cache, for
+        next-week previews (retailers publish them piecemeal during the week)
+        and for snapshots where at least one source failed, so a hiccup is
+        retried after minutes rather than days.
+        """
+        if not weekly or normalize_offer_week(offer_week) != "current":
+            return None
+        if snapshot.get("request_errors"):
+            return None
+        return next_change_timestamp(now)
 
     def by_id(self, search_id: str) -> dict[str, Any]:
         snapshot = self.store.get_by_id(search_id)
