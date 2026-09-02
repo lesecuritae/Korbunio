@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from supermarkt.compare import OfferComparator, OfferMapper
 from supermarkt.loyalty import PROGRAM_BY_ID, apply_selected_programs, available_programs
@@ -39,13 +41,14 @@ def test_kaufland_xtra_changes_effective_price_only_when_selected():
 
 def test_marktguru_app_price_is_bound_to_retailer_program():
     contexts = SourceLoader._contexts()
+    now = datetime.now(UTC)
     raw = {
         "id": 1,
         "advertisers": [{"name": "Lidl"}],
         "product": {"name": "Testprodukt"},
         "description": "App-Preis 1,49",
         "price": 1.99,
-        "validityDates": [{"from": "2026-08-01T00:00:00Z", "to": "2026-08-31T23:59:59Z"}],
+        "validityDates": [{"from": (now - timedelta(days=1)).isoformat(), "to": (now + timedelta(days=1)).isoformat()}],
     }
     mapped = OfferMapper().map_one(raw, {"Lidl": contexts["Lidl"]})
     assert mapped is not None

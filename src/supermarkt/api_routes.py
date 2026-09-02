@@ -11,13 +11,15 @@ from .loyalty import normalize_program_ids
 from .models import ToolError
 from .security import create_client_token
 from . import runtime
+from .preferences import home_defaults
 
 router = APIRouter()
 
 
 @router.get("/api/v1/client", include_in_schema=False)
-def client_connection(_: None = Depends(require_api_auth)) -> dict[str, str]:
-    return {"status": "ok", "service": "korbklar"}
+def client_connection(_: None = Depends(require_api_auth)) -> dict[str, Any]:
+    postal_code, retailers = home_defaults()
+    return {"status": "ok", "service": "korbklar", "default_postal_code": postal_code, "default_retailers": list(retailers)}
 
 
 @router.post("/api/v1/access-tokens", include_in_schema=False)

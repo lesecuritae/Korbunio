@@ -79,6 +79,7 @@ class Settings {
   }
 
   String get postalCode => _prefs.getString(_postalCode) ?? '';
+  bool get hasPostalCode => _prefs.containsKey(_postalCode);
   Future<void> setPostalCode(String value) =>
       _prefs.setString(_postalCode, value);
 
@@ -89,6 +90,7 @@ class Settings {
 
   List<String> get selectedRetailers =>
       _prefs.getStringList(_retailers) ?? const [];
+  bool get hasSelectedRetailers => _prefs.containsKey(_retailers);
   Future<void> setSelectedRetailers(List<String> value) =>
       _prefs.setStringList(_retailers, value);
 

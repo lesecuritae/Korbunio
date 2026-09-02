@@ -84,6 +84,26 @@ void main() {
     expect(jsonDecode(request.body)['retailers'], ['REWE', 'dm']);
   });
 
+  test('reads instance defaults from the server', () async {
+    final client = KorbKlarClient(
+      baseUrl: 'https://korb.example',
+      httpClient: MockClient(
+        (_) => http.Response(
+          jsonEncode({
+            'service': 'korbklar',
+            'default_postal_code': '06108',
+            'default_retailers': ['REWE', 'dm'],
+          }),
+          200,
+        ),
+      ),
+    );
+    addTearDown(client.close);
+    final defaults = await client.defaults();
+    expect(defaults.postalCode, '06108');
+    expect(defaults.retailers, ['REWE', 'dm']);
+  });
+
   group('direct KitchenOwl transfer', () {
     test('discovers lists and transfers the real offer fields', () async {
       final requests = <http.BaseRequest>[];

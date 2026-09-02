@@ -30,6 +30,10 @@ Server address, postal code, loyalty selection and target list are remembered
 on the device. KorbKlar and KitchenOwl tokens are stored in Android's encrypted
 Keystore rather than normal preferences.
 
+On first connection, an app without its own saved postal code or retailer
+selection adopts the server's optional `SUPERMARKT_DEFAULT_POSTAL_CODE` and
+`SUPERMARKT_DEFAULT_RETAILERS`. Later choices in the app always take precedence.
+
 If no postcode has been saved, Android asks whether the current location may be
 used. Reverse geocoding runs through the device service; only the resulting
 five-digit postcode is stored. Location permission can be denied without

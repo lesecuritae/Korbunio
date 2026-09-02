@@ -56,6 +56,12 @@ enum ServerCheck {
   notKorbKlar,
 }
 
+class ServerDefaults {
+  const ServerDefaults({this.postalCode = '', this.retailers = const []});
+  final String postalCode;
+  final List<String> retailers;
+}
+
 class KorbKlarClient {
   KorbKlarClient({
     required String baseUrl,
@@ -169,6 +175,22 @@ class KorbKlarClient {
     return payload['service'] == 'korbklar'
         ? ServerCheck.ok
         : ServerCheck.notKorbKlar;
+  });
+
+  Future<ServerDefaults> defaults() => _guard(() async {
+    final securityError = connectionSecurityError(baseUrl, apiKey);
+    if (securityError != null) throw KorbKlarException(securityError);
+    final response = await _http
+        .get(_uri('/api/v1/client'), headers: _headers())
+        .timeout(_timeout);
+    final payload = _json(response);
+    return ServerDefaults(
+      postalCode: '${payload['default_postal_code'] ?? ''}'.trim(),
+      retailers: (payload['default_retailers'] as List? ?? const [])
+          .map((value) => '$value'.trim())
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false),
+    );
   });
 
   /// Exchanges the server's administrator key for a separate app token.

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, Query
@@ -12,22 +11,15 @@ from .common import clean_text, normalize_aldi_region, validate_postal_code
 from .loyalty import normalize_program_ids
 from .jobs import SearchCapacityError
 from .models import ToolError, resolve_retailer_names
+from .preferences import home_defaults
 from . import runtime
 from .ui import build_home_html, build_results_html, build_shopping_html
 
 router = APIRouter()
 
 
-def _home_defaults() -> tuple[str, tuple[str, ...]]:
-    postal_code = validate_postal_code(os.getenv("SUPERMARKT_DEFAULT_POSTAL_CODE", "")) or ""
-    raw_retailers = os.getenv("SUPERMARKT_DEFAULT_RETAILERS", "")
-    requested = [value.strip() for value in raw_retailers.replace(";", ",").split(",") if value.strip()]
-    retailers, _unknown = resolve_retailer_names(requested)
-    return postal_code, retailers
-
-
 def _home_html(*, error: str = "", postal_code: str = "") -> str:
-    default_postal_code, default_retailers = _home_defaults()
+    default_postal_code, default_retailers = home_defaults()
     return build_home_html(
         error=error,
         postal_code=postal_code,

@@ -8,10 +8,12 @@ void main() {
   test('selected retailers persist locally', () async {
     SharedPreferences.setMockInitialValues({});
     final settings = await Settings.load();
+    expect(settings.hasSelectedRetailers, isFalse);
 
     await settings.setSelectedRetailers(['REWE', 'dm']);
 
     final reloaded = await Settings.load();
     expect(reloaded.selectedRetailers, ['REWE', 'dm']);
+    expect(reloaded.hasSelectedRetailers, isTrue);
   });
 }

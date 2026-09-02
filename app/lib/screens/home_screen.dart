@@ -80,9 +80,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkOffline();
-    if (_postalCode.text.isEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _useLocation());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initializeDefaults());
+  }
+
+  Future<void> _initializeDefaults() async {
+    if (_serverConfigured &&
+        (!widget.settings.hasPostalCode ||
+            !widget.settings.hasSelectedRetailers)) {
+      final client = KorbKlarClient(
+        baseUrl: widget.settings.serverUrl,
+        apiKey: widget.settings.apiKey,
+      );
+      try {
+        final defaults = await client.defaults();
+        if (!widget.settings.hasPostalCode &&
+            RegExp(r'^\d{5}$').hasMatch(defaults.postalCode)) {
+          _postalCode.text = defaults.postalCode;
+          await widget.settings.setPostalCode(defaults.postalCode);
+        }
+        if (!widget.settings.hasSelectedRetailers &&
+            defaults.retailers.isNotEmpty) {
+          final selected = _retailers
+              .where(defaults.retailers.contains)
+              .toList(growable: false);
+          if (selected.isNotEmpty) {
+            _selectedRetailers = selected.length == _retailers.length
+                ? <String>[]
+                : selected;
+            await widget.settings.setSelectedRetailers(_selectedRetailers);
+          }
+        }
+      } on Object {
+        // Instance defaults are optional and must never block app startup.
+      } finally {
+        client.close();
+      }
     }
+    await _checkOffline();
+    if (mounted && _postalCode.text.isEmpty) await _useLocation();
+    if (mounted) setState(() {});
   }
 
   Future<void> _useLocation() async {

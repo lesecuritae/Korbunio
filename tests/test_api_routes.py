@@ -10,6 +10,14 @@ from supermarkt import runtime
 from supermarkt import security
 
 
+def test_client_connection_exposes_valid_instance_defaults(monkeypatch):
+    monkeypatch.setenv("SUPERMARKT_DEFAULT_POSTAL_CODE", "06108")
+    monkeypatch.setenv("SUPERMARKT_DEFAULT_RETAILERS", "REWE,dm,nicht-echt")
+    payload = TestClient(app).get("/api/v1/client").json()
+    assert payload["default_postal_code"] == "06108"
+    assert payload["default_retailers"] == ["REWE", "dm"]
+
+
 def test_api_returns_one_absolute_result_url():
     client = TestClient(app, base_url="https://offers.example.test")
     result = client.post("/api/v1/compare", json={"postal_code": "01067"}).json()
