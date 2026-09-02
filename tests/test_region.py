@@ -46,6 +46,18 @@ def test_region_resolver_uses_bounded_fallback_and_cache():
     assert http.calls == 2
 
 
+def test_markets_preserve_provider_address_and_coordinates():
+    http = FakeHttp()
+    resolver = AldiRegionResolver(http)
+    resolver.http = http
+    markets = resolver.markets("01067")
+    assert markets[0]["name"] == "ALDI Nord"
+    assert markets[0]["postal_code"] == "01067"
+    assert markets[0]["latitude"] == 51.051
+    assert markets[0]["longitude"] == 13.741
+    assert markets[0]["url"] == "https://www.aldi-nord.de/"
+
+
 def test_unknown_52_postcode_is_not_classified_by_prefix():
     http = FakeHttp()
     resolver = AldiRegionResolver(http)

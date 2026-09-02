@@ -180,9 +180,26 @@ class AldiRegionResolver:
                     "distance_km": self._distance_km(origin, point),
                     "provider": "Nominatim",
                     "exact_postcode": clean_text(address.get("postcode")) == postal_code,
+                    "name": clean_text(tags.get("name")) or ("ALDI Nord" if region == "nord" else "ALDI Süd"),
+                    "address": display,
+                    "postal_code": clean_text(address.get("postcode")),
+                    "latitude": point[0],
+                    "longitude": point[1],
+                    "url": clean_text(tags.get("website")) or clean_text(tags.get("contact:website")),
                 }
             )
         return candidates
+
+    def markets(self, postal_code: str) -> list[dict[str, Any]]:
+        code = validate_postal_code(postal_code)
+        if not code:
+            return []
+        origin = self._postal_coordinates(code)
+        if origin is None:
+            return []
+        candidates = sorted(self._nearby(origin, code), key=lambda item: (not bool(item.get("exact_postcode")), float(item["distance_km"])))
+        exact = [item for item in candidates if item.get("exact_postcode")]
+        return exact or [item for item in candidates if float(item.get("distance_km") or 999) <= 15]
 
     def detect(self, postal_code: str) -> str:
         code = validate_postal_code(postal_code)

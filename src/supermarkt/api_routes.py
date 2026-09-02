@@ -94,6 +94,12 @@ def netto_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@router.get("/api/v1/aldi/markets", summary="Belegte ALDI-Filialen einer PLZ auflösen", include_in_schema=False)
+def aldi_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"), _: None = Depends(require_api_auth)) -> dict[str, Any]:
+    markets = runtime.get_engine().loader.aldi_region.markets(postal_code)
+    return {"postal_code": postal_code, "markets": markets, "count": len(markets), "source": "OpenStreetMap/Nominatim"}
+
+
 @router.get("/api/results/{search_id}", include_in_schema=False)
 @router.get("/api/v1/results/{search_id}", include_in_schema=False)
 def result_data(
