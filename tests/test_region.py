@@ -1,4 +1,5 @@
 import json
+from urllib.parse import parse_qs, urlparse
 
 from supermarkt.http import HttpClient
 from supermarkt.region import AldiRegionResolver
@@ -56,6 +57,26 @@ def test_markets_preserve_provider_address_and_coordinates():
     assert markets[0]["latitude"] == 51.051
     assert markets[0]["longitude"] == 13.741
     assert markets[0]["url"] == "https://www.aldi-nord.de/"
+
+
+def test_retailer_markets_resolve_every_requested_catalog_retailer():
+    class RetailerHttp(FakeHttp):
+        def get_bytes(self, url, headers=None):
+            self.calls += 1
+            query = parse_qs(urlparse(url).query)
+            if "postalcode" in query:
+                return json.dumps([{"lat": "51.32", "lon": "12.29"}]).encode()
+            name = "Lidl" if query.get("q") == ["lidl"] else "dm-drogerie markt"
+            return json.dumps([{"osm_id": name, "lat": "51.321", "lon": "12.291",
+                "display_name": f"{name}, Teststraße 1, 04209 Leipzig",
+                "address": {"postcode": "04209", "shop": name}, "namedetails": {"name": name},
+                "extratags": {"website": "https://example.test/"}}]).encode()
+
+    resolver = AldiRegionResolver(RetailerHttp())
+    resolver.http = RetailerHttp()
+    markets = resolver.retailer_markets("04209", ("Lidl", "dm"))
+    assert {market["retailer"] for market in markets} == {"Lidl", "dm"}
+    assert all(market["postal_code"] == "04209" for market in markets)
 
 
 def test_unknown_52_postcode_is_not_classified_by_prefix():

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from math import asin, cos, radians, sin, sqrt
 from typing import Any, Optional
 from urllib.parse import urlencode
 
 from .common import clean_text, validate_postal_code
 from .http import HttpClient
+from .models import RETAILER_SPECS
 
 
 class AldiRegionResolver:
@@ -200,6 +202,72 @@ class AldiRegionResolver:
         candidates = sorted(self._nearby(origin, code), key=lambda item: (not bool(item.get("exact_postcode")), float(item["distance_km"])))
         exact = [item for item in candidates if item.get("exact_postcode")]
         return exact or [item for item in candidates if float(item.get("distance_km") or 999) <= 15]
+
+    @staticmethod
+    def _market_identity(value: Any) -> str:
+        text = unicodedata.normalize("NFKD", clean_text(value).casefold())
+        return " ".join("".join(char for char in text if not unicodedata.combining(char) and char.isalnum() or char == " ").split())
+
+    def retailer_markets(self, postal_code: str, retailers: tuple[str, ...]) -> list[dict[str, Any]]:
+        code = validate_postal_code(postal_code)
+        origin = self._postal_coordinates(code) if code else None
+        if origin is None:
+            return []
+        lat, lon = origin
+        specs = {spec.name: spec for spec in RETAILER_SPECS}
+        markets: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for retailer in dict.fromkeys(retailers):
+            spec = specs.get(retailer)
+            if spec is None:
+                continue
+            search_name = "ALDI" if retailer.startswith("ALDI ") else spec.name
+            query = urlencode({
+                "q": search_name, "format": "jsonv2", "countrycodes": "de", "bounded": 1,
+                "viewbox": f"{lon - 0.35:.7f},{lat + 0.25:.7f},{lon + 0.35:.7f},{lat - 0.25:.7f}",
+                "addressdetails": 1, "namedetails": 1, "extratags": 1, "limit": 30,
+            })
+            try:
+                payload = self._json("https://nominatim.openstreetmap.org/search?" + query)
+            except Exception:
+                continue
+            for item in payload if isinstance(payload, list) else []:
+                if not isinstance(item, dict):
+                    continue
+                address = item.get("address") if isinstance(item.get("address"), dict) else {}
+                names = item.get("namedetails") if isinstance(item.get("namedetails"), dict) else {}
+                tags = item.get("extratags") if isinstance(item.get("extratags"), dict) else {}
+                identity = self._market_identity(" ".join(clean_text(value) for value in (
+                    names.get("name"), address.get("shop"), tags.get("brand"), tags.get("operator"), item.get("display_name"),
+                )))
+                aliases = tuple(self._market_identity(value) for value in (spec.name, *spec.aliases))
+                excluded = tuple(self._market_identity(value) for value in spec.excluded_aliases)
+                if not any(alias and alias in identity for alias in aliases) or any(alias and alias in identity for alias in excluded):
+                    continue
+                if retailer.startswith("ALDI "):
+                    region = self._region_from_tags({**tags, "name": names.get("name") or address.get("shop")})
+                    if region and retailer != ("ALDI Nord" if region == "nord" else "ALDI Süd"):
+                        continue
+                try:
+                    point = (float(item["lat"]), float(item["lon"]))
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if self._distance_km(origin, point) > 15:
+                    continue
+                market_id = clean_text(item.get("osm_id") or item.get("place_id"))
+                key = (retailer, market_id or f"{point[0]:.6f}:{point[1]:.6f}")
+                if key in seen:
+                    continue
+                seen.add(key)
+                markets.append({
+                    "market_id": key[1], "retailer": retailer,
+                    "name": clean_text(names.get("name") or address.get("shop")) or retailer,
+                    "address": clean_text(item.get("display_name")), "postal_code": clean_text(address.get("postcode")),
+                    "latitude": point[0], "longitude": point[1],
+                    "url": clean_text(tags.get("website") or tags.get("contact:website")) or spec.fallback_url,
+                    "distance_km": self._distance_km(origin, point), "provider": "OpenStreetMap/Nominatim",
+                })
+        return sorted(markets, key=lambda item: (float(item["distance_km"]), item["retailer"].casefold(), item["name"].casefold()))
 
     def detect(self, postal_code: str) -> str:
         code = validate_postal_code(postal_code)

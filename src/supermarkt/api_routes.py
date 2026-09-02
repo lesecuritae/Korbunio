@@ -8,7 +8,7 @@ from .access import build_result_path, build_result_url, proxy_page_images, requ
 from .api_models import AccessTokenRequest, SearchJobRequest, SupermarketRequest
 from .jobs import SearchCapacityError
 from .loyalty import normalize_program_ids
-from .models import ToolError
+from .models import ToolError, resolve_retailer_names
 from .security import create_client_token
 from . import runtime
 from .preferences import home_defaults
@@ -97,6 +97,17 @@ def netto_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r
 @router.get("/api/v1/aldi/markets", summary="Belegte ALDI-Filialen einer PLZ auflösen", include_in_schema=False)
 def aldi_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"), _: None = Depends(require_api_auth)) -> dict[str, Any]:
     markets = runtime.get_engine().loader.aldi_region.markets(postal_code)
+    return {"postal_code": postal_code, "markets": markets, "count": len(markets), "source": "OpenStreetMap/Nominatim"}
+
+
+@router.get("/api/v1/markets", summary="Belegte Märkte der KorbKlar-Händler auflösen", include_in_schema=False)
+def retailer_markets(
+    postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"),
+    retailers: list[str] = Query(default=[], max_length=20),
+    _: None = Depends(require_api_auth),
+) -> dict[str, Any]:
+    canonical, _unknown = resolve_retailer_names(retailers)
+    markets = runtime.get_engine().loader.aldi_region.retailer_markets(postal_code, canonical)
     return {"postal_code": postal_code, "markets": markets, "count": len(markets), "source": "OpenStreetMap/Nominatim"}
 
 
