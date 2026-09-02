@@ -24,7 +24,7 @@ price; it renders the values the comparison engine returns.
 - persistent local shopping list with offline view and clipboard export
 - direct optional KitchenOwl connection, independent of the KorbKlar server
 - opens straight into the last comparison and re-queries the retailers only
-  after an offer change (Monday, Thursday), see below
+  after an offer change (Thursday, and Sunday for the new week), see below
 - a refresh action that starts a new search by hand
 
 Server address, postal code, loyalty selection and target list are remembered
@@ -48,8 +48,9 @@ last comparison**: the stored result is shown at once, from the device cache
 if the server is unreachable.
 
 Whether the retailers are queried again is decided by the calendar, not by
-how long the app was closed. German offers change on **Monday** and, for the
-discounters, again on **Thursday**. If one of those lies between the last
+how long the app was closed. German offers change for the new week, which the
+server already selects on **Sunday**, and for the discounters again on
+**Thursday**. If one of those lies between the last
 search and now, a fresh search starts in the background while the old result
 stays readable; a slim strip above the list shows its progress and the new
 result replaces the old one when it completes. Between changes the app opens

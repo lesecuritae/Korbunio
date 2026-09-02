@@ -6,6 +6,10 @@
 /// reason to re-query every source on each start. After one of them it does,
 /// even though nothing about the stored result says so.
 ///
+/// The week starts on Sunday here, not Monday: the server already selects the
+/// coming week on Sundays because most retailers publish it by then, so a
+/// Saturday result is out of date on Sunday morning.
+///
 /// Everything here is local time on purpose: the leaflets follow the calendar
 /// of the shop, and the device of someone comparing German offers is set to
 /// the same one.
@@ -13,7 +17,7 @@ class OfferWeek {
   const OfferWeek._();
 
   /// Weekdays on which offers change, at midnight.
-  static const changeWeekdays = {DateTime.monday, DateTime.thursday};
+  static const changeWeekdays = {DateTime.sunday, DateTime.thursday};
 
   /// Midnight of the most recent change day at or before [now].
   static DateTime lastChange(DateTime now) {
@@ -42,7 +46,7 @@ class OfferWeek {
   /// The German name of the weekday the latest change fell on, for the UI.
   static String lastChangeLabel(DateTime now) =>
       switch (lastChange(now).weekday) {
-        DateTime.monday => 'Montag',
+        DateTime.sunday => 'Sonntag',
         DateTime.thursday => 'Donnerstag',
         _ => 'dieser Woche',
       };

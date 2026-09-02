@@ -127,8 +127,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// Opens the comparison for the remembered postal code without asking.
   ///
   /// Runs once per app start. The stored result is shown first; whether the
-  /// retailers are queried again depends on whether an offer change (Monday
-  /// or Thursday) lies between that search and now, not on how long the app
+  /// retailers are queried again depends on whether an offer change (Thursday,
+  /// or Sunday for the new week) lies between that search and now, not on how long the app
   /// was closed. A different postal code is one tap away from the results.
   Future<void> _maybeAutoStart() async {
     if (_autoStarted || !mounted || _busy) return;

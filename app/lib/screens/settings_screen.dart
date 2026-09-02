@@ -186,7 +186,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: const Text(
             'Öffnet beim Start die letzte Suche für die gespeicherte PLZ. '
             'Die Händler werden nur neu abgefragt, wenn seitdem ein '
-            'Angebotswechsel (Montag oder Donnerstag) lag. Eine andere PLZ '
+            'Angebotswechsel lag (Donnerstag, neue Woche ab Sonntag). Eine andere PLZ '
             'gibt es über den Titel der Ergebnisliste.',
           ),
           onChanged: _busy
