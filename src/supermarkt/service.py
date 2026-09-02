@@ -549,8 +549,9 @@ class SupermarketEngine:
     def freshness_deadline(snapshot: dict[str, Any], offer_week: str = "current", now: datetime | None = None, weekly: bool = CACHE_WEEKLY) -> float | None:
         """How long a freshly loaded snapshot may be served from the cache.
 
-        Offers change on Monday and Thursday, so a complete snapshot of the
-        current week is kept until the next of those two moments. ``None``
+        Offers change on Thursday and, as far as this server is concerned,
+        on Sunday (see ``offer_reference_date``), so a complete snapshot of
+        the current week is kept until the next of those two moments. ``None``
         falls back to the store's short TTL: for a disabled weekly cache, for
         next-week previews (retailers publish them piecemeal during the week)
         and for snapshots where at least one source failed, so a hiccup is

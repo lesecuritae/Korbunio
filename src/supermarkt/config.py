@@ -77,7 +77,8 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 # A complete snapshot of the current week stays fresh until the next offer
-# change (Monday or Thursday, Berlin time) instead of CACHE_TTL_MINUTES.
+# change (Sunday or Thursday 00:00 Berlin time, matching offer_reference_date)
+# instead of CACHE_TTL_MINUTES.
 # Snapshots with failed sources and next-week previews keep the short TTL,
 # and refresh=1 always re-queries. Off returns to the fixed TTL for everything.
 CACHE_WEEKLY = _env_bool("SUPERMARKT_CACHE_WEEKLY", True)

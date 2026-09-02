@@ -6,6 +6,10 @@ two moments a snapshot of one postal code does not go out of date, however
 often it is opened, so there is no reason to drive every retailer site again
 after thirty minutes. After one of them there is.
 
+The week does not start on Monday here but on Sunday: ``offer_reference_date``
+already selects the coming week on Sundays because most retailers publish it
+by then, so a Saturday snapshot must not survive into Sunday.
+
 All arithmetic is in Europe/Berlin: the leaflets follow the calendar of the
 shop, not of the server.
 """
@@ -16,8 +20,8 @@ from datetime import datetime, timedelta
 
 from .config import BERLIN
 
-# datetime.weekday(): Monday is 0, Thursday is 3.
-CHANGE_WEEKDAYS = (0, 3)
+# datetime.weekday(): Thursday is 3, Sunday is 6.
+CHANGE_WEEKDAYS = (3, 6)
 
 
 def _midnight(moment: datetime) -> datetime:
