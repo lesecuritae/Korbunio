@@ -7,6 +7,7 @@ import '../api/client.dart';
 import '../api/kitchenowl_client.dart';
 import '../api/models.dart';
 import '../services/settings.dart';
+import '../services/offer_week.dart';
 import '../services/offline_store.dart';
 import '../services/local_shopping_list.dart';
 import '../theme.dart';
@@ -31,6 +32,8 @@ class ResultsScreen extends StatefulWidget {
     required this.settings,
     required this.offlineStore,
     required this.localShoppingList,
+    this.retailers = const [],
+    this.autoRefresh = false,
   });
 
   final KorbKlarClient client;
@@ -38,6 +41,13 @@ class ResultsScreen extends StatefulWidget {
   final Settings settings;
   final OfflineStore offlineStore;
   final LocalShoppingListStore localShoppingList;
+
+  /// Retailer selection the search was made with; reused for a fresh one.
+  final List<String> retailers;
+
+  /// Start a new search for the same postal code right away and swap it in
+  /// when it completes, while [handle] (or the offline store) is shown.
+  final bool autoRefresh;
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
@@ -49,6 +59,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
   final _offers = <Offer>[];
 
   ResultPage? _page;
+
+  /// The comparison currently shown. Starts as the one handed in and moves
+  /// on when a fresh search for the same postal code completes.
+  late ResultHandle _handle = widget.handle;
+
+  /// A fresh search running on the server while older data stays visible.
+  StreamSubscription<SearchProgress>? _refreshWatch;
+  SearchProgress? _refreshProgress;
+  String _refreshError = '';
+  bool get _refreshRunning => _refreshWatch != null;
 
   /// Offers filed in this session: offer key to article name.
   final _filed = <String, String>{};
@@ -84,11 +104,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
     _scroll.addListener(_onScroll);
     _reload();
     _loadShoppingList();
+    if (widget.autoRefresh) _startFreshSearch();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _refreshWatch?.cancel();
     _directKitchenOwl?.close();
     _scroll.dispose();
     _search.dispose();
@@ -125,7 +147,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       }
     }
     try {
-      final info = await widget.client.shoppingListTargets(widget.handle);
+      final info = await widget.client.shoppingListTargets(_handle);
       if (!mounted) return;
       final known = info.targets.map((target) => target.entityId).toSet();
       final remembered = widget.settings.shoppingListEntity;
@@ -177,7 +199,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         sort: _sort,
       );
       final page = await widget.client.results(
-        widget.handle,
+        _handle,
         filterText: _search.text,
         retailer: _retailer,
         category: _category,
@@ -245,6 +267,85 @@ class _ResultsScreenState extends State<ResultsScreen> {
     if (mounted) setState(() => _refreshing = false);
   }
 
+  /// Starts a new search for the same postal code and swaps the result in
+  /// once it completes.
+  ///
+  /// What is on screen stays on screen meanwhile: a comparison from before
+  /// Thursday is still a comparison, only not the current one. The server's
+  /// snapshot cache decides whether the retailers are actually queried again,
+  /// so within its window this is one request and a few seconds; after an
+  /// offer change it takes as long as any search.
+  Future<void> _startFreshSearch() async {
+    if (_refreshRunning) return;
+    final postalCode = widget.settings.postalCode;
+    if (!RegExp(r'^\d{5}$').hasMatch(postalCode)) return;
+    setState(() {
+      _refreshError = '';
+      _refreshProgress = null;
+    });
+    String jobId;
+    try {
+      jobId = await widget.client.startSearch(
+        postalCode,
+        retailers: widget.retailers,
+      );
+    } on KorbKlarException catch (exception) {
+      if (mounted) setState(() => _refreshError = exception.message);
+      return;
+    }
+    if (!mounted) return;
+    _refreshWatch = widget.client
+        .watchSearch(jobId)
+        .listen(
+          (progress) async {
+            if (!mounted) return;
+            setState(() => _refreshProgress = progress);
+            if (progress.isFailed) {
+              _endRefresh(
+                progress.error.isNotEmpty
+                    ? progress.error
+                    : 'Die Suche ist fehlgeschlagen.',
+              );
+              return;
+            }
+            if (!progress.isDone) return;
+            final handle = ResultHandle.parse(progress.resultPath);
+            if (handle == null) {
+              _endRefresh('Der Server lieferte keinen gültigen Ergebnislink.');
+              return;
+            }
+            await widget.settings.setLastSearch(
+              LastSearch(
+                postalCode: postalCode,
+                retailers: widget.retailers,
+                searchId: handle.searchId,
+                token: handle.token,
+                searchedAt: DateTime.now(),
+              ),
+            );
+            if (!mounted) return;
+            _handle = handle;
+            _endRefresh('');
+            _reload();
+            await _reconcileFiled();
+          },
+          onError: (Object error) {
+            if (!mounted) return;
+            _endRefresh(error is KorbKlarException ? error.message : '$error');
+          },
+        );
+    setState(() {});
+  }
+
+  void _endRefresh(String error) {
+    _refreshWatch?.cancel();
+    _refreshWatch = null;
+    setState(() {
+      _refreshProgress = null;
+      _refreshError = error;
+    });
+  }
+
   /// Drops offers whose article was checked off in KitchenOwl meanwhile.
   ///
   /// Checking an entry off removes it there, so the app must not keep
@@ -252,7 +353,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Future<void> _reconcileFiled() async {
     if (_listId.isEmpty) return;
     try {
-      final pending = await widget.client.listEntries(widget.handle, _listId);
+      final pending = await widget.client.listEntries(_handle, _listId);
       if (!mounted) return;
       setState(() {
         _filed.removeWhere((_, article) => !pending.contains(article));
@@ -296,7 +397,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       final added = direct != null
           ? [await direct.addOffer(entity, offer)]
           : await widget.client.addToShoppingList(
-              widget.handle,
+              _handle,
               entityId: entity,
               offers: [offer],
             );
@@ -475,9 +576,32 @@ class _ResultsScreenState extends State<ResultsScreen> {
       appBar: AppBar(
         backgroundColor: colors.bg,
         surfaceTintColor: Colors.transparent,
-        title: Text(
-          page == null ? 'Angebote' : 'PLZ ${page.postalCode}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
+        // The title doubles as the way to a different postal code: with the
+        // app opening straight into the results, this is where a user looks.
+        title: Tooltip(
+          message: 'Neue Suche mit anderer PLZ',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => Navigator.of(context).maybePop(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    page == null ? 'Angebote' : 'PLZ ${page.postalCode}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.edit_location_alt_outlined,
+                    size: 18,
+                    color: colors.muted,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
         actions: [
           if (_offline)
@@ -487,9 +611,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
             ),
           LocalShoppingListButton(store: widget.localShoppingList),
           IconButton(
-            tooltip: 'Ergebnisse neu laden',
-            onPressed: _refreshing || page == null ? null : _refreshFromCache,
-            icon: _refreshing
+            tooltip: _offline
+                ? 'Gespeicherte Ergebnisse neu lesen'
+                : 'Angebote neu laden',
+            onPressed: _refreshing || _refreshRunning
+                ? null
+                : _offline
+                ? _refreshFromCache
+                : _startFreshSearch,
+            icon: _refreshing || _refreshRunning
                 ? const SizedBox(
                     height: 18,
                     width: 18,
@@ -521,6 +651,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
       body: Column(
         children: [
           _controls(colors),
+          if (_refreshRunning || _refreshError.isNotEmpty)
+            _RefreshBanner(
+              progress: _refreshProgress,
+              error: _refreshError,
+              stale: widget.autoRefresh,
+              onRetry: _startFreshSearch,
+              onDismiss: () => setState(() => _refreshError = ''),
+            ),
           if (_shoppingList.configured && _shoppingList.targets.isNotEmpty)
             _listBar(colors),
           if (page != null) _chips(page, colors),
@@ -750,6 +888,115 @@ class _ResultsScreenState extends State<ResultsScreen> {
             fontSize: 13,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A slim strip above the list while a fresh search runs, or after one
+/// failed. The list underneath stays usable throughout.
+class _RefreshBanner extends StatelessWidget {
+  const _RefreshBanner({
+    required this.progress,
+    required this.error,
+    required this.stale,
+    required this.onRetry,
+    required this.onDismiss,
+  });
+
+  final SearchProgress? progress;
+  final String error;
+
+  /// Whether the refresh was started because an offer change lies behind
+  /// the shown result, which is worth saying, or by hand, which is not.
+  final bool stale;
+  final VoidCallback onRetry;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    if (error.isNotEmpty) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+        padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: colors.error.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: colors.error.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Aktualisierung fehlgeschlagen: $error',
+                style: TextStyle(color: colors.error, fontSize: 13),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Erneut')),
+            IconButton(
+              tooltip: 'Ausblenden',
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close, size: 18),
+            ),
+          ],
+        ),
+      );
+    }
+    final percent = progress?.progress ?? 0;
+    final reason = stale
+        ? 'Neue Angebote seit ${OfferWeek.lastChangeLabel(DateTime.now())}'
+        : 'Angebote werden neu geladen';
+    final detail = [
+      if ((progress?.step ?? '').isNotEmpty) progress!.step,
+      if ((progress?.retailer ?? '').isNotEmpty) progress!.retailer,
+    ].join(' · ');
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: colors.chip,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$reason · Vergleich wird aktualisiert',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                '$percent %',
+                style: TextStyle(color: colors.muted, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: percent <= 0 ? null : percent / 100,
+              minHeight: 5,
+              backgroundColor: colors.panel,
+              valueColor: AlwaysStoppedAnimation(colors.accent),
+            ),
+          ),
+          if (detail.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              detail,
+              style: TextStyle(color: colors.muted, fontSize: 12),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
       ),
     );
   }
