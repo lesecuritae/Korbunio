@@ -1,3 +1,11 @@
+# 0.1.16
+
+Angebote können nun direkt aus der Android-App als vorhandene Haushaltsartikel
+in KitchenOwl abgelegt werden. Die App gleicht Artikelnamen mit dem
+KitchenOwl-Haushalt ab, ordnet sie nach Händlerkategorien und kann auf Wunsch
+ausschließlich KitchenOwl als Einkaufslistenziel verwenden. Ohne erreichbare
+KitchenOwl-Verbindung bleibt die lokale Einkaufsliste als Rückfall erhalten.
+
 # 0.1.15
 
 Die lokale Einkaufsliste der Android-App bietet nun für jeden Artikel eine
