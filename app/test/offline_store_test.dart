@@ -59,10 +59,19 @@ void main() {
         'product': 'Butter',
         'regular_price': 1.99,
         'regular_price_text': '1,99 €',
+        'deposit': 0.25,
+        'deposit_text': '0,25 €',
+        'deposit_note': 'zzgl. 0,25 € Pfand',
       });
       await store.add(offer);
+      await store.setQuantity(offer.key, 3);
       final reopened = await LocalShoppingListStore.open(directory: directory);
       expect((await reopened.load()).single.regularPrice, 1.99);
+      final entry = (await reopened.loadEntries()).single;
+      expect(entry.quantity, 3);
+      expect(entry.goodsTotal, closeTo(5.97, 0.001));
+      expect(entry.depositTotal, closeTo(0.75, 0.001));
+      expect(entry.lineTotal, closeTo(6.72, 0.001));
       await reopened.remove(offer.key);
       expect(await reopened.load(), isEmpty);
     },

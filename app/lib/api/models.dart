@@ -49,6 +49,9 @@ class Offer {
     required this.loyaltySavings,
     required this.loyaltySavingsText,
     required this.loyaltyBenefit,
+    required this.deposit,
+    required this.depositText,
+    required this.depositNote,
     required this.pack,
     required this.unitPrice,
     required this.selectedUnitPrice,
@@ -79,6 +82,9 @@ class Offer {
     loyaltySavings: _num(json['loyalty_savings']) ?? 0,
     loyaltySavingsText: _str(json['loyalty_savings_text']),
     loyaltyBenefit: _str(json['loyalty_benefit']),
+    deposit: _num(json['deposit']),
+    depositText: _str(json['deposit_text']),
+    depositNote: _str(json['deposit_note']),
     pack: _str(json['pack']),
     unitPrice: _str(json['unit_price']),
     selectedUnitPrice: _str(json['selected_unit_price']),
@@ -111,6 +117,9 @@ class Offer {
   final double loyaltySavings;
   final String loyaltySavingsText;
   final String loyaltyBenefit;
+  final double? deposit;
+  final String depositText;
+  final String depositNote;
   final String pack;
   final String unitPrice;
   final String selectedUnitPrice;
@@ -137,6 +146,9 @@ class Offer {
     'loyalty_savings': loyaltySavings,
     'loyalty_savings_text': loyaltySavingsText,
     'loyalty_benefit': loyaltyBenefit,
+    'deposit': deposit,
+    'deposit_text': depositText,
+    'deposit_note': depositNote,
     'pack': pack,
     'unit_price': unitPrice,
     'selected_unit_price': selectedUnitPrice,

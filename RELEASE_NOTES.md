@@ -1,3 +1,9 @@
+# 0.1.15
+
+Die lokale Einkaufsliste der Android-App bietet nun für jeden Artikel eine
+Mengenwahl. Warenwert und Pfand werden mit der gewählten Menge berechnet,
+getrennt ausgewiesen und zu einer Gesamtsumme einschließlich Pfand addiert.
+
 # 0.1.14
 
 Angebote werden in der Android-App nun über den eindeutig beschrifteten Button

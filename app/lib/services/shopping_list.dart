@@ -30,6 +30,10 @@ class ShoppingListText {
       if (offer.pack.isNotEmpty) offer.pack,
       if (offer.retailerText.isNotEmpty) offer.retailerText,
       if (price.isNotEmpty) price,
+      if (offer.depositNote.isNotEmpty)
+        offer.depositNote
+      else if (offer.depositText.isNotEmpty)
+        '${offer.depositText} Pfand',
     ];
     return parts.join(' · ');
   }
