@@ -1,3 +1,27 @@
+# 0.1.13
+
+Die Android-App kann die letzte Suche beim Start wieder öffnen und aktualisiert
+sie automatisch, sobald eine neue Angebotswoche begonnen hat. Verfügbare
+Updates aus den GitHub-Releases lassen sich in den Einstellungen ausdrücklich
+prüfen und installieren; APK und veröffentlichte Prüfsumme werden dabei
+abgeglichen.
+
+Die Marktauflösung steht nun für alle auswählbaren Händler einschließlich dm
+zur Verfügung. Der Server hält vollständige Angebotssnapshots bis zum nächsten
+regulären Angebotswechsel frisch, statt sie innerhalb derselben Woche unnötig
+zu verwerfen.
+
+Release-Builds der Android-App setzen weiterhin zwingend den dauerhaften
+KorbKlar-Release-Key voraus. Lokale Debug-Builds bleiben ohne diesen Schlüssel
+möglich, können aber nicht versehentlich als Release gebaut werden.
+
+# 0.1.12
+
+PLZ und Händlerauswahl bleiben in der Weboberfläche dauerhaft erhalten.
+Docker-Instanzen können gemeinsame Standardwerte vorgeben; die Android-App
+übernimmt sie beim ersten Start, solange noch keine persönliche Auswahl
+gespeichert wurde.
+
 # 0.1.11
 
 Die Android-App bietet jetzt dieselbe freie Händlerauswahl wie die
