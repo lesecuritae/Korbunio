@@ -41,6 +41,7 @@ def test_kaufland_structured_xtra_price_stays_separate_from_regular_price(monkey
             return ("<script>window.SSR = " + json.dumps(structured, separators=(",", ":")) + ";</script>").encode()
 
     monkeypatch.setattr("supermarkt.sources.kaufland.today_berlin", lambda: date(2026, 8, 28))
+    monkeypatch.setattr("supermarkt.common.today_berlin", lambda: date(2026, 8, 28))
     offers = OfficialKauflandSource(Http(), locator=None)._load_structured_offers(
         "https://filiale.kaufland.de/service/filiale/test-8870.html"
     )

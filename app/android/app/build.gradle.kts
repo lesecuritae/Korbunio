@@ -25,11 +25,13 @@ android {
         versionName = flutter.versionName
     }
 
+    val releaseKeystorePath = System.getenv("KORBKLAR_STORE_FILE")
+    val releaseBuildRequested = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+
     signingConfigs {
         create("release") {
-            val keystorePath = System.getenv("KORBKLAR_STORE_FILE")
-            if (!keystorePath.isNullOrBlank()) {
-                storeFile = file(keystorePath)
+            if (!releaseKeystorePath.isNullOrBlank()) {
+                storeFile = file(releaseKeystorePath)
                 storePassword = System.getenv("KORBKLAR_STORE_PASSWORD")
                 keyAlias = System.getenv("KORBKLAR_KEY_ALIAS")
                 keyPassword = System.getenv("KORBKLAR_KEY_PASSWORD")
@@ -39,10 +41,12 @@ android {
 
     buildTypes {
         release {
-            require(!System.getenv("KORBKLAR_STORE_FILE").isNullOrBlank()) {
+            require(!releaseBuildRequested || !releaseKeystorePath.isNullOrBlank()) {
                 "KORBKLAR_STORE_FILE is required for a signed release build"
             }
-            signingConfig = signingConfigs.getByName("release")
+            if (!releaseKeystorePath.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }
