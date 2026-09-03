@@ -16,6 +16,9 @@ dependencies:
   geolocator: ^14.0.2
   geocoding: ^4.0.0
   url_launcher: ^6.3.1
+  package_info_plus: ^9.0.1
+  open_filex: ^4.7.0
+  crypto: ^3.0.6
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
