@@ -357,17 +357,31 @@ class _ResultsScreenState extends State<ResultsScreen> {
   /// Checking an entry off removes it there, so the app must not keep
   /// claiming it is still on the list.
   Future<void> _reconcileFiled() async {
-    if (_listId.isEmpty) return;
+    if (_listId.isEmpty || _filed.isEmpty) return;
     try {
-      final pending = await widget.client.listEntries(_handle, _listId);
+      final direct = _directKitchenOwl;
+      final pending = direct != null
+          ? await direct.entries(_listId)
+          : await widget.client.listEntries(_handle, _listId);
       if (!mounted) return;
       setState(() {
         _filed.removeWhere((_, article) => !pending.contains(article));
       });
     } on KorbKlarException {
       // Leaving the marks as they are beats guessing they are gone.
+    } on KitchenOwlException {
+      // Same here.
     }
   }
+
+  bool get _kitchenOwlAvailable =>
+      _shoppingList.configured && _shoppingList.targets.isNotEmpty;
+
+  /// Whether the local list is offered at all. It goes away only when the
+  /// user chose KitchenOwl alone and that KitchenOwl is actually reachable,
+  /// so an offer can always go somewhere.
+  bool get _localListShown =>
+      !widget.settings.kitchenOwlOnly || !_kitchenOwlAvailable;
 
   void _onSearchChanged(String _) {
     _debounce?.cancel();
@@ -387,6 +401,94 @@ class _ResultsScreenState extends State<ResultsScreen> {
     } finally {
       if (mounted) setState(() => _sending.remove(offer.key));
     }
+  }
+
+  /// Files one offer in the selected KitchenOwl list.
+  ///
+  /// No collecting step: a tap is the whole interaction. The article lands
+  /// on what the household already keeps where one matches, and under a
+  /// category named after the shop; see `kitchenowl_articles.dart`.
+  Future<void> _addToKitchenOwl(Offer offer) async {
+    final entity = _listId.isNotEmpty ? _listId : await _resolveEntity();
+    if (entity == null || entity.isEmpty) return;
+    final target = _shoppingList.targets.firstWhere(
+      (target) => target.entityId == entity,
+      orElse: () => const ShoppingListTarget(entityId: '', label: 'KitchenOwl'),
+    );
+    setState(() => _sending.add(offer.key));
+    try {
+      final direct = _directKitchenOwl;
+      final added = direct != null
+          ? [
+              await direct.addOffer(
+                entity,
+                offer,
+                householdId: target.householdId,
+              ),
+            ]
+          : await widget.client.addToShoppingList(
+              _handle,
+              entityId: entity,
+              offers: [offer],
+            );
+      if (!mounted) return;
+      final article = added.isNotEmpty ? added.first : offer.product;
+      setState(() => _filed[offer.key] = article);
+      _toast('„$article“ liegt in „${target.label}“.');
+    } on Object catch (exception) {
+      final message = exception is KorbKlarException
+          ? exception.message
+          : exception is KitchenOwlException
+          ? exception.message
+          : '$exception';
+      _toast(message);
+    } finally {
+      if (mounted) setState(() => _sending.remove(offer.key));
+    }
+  }
+
+  Future<String?> _resolveEntity() async {
+    final targets = _shoppingList.targets;
+    if (targets.isEmpty) return null;
+
+    final remembered = widget.settings.shoppingListEntity;
+    final known = targets.map((target) => target.entityId).toSet();
+    if (remembered.isNotEmpty && known.contains(remembered)) return remembered;
+    if (known.contains(_shoppingList.defaultEntity)) {
+      return _shoppingList.defaultEntity;
+    }
+    if (targets.length == 1) return targets.first.entityId;
+
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: context.colors.panel,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 6),
+              child: Text(
+                'Ziel-Liste wählen',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+            ),
+            for (final target in targets)
+              ListTile(
+                leading: const Icon(Icons.checklist),
+                title: Text(target.label),
+                onTap: () => Navigator.pop(sheetContext, target.entityId),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null) {
+      await widget.settings.setShoppingListEntity(chosen);
+      if (mounted) setState(() => _listId = chosen);
+    }
+    return chosen;
   }
 
   void _toast(String message) {
@@ -505,6 +607,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
       appBar: AppBar(
         backgroundColor: colors.bg,
         surfaceTintColor: Colors.transparent,
+        // Up to five actions sit on the right; on a narrow phone the title
+        // gets whatever is left, so it must shrink instead of overflowing.
+        titleSpacing: 0,
         // The title doubles as the way to a different postal code: with the
         // app opening straight into the results, this is where a user looks.
         title: Tooltip(
@@ -517,9 +622,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    page == null ? 'Angebote' : 'PLZ ${page.postalCode}',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  Flexible(
+                    child: Text(
+                      page == null ? 'Angebote' : 'PLZ ${page.postalCode}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                   const SizedBox(width: 6),
                   Icon(
@@ -534,11 +643,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ),
         actions: [
           if (_offline)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Center(child: Chip(label: Text('Offline'))),
+            // An icon, not a chip: a chip plus four buttons left the title
+            // no room on a phone.
+            Tooltip(
+              message: 'Offline: gespeicherte Daten',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.cloud_off_outlined, color: colors.muted),
+              ),
             ),
-          LocalShoppingListButton(store: widget.localShoppingList),
+          if (_localListShown)
+            LocalShoppingListButton(store: widget.localShoppingList),
           IconButton(
             tooltip: _offline
                 ? 'Gespeicherte Ergebnisse neu lesen'
@@ -780,11 +895,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
           imageUrl: widget.client.imageUrl(offer.imageUrl),
           imageHeaders: widget.client.imageHeaders,
           showRetailer: _retailer.isEmpty,
-          // Adding from an offer card always targets the app-local list.
-          // Remote KitchenOwl state must not disable or relabel this action.
-          filedIn: null,
+          filedIn: _filed[offer.key],
           sending: _sending.contains(offer.key),
-          onAddToList: () => _addToList(offer),
+          // The local list is its own button and never relabelled by
+          // KitchenOwl state; it only disappears when the user asked for
+          // KitchenOwl alone.
+          onAddToList: _localListShown ? () => _addToList(offer) : null,
+          onAddToKitchenOwl: _kitchenOwlAvailable
+              ? () => _addToKitchenOwl(offer)
+              : null,
           onOpenSource: () => launchUrl(
             Uri.parse(offer.sourceUrl),
             mode: LaunchMode.externalApplication,

@@ -108,6 +108,19 @@ class Settings {
     }
   }
 
+  bool get hasKitchenOwl =>
+      kitchenOwlUrl.isNotEmpty && kitchenOwlToken.isNotEmpty;
+
+  static const _kitchenOwlOnly = 'kitchenowl_only';
+
+  /// Hide the app's own shopping list and send every offer to KitchenOwl.
+  /// Only meaningful with a direct KitchenOwl connection; without one the
+  /// local list stays, so the button on an offer is never a dead end.
+  bool get kitchenOwlOnly =>
+      hasKitchenOwl && (_prefs.getBool(_kitchenOwlOnly) ?? false);
+  Future<void> setKitchenOwlOnly(bool value) =>
+      _prefs.setBool(_kitchenOwlOnly, value);
+
   String get postalCode => _prefs.getString(_postalCode) ?? '';
   bool get hasPostalCode => _prefs.containsKey(_postalCode);
   Future<void> setPostalCode(String value) =>

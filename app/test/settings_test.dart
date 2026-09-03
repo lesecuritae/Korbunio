@@ -62,4 +62,18 @@ void main() {
     SharedPreferences.setMockInitialValues({'last_search_id': 'search-1'});
     expect((await Settings.load()).lastSearch, isNull);
   });
+
+  test('KitchenOwl alone needs a KitchenOwl', () async {
+    // Widget tests have no Keystore, so the token can only be absent here;
+    // the switch must then read as off however it was stored.
+    SharedPreferences.setMockInitialValues({
+      'kitchenowl_only': true,
+      'kitchenowl_url': 'https://owl.example',
+    });
+    final settings = await Settings.load();
+    expect(settings.hasKitchenOwl, isFalse);
+    expect(settings.kitchenOwlOnly, isFalse);
+    await settings.setKitchenOwlOnly(false);
+    expect((await Settings.load()).kitchenOwlOnly, isFalse);
+  });
 }

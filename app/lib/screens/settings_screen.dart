@@ -116,6 +116,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (url.isEmpty && token.isEmpty) {
       await widget.settings.setKitchenOwlUrl('');
       await widget.settings.setKitchenOwlToken('');
+      // Without a KitchenOwl the local list is the only list there is.
+      await widget.settings.setKitchenOwlOnly(false);
       return _show('Direkte KitchenOwl-Verbindung entfernt.');
     }
     if (Uri.tryParse(url)?.scheme != 'https') {
@@ -286,6 +288,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
         FilledButton(
           onPressed: _busy ? null : _saveKitchenOwl,
           child: const Text('KitchenOwl prüfen und speichern'),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Angebote landen auf dem Artikel, den dein Haushalt schon kennt '
+          '(„JA! Weizenbrötchen“ wird zu „Brötchen“ samt Symbol); die Notiz '
+          'nennt Angebot, Preis und Gültigkeit. Jeder Markt bekommt eine '
+          'eigene Kategorie mit Farbpunkt, damit sich die Liste nach Laden '
+          'sortieren lässt.',
+          style: TextStyle(fontSize: 12),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: widget.settings.kitchenOwlOnly,
+          title: const Text('Nur KitchenOwl verwenden'),
+          subtitle: Text(
+            widget.settings.hasKitchenOwl
+                ? 'Blendet die lokale Einkaufsliste aus. Jedes Angebot geht '
+                      'direkt auf die KitchenOwl-Liste.'
+                : 'Erst verfügbar, wenn KitchenOwl verbunden ist.',
+          ),
+          onChanged: _busy || !widget.settings.hasKitchenOwl
+              ? null
+              : (value) async {
+                  await widget.settings.setKitchenOwlOnly(value);
+                  if (mounted) setState(() {});
+                },
         ),
         if (_message.isNotEmpty)
           Padding(
