@@ -1,3 +1,15 @@
+# 0.1.14
+
+Angebote werden in der Android-App nun über den eindeutig beschrifteten Button
+„Zur Einkaufsliste“ in der lokalen Einkaufsliste gespeichert. Eine optionale
+KitchenOwl-Verbindung überschreibt dieses Ziel nicht mehr.
+
+Wenn mehrere Filialen zur eingegebenen PLZ passen, bietet die App nun eine
+explizite Auswahl für Netto Marken-Discount und Netto schwarz an. Beide
+Filial-IDs werden getrennt an den Suchauftrag übergeben und sind Bestandteil
+des Cache-Schlüssels, damit Ergebnisse verschiedener Märkte nicht vermischt
+werden.
+
 # 0.1.13
 
 Die Android-App kann die letzte Suche beim Start wieder öffnen und aktualisiert

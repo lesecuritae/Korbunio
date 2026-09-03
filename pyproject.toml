@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "korb-klar"
-version = "0.1.13"
+version = "0.1.14"
 description = "KorbKlar: self-hosted comparison of regional supermarket offers in Germany."
 readme = "README.md"
 requires-python = ">=3.12"
