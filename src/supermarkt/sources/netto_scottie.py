@@ -48,7 +48,7 @@ class NettoScottieMarketResolver:
         nearby = [store for store in stores if float(store.get("distance_km") or 9999) <= 15.0]
         return min(nearby, key=lambda item: float(item.get("distance_km") or 9999)) if nearby else None
 
-    def resolve(self, postal_code: str) -> dict | None:
+    def _stores(self, postal_code: str) -> list[dict]:
         location_url = "https://nominatim.openstreetmap.org/search?" + urlencode({
             "postalcode": postal_code, "country": "Germany", "format": "jsonv2", "limit": 1,
         })
@@ -69,7 +69,31 @@ class NettoScottieMarketResolver:
             raise ToolError("Netto-schwarz-Marktsuche lieferte ungültiges JSON") from exc
         if not isinstance(stores, list):
             raise ToolError("Netto-schwarz-Marktsuche lieferte eine unerwartete Antwort")
-        return self._select_exact([item for item in stores if isinstance(item, dict)], postal_code)
+        return [item for item in stores if isinstance(item, dict)]
+
+    def markets(self, postal_code: str) -> list[dict[str, str]]:
+        stores = self._stores(postal_code)
+        exact = [store for store in stores if clean_text((store.get("address") or {}).get("zip")) == postal_code]
+        candidates = exact or [store for store in stores if float(store.get("distance_km") or 9999) <= 15.0]
+        return [
+            {
+                "market_id": clean_text(store.get("id")),
+                "label": clean_text(store.get("name")) or f"Netto schwarz {postal_code}",
+                "match_type": "exact" if exact else "nearby",
+            }
+            for store in sorted(candidates, key=lambda item: (float(item.get("distance_km") or 9999), clean_text(item.get("id"))))
+            if clean_text(store.get("id"))
+        ]
+
+    def resolve(self, postal_code: str, market_id: str = "") -> dict | None:
+        stores = self._stores(postal_code)
+        requested = clean_text(market_id)
+        if requested:
+            selected = next((store for store in stores if clean_text(store.get("id")) == requested), None)
+            if selected is None:
+                raise ToolError(f"Die gewählte Netto-schwarz-Filiale gehört nicht zur PLZ {postal_code}")
+            return selected
+        return self._select_exact(stores, postal_code)
 
 
 class OfficialNettoScottieSource:
@@ -123,8 +147,8 @@ class OfficialNettoScottieSource:
         values = [value for value in (parse_number(item) for item in matches) if value and value > 0]
         return max(values) if values else None
 
-    def load(self, postal_code: str) -> list[Offer]:
-        market = self.market_resolver(postal_code)
+    def load(self, postal_code: str, market_id: str = "") -> list[Offer]:
+        market = self.market_resolver(postal_code, market_id) if market_id else self.market_resolver(postal_code)
         if not market:
             return []
         address = market.get("address") or {}

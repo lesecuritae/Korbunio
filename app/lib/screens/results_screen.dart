@@ -33,6 +33,8 @@ class ResultsScreen extends StatefulWidget {
     required this.offlineStore,
     required this.localShoppingList,
     this.retailers = const [],
+    this.nettoMarketId = '',
+    this.nettoScottieMarketId = '',
     this.autoRefresh = false,
   });
 
@@ -44,6 +46,8 @@ class ResultsScreen extends StatefulWidget {
 
   /// Retailer selection the search was made with; reused for a fresh one.
   final List<String> retailers;
+  final String nettoMarketId;
+  final String nettoScottieMarketId;
 
   /// Start a new search for the same postal code right away and swap it in
   /// when it completes, while [handle] (or the offline store) is shown.
@@ -288,6 +292,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
       jobId = await widget.client.startSearch(
         postalCode,
         retailers: widget.retailers,
+        nettoMarketId: widget.nettoMarketId,
+        nettoScottieMarketId: widget.nettoScottieMarketId,
       );
     } on KorbKlarException catch (exception) {
       if (mounted) setState(() => _refreshError = exception.message);
@@ -370,94 +376,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   // -------------------------------------------------------- Einkaufsliste
 
-  /// Files one offer in the selected list, the way the browser does.
-  ///
-  /// No collecting step: a tap is the whole interaction. Where no list is
-  /// configured the offer goes to the clipboard instead, so the button is
-  /// never a dead end.
+  /// Adds one offer to the app's local shopping list.
   Future<void> _addToList(Offer offer) async {
-    if (!_shoppingList.configured || _shoppingList.targets.isEmpty) {
-      await widget.localShoppingList.add(offer);
-      if (mounted) _toast('Zur lokalen Einkaufsliste hinzugefügt.');
-      return;
-    }
-
-    final entity = _listId.isNotEmpty ? _listId : await _resolveEntity();
-    if (entity == null || entity.isEmpty) return;
-    final listName = _shoppingList.targets
-        .firstWhere(
-          (target) => target.entityId == entity,
-          orElse: () =>
-              const ShoppingListTarget(entityId: '', label: 'KitchenOwl'),
-        )
-        .label;
     setState(() => _sending.add(offer.key));
     try {
-      final direct = _directKitchenOwl;
-      final added = direct != null
-          ? [await direct.addOffer(entity, offer)]
-          : await widget.client.addToShoppingList(
-              _handle,
-              entityId: entity,
-              offers: [offer],
-            );
-      if (!mounted) return;
-      final article = added.isNotEmpty ? added.first : offer.product;
-      setState(() {
-        _filed[offer.key] = article;
-      });
-      _toast('„$article" liegt in „$listName".');
+      await widget.localShoppingList.add(offer);
+      if (mounted) _toast('Zur lokalen Einkaufsliste hinzugefügt.');
     } on Object catch (exception) {
-      final message = exception is KorbKlarException
-          ? exception.message
-          : exception is KitchenOwlException
-          ? exception.message
-          : '$exception';
-      _toast(message);
+      _toast('$exception');
     } finally {
       if (mounted) setState(() => _sending.remove(offer.key));
     }
-  }
-
-  Future<String?> _resolveEntity() async {
-    final targets = _shoppingList.targets;
-    if (targets.isEmpty) return null;
-
-    final remembered = widget.settings.shoppingListEntity;
-    final known = targets.map((target) => target.entityId).toSet();
-    if (remembered.isNotEmpty && known.contains(remembered)) return remembered;
-    if (known.contains(_shoppingList.defaultEntity)) {
-      return _shoppingList.defaultEntity;
-    }
-    if (targets.length == 1) return targets.first.entityId;
-
-    final chosen = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: context.colors.panel,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 18, 20, 6),
-              child: Text(
-                'Ziel-Liste wählen',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-              ),
-            ),
-            for (final target in targets)
-              ListTile(
-                leading: const Icon(Icons.checklist),
-                title: Text(target.label),
-                onTap: () => Navigator.pop(sheetContext, target.entityId),
-              ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-    if (chosen != null) await widget.settings.setShoppingListEntity(chosen);
-    return chosen;
   }
 
   void _toast(String message) {
@@ -851,7 +780,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
           imageUrl: widget.client.imageUrl(offer.imageUrl),
           imageHeaders: widget.client.imageHeaders,
           showRetailer: _retailer.isEmpty,
-          filedIn: _filed[offer.key],
+          // Adding from an offer card always targets the app-local list.
+          // Remote KitchenOwl state must not disable or relabel this action.
+          filedIn: null,
           sending: _sending.contains(offer.key),
           onAddToList: () => _addToList(offer),
           onOpenSource: () => launchUrl(

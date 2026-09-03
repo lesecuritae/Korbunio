@@ -55,3 +55,15 @@ def test_scottie_market_selection_prefers_exact_postal_code_and_bounds_nearest_f
     assert NettoScottieMarketResolver._select_exact(stores, "10115")["id"] == "exact-near"
     assert NettoScottieMarketResolver._select_exact(stores, "93073")["id"] == "near"
     assert NettoScottieMarketResolver._select_exact([{"distance_km": 15.1, "address": {"zip": "93074"}}], "93073") is None
+
+
+def test_scottie_market_selection_lists_and_honours_the_requested_branch(monkeypatch):
+    stores = [
+        {"id": "first", "name": "Netto Markt A", "distance_km": 2.0, "address": {"zip": "10115"}},
+        {"id": "second", "name": "Netto Markt B", "distance_km": 1.0, "address": {"zip": "10115"}},
+    ]
+    resolver = NettoScottieMarketResolver(object())
+    monkeypatch.setattr(resolver, "_stores", lambda _postal: stores)
+
+    assert [market["market_id"] for market in resolver.markets("10115")] == ["second", "first"]
+    assert resolver.resolve("10115", "first")["name"] == "Netto Markt A"

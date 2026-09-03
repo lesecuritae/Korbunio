@@ -62,6 +62,13 @@ class ServerDefaults {
   final List<String> retailers;
 }
 
+class MarketChoice {
+  const MarketChoice({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
+
 class KorbKlarClient {
   KorbKlarClient({
     required String baseUrl,
@@ -226,6 +233,8 @@ class KorbKlarClient {
     String postalCode, {
     bool refresh = false,
     List<String> retailers = const [],
+    String nettoMarketId = '',
+    String nettoScottieMarketId = '',
   }) => _guard(() async {
     final securityError = connectionSecurityError(baseUrl, apiKey);
     if (securityError != null) throw KorbKlarException(securityError);
@@ -239,6 +248,9 @@ class KorbKlarClient {
             'postal_code': postalCode,
             'refresh': refresh,
             'retailers': retailers,
+            if (nettoMarketId.isNotEmpty) 'netto_market_id': nettoMarketId,
+            if (nettoScottieMarketId.isNotEmpty)
+              'netto_scottie_market_id': nettoScottieMarketId,
           }),
         )
         .timeout(_timeout);
@@ -248,6 +260,31 @@ class KorbKlarClient {
     }
     return jobId;
   });
+
+  Future<List<MarketChoice>> nettoMarkets(String postalCode) =>
+      _markets('/api/v1/netto/markets', postalCode);
+
+  Future<List<MarketChoice>> nettoScottieMarkets(String postalCode) =>
+      _markets('/api/v1/netto-scottie/markets', postalCode);
+
+  Future<List<MarketChoice>> _markets(String path, String postalCode) =>
+      _guard(() async {
+        final response = await _http
+            .get(_uri(path, {'postal_code': postalCode}), headers: _headers())
+            .timeout(_timeout);
+        final values = _json(response)['markets'];
+        if (values is! List) return const [];
+        final byId = <String, MarketChoice>{};
+        for (final value in values) {
+          if (value is! Map) continue;
+          final id = '${value['market_id'] ?? ''}'.trim();
+          final label = '${value['label'] ?? ''}'.trim();
+          if (id.isNotEmpty && label.isNotEmpty) {
+            byId.putIfAbsent(id, () => MarketChoice(id: id, label: label));
+          }
+        }
+        return byId.values.toList(growable: false);
+      });
 
   Future<SearchProgress> searchProgress(String jobId) => _guard(() async {
     final response = await _http

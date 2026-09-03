@@ -38,6 +38,8 @@ def start_api_search_job(request_data: SearchJobRequest, _: None = Depends(requi
             "auto",
             request_data.refresh,
             tuple(request_data.retailers),
+            netto_market_id=request_data.netto_market_id,
+            netto_scottie_market_id=request_data.netto_scottie_market_id,
         )
     except SearchCapacityError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -89,6 +91,15 @@ def rewe_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"
 def netto_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"), _: None = Depends(require_api_auth)) -> dict[str, Any]:
     try:
         markets = runtime.get_engine().loader.netto_marken_markets.markets(postal_code)
+        return {"postal_code": postal_code, "markets": markets, "count": len(markets)}
+    except ToolError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/api/v1/netto-scottie/markets", summary="Netto-schwarz-Filialen einer PLZ auflösen", include_in_schema=False)
+def netto_scottie_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"), _: None = Depends(require_api_auth)) -> dict[str, Any]:
+    try:
+        markets = runtime.get_engine().loader.netto_scottie_markets.markets(postal_code)
         return {"postal_code": postal_code, "markets": markets, "count": len(markets)}
     except ToolError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

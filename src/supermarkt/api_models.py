@@ -79,6 +79,8 @@ class SearchJobRequest(BaseModel):
     postal_code: str
     refresh: bool = False
     retailers: list[str] = Field(default_factory=list, max_length=20)
+    netto_market_id: str = Field(default="", max_length=30, pattern=r"^\d*$")
+    netto_scottie_market_id: str = Field(default="", max_length=64, pattern=r"^[a-fA-F0-9-]*$")
 
     @field_validator("postal_code")
     @classmethod

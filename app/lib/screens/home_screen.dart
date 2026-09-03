@@ -70,6 +70,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _offlineAvailable = false;
   bool _locating = false;
   bool _autoStarted = false;
+  String _nettoMarketId = '';
+  String _nettoMarketPostalCode = '';
+  String _nettoScottieMarketId = '';
+  String _nettoScottieMarketPostalCode = '';
   late List<String> _selectedRetailers = [...widget.settings.selectedRetailers];
 
   /// The search running on the server, kept so a lost connection can be
@@ -182,6 +186,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           offlineStore: widget.offlineStore,
           localShoppingList: widget.localShoppingList,
           retailers: _selectedRetailers,
+          nettoMarketId: _nettoMarketId,
+          nettoScottieMarketId: _nettoScottieMarketId,
           autoRefresh: refresh && _serverConfigured,
         ),
       ),
@@ -388,6 +394,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       apiKey: widget.settings.apiKey,
     );
     _client = client;
+    if (_selectedRetailers.isEmpty ||
+        _selectedRetailers.contains('Netto Marken-Discount')) {
+      final selectedMarket = await _chooseNettoMarket(client, postalCode);
+      if (selectedMarket == null) {
+        _client = null;
+        client.close();
+        return;
+      }
+      _nettoMarketId = selectedMarket;
+      _nettoMarketPostalCode = postalCode;
+    }
+    if (_selectedRetailers.isEmpty ||
+        _selectedRetailers.contains('Netto schwarz')) {
+      final selectedMarket = await _chooseMarket(
+        postalCode: postalCode,
+        title: 'Netto-schwarz-Filiale auswählen',
+        currentId: _nettoScottieMarketId,
+        currentPostalCode: _nettoScottieMarketPostalCode,
+        load: client.nettoScottieMarkets,
+      );
+      if (selectedMarket == null) {
+        _client = null;
+        client.close();
+        return;
+      }
+      _nettoScottieMarketId = selectedMarket;
+      _nettoScottieMarketPostalCode = postalCode;
+    }
     setState(() {
       _busy = true;
       _error = '';
@@ -399,6 +433,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _jobId = await client.startSearch(
         postalCode,
         retailers: _selectedRetailers,
+        nettoMarketId: _nettoMarketId,
+        nettoScottieMarketId: _nettoScottieMarketId,
       );
       _watchJob();
     } on KorbKlarException catch (exception) {
@@ -475,6 +511,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   offlineStore: widget.offlineStore,
                   localShoppingList: widget.localShoppingList,
                   retailers: _selectedRetailers,
+                  nettoMarketId: _nettoMarketId,
+                  nettoScottieMarketId: _nettoScottieMarketId,
                 ),
               ),
             );
@@ -491,6 +529,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             });
           },
         );
+  }
+
+  Future<String?> _chooseNettoMarket(
+    KorbKlarClient client,
+    String postalCode,
+  ) => _chooseMarket(
+    postalCode: postalCode,
+    title: 'Netto-Marken-Discount-Filiale auswählen',
+    currentId: _nettoMarketId,
+    currentPostalCode: _nettoMarketPostalCode,
+    load: client.nettoMarkets,
+  );
+
+  Future<String?> _chooseMarket({
+    required String postalCode,
+    required String title,
+    required String currentId,
+    required String currentPostalCode,
+    required Future<List<MarketChoice>> Function(String) load,
+  }) async {
+    if (currentPostalCode == postalCode && currentId.isNotEmpty) {
+      return currentId;
+    }
+    List<MarketChoice> markets;
+    try {
+      markets = await load(postalCode);
+    } on KorbKlarException catch (exception) {
+      if (mounted) setState(() => _error = exception.message);
+      return null;
+    }
+    if (markets.isEmpty) return '';
+    if (markets.length == 1) return markets.first.id;
+    if (!mounted) return null;
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(title),
+        children: [
+          for (final market in markets)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, market.id),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(market.label),
+              ),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Abbrechen'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Drops the running search and its connection.

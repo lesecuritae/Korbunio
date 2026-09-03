@@ -196,7 +196,9 @@ class OfferCard extends StatelessWidget {
                         filedIn != null ? Icons.check : Icons.add_shopping_cart,
                         size: 18,
                       ),
-                label: Text(filedIn != null ? 'in $filedIn' : 'Auf KitchenOwl'),
+                label: Text(
+                  filedIn != null ? 'in $filedIn' : 'Zur Einkaufsliste',
+                ),
                 style: TextButton.styleFrom(
                   foregroundColor: filedIn != null
                       ? colors.good

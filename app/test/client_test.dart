@@ -77,11 +77,44 @@ void main() {
     addTearDown(client.close);
 
     expect(
-      await client.startSearch('06108', retailers: ['REWE', 'dm']),
+      await client.startSearch(
+        '06108',
+        retailers: ['REWE', 'dm'],
+        nettoMarketId: '5303',
+        nettoScottieMarketId: '3741f7c5-e1df-4963-a065-497efa04d5ca',
+      ),
       'job-1',
     );
     expect(request.url.path, '/api/v1/search/jobs');
     expect(jsonDecode(request.body)['retailers'], ['REWE', 'dm']);
+    expect(jsonDecode(request.body)['netto_market_id'], '5303');
+    expect(
+      jsonDecode(request.body)['netto_scottie_market_id'],
+      '3741f7c5-e1df-4963-a065-497efa04d5ca',
+    );
+  });
+
+  test('reads and deduplicates selectable Netto branches', () async {
+    final client = KorbKlarClient(
+      baseUrl: 'https://korb.example',
+      httpClient: MockClient(
+        (_) => http.Response(
+          jsonEncode({
+            'markets': [
+              {'market_id': '5034', 'label': 'Netto A'},
+              {'market_id': '5303', 'label': 'Netto B'},
+              {'market_id': '5303', 'label': 'Netto B doppelt'},
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+    addTearDown(client.close);
+
+    final markets = await client.nettoMarkets('01067');
+    expect(markets.map((market) => market.id), ['5034', '5303']);
+    expect(markets.map((market) => market.label), ['Netto A', 'Netto B']);
   });
 
   test('reads instance defaults from the server', () async {

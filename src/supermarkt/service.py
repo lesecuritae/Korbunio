@@ -37,6 +37,7 @@ from .region import AldiRegionResolver
 
 LOGGER = logging.getLogger(__name__)
 from .sources import KaufdaGlobusImageSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialMuellerSource, OfficialRossmannSource
+from .sources.netto_scottie import NettoScottieMarketResolver
 from .sources.aldi_chain import AldiOfferChain
 
 class SourceLoader:
@@ -58,7 +59,8 @@ class SourceLoader:
         self.official_holab = OfficialHolabSource(http)
         self.official_globus = OfficialGlobusSource(http)
         self.kaufda_globus_images = KaufdaGlobusImageSource(http)
-        self.official_netto_scottie = OfficialNettoScottieSource(http)
+        self.netto_scottie_markets = NettoScottieMarketResolver(http)
+        self.official_netto_scottie = OfficialNettoScottieSource(http, self.netto_scottie_markets.resolve)
         self.netto_marken_markets = NettoMarkenMarketResolver(http)
         self.official_rossmann = OfficialRossmannSource(timeout_seconds=TIMEOUT_SECONDS)
         self.official_mueller = OfficialMuellerSource(http)
@@ -139,7 +141,7 @@ class SourceLoader:
             count += 1
         return enriched, count
 
-    def load(self, postal_code: str, aldi_region: str, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current") -> dict[str, Any]:
+    def load(self, postal_code: str, aldi_region: str, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "") -> dict[str, Any]:
         notify = progress or (lambda **_fields: None)
         notify(status="loading", progress=5, source="Standortdienst", retailer="Alle Händler", category="Region", step="Region und Filialen werden ermittelt")
         contexts = self._contexts()
@@ -224,7 +226,7 @@ class SourceLoader:
         if hasattr(self, "official_globus") and "Globus" in active_contexts:
             official_jobs["Globus"] = lambda: self.official_globus.load(postal_code)
         if hasattr(self, "official_netto_scottie") and "Netto schwarz" in active_contexts:
-            official_jobs["Netto schwarz"] = lambda: self.official_netto_scottie.load(postal_code)
+            official_jobs["Netto schwarz"] = lambda: self.official_netto_scottie.load(postal_code, netto_scottie_market_id)
         if hasattr(self, "official_rossmann") and "Rossmann" in active_contexts:
             official_jobs["Rossmann"] = lambda: self.official_rossmann.load(postal_code)
         if hasattr(self, "official_mueller") and "Müller" in active_contexts:
@@ -521,14 +523,15 @@ class SupermarketEngine:
         self._refresh_lock = threading.Lock()
 
     @staticmethod
-    def cache_key(postal_code: str, aldi_region: str, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current") -> str:
+    def cache_key(postal_code: str, aldi_region: str, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "") -> str:
         selected = ",".join(sorted(retailers, key=str.casefold)) or "all"
         rewe = clean_text(rewe_market_id) or "auto"
         netto = clean_text(netto_market_id) or "auto"
-        return f"v{SupermarketEngine.SNAPSHOT_SCHEMA}:{postal_code}:{normalize_aldi_region(aldi_region)}:{selected}:rewe-{rewe}:netto-{netto}:week-{normalize_offer_week(offer_week)}"
+        scottie = clean_text(netto_scottie_market_id) or "auto"
+        return f"v{SupermarketEngine.SNAPSHOT_SCHEMA}:{postal_code}:{normalize_aldi_region(aldi_region)}:{selected}:rewe-{rewe}:netto-{netto}:scottie-{scottie}:week-{normalize_offer_week(offer_week)}"
 
-    def snapshot(self, postal_code: str, aldi_region: str, refresh: bool = False, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current") -> tuple[dict[str, Any], bool]:
-        key = self.cache_key(postal_code, aldi_region, retailers, rewe_market_id, netto_market_id, offer_week)
+    def snapshot(self, postal_code: str, aldi_region: str, refresh: bool = False, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "") -> tuple[dict[str, Any], bool]:
+        key = self.cache_key(postal_code, aldi_region, retailers, rewe_market_id, netto_market_id, offer_week, netto_scottie_market_id)
         if not refresh:
             cached = self.store.get_by_key(key)
             if cached is not None:
@@ -542,7 +545,7 @@ class SupermarketEngine:
                     if progress:
                         progress(status="processing", progress=90, source="Cache", retailer="Alle Händler", category="Alle Kategorien", step="Gespeicherter Vergleich wird geöffnet", processed_sources=1, total_sources=1, processed_products=len(cached.get("offers", [])))
                     return cached, True
-            fresh = self.loader.load(postal_code, aldi_region, progress=progress, retailers=retailers, rewe_market_id=rewe_market_id, netto_market_id=netto_market_id, offer_week=offer_week)
+            fresh = self.loader.load(postal_code, aldi_region, progress=progress, retailers=retailers, rewe_market_id=rewe_market_id, netto_market_id=netto_market_id, offer_week=offer_week, netto_scottie_market_id=netto_scottie_market_id)
             return self.store.put(key, fresh, fresh_until=self.freshness_deadline(fresh, offer_week)), False
 
     @staticmethod

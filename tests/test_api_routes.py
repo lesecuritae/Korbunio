@@ -109,6 +109,8 @@ def test_app_search_request_normalizes_selected_retailers():
         retailers=["rewe", "dm", "ALDI Süd"],
     )
     assert request.retailers == ["REWE", "dm", "ALDI Süd"]
+    assert SearchJobRequest(postal_code="01067", netto_market_id="5303").netto_market_id == "5303"
+    assert SearchJobRequest(postal_code="01067", netto_scottie_market_id="3741f7c5-e1df-4963-a065-497efa04d5ca").netto_scottie_market_id.startswith("3741")
     with pytest.raises(ValidationError, match="Unbekannte Händler"):
         SearchJobRequest(postal_code="01067", retailers=["Nicht Echt"])
 
@@ -117,12 +119,14 @@ def test_app_search_job_passes_selected_retailers_to_search(monkeypatch):
     captured = {}
 
     class FakeJobs:
-        def start(self, postal_code, region, refresh, retailers):
+        def start(self, postal_code, region, refresh, retailers, netto_market_id="", netto_scottie_market_id=""):
             captured.update(
                 postal_code=postal_code,
                 region=region,
                 refresh=refresh,
                 retailers=retailers,
+                netto_market_id=netto_market_id,
+                netto_scottie_market_id=netto_scottie_market_id,
             )
             return "app-search-job"
 
@@ -133,6 +137,8 @@ def test_app_search_job_passes_selected_retailers_to_search(monkeypatch):
             "postal_code": "01067",
             "refresh": True,
             "retailers": ["rewe", "dm"],
+            "netto_market_id": "5303",
+            "netto_scottie_market_id": "3741f7c5-e1df-4963-a065-497efa04d5ca",
         },
     )
 
@@ -143,6 +149,8 @@ def test_app_search_job_passes_selected_retailers_to_search(monkeypatch):
         "region": "auto",
         "refresh": True,
         "retailers": ("REWE", "dm"),
+        "netto_market_id": "5303",
+        "netto_scottie_market_id": "3741f7c5-e1df-4963-a065-497efa04d5ca",
     }
 
 
