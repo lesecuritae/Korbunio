@@ -112,3 +112,37 @@ def test_corrupt_snapshot_lookup_by_id_removes_entry(tmp_path):
 
     assert store.get_by_id(result["search_id"]) is None
     assert store.get_by_key("postal:01067") is None
+
+
+def test_explicit_freshness_deadline_outlives_the_default_ttl(monkeypatch, tmp_path):
+    now = [1_000_000.0]
+    monkeypatch.setattr(cache.time, "time", lambda: now[0])
+    store = PersistentSnapshotStore(tmp_path / "cache.sqlite3", freshness_minutes=30, retention_hours=168, max_snapshots=100)
+
+    weekly = store.put("postal:01067", {"postal_code": "01067"}, fresh_until=now[0] + 3 * 86400)
+    now[0] += 2 * 86400
+    assert store.get_by_key("postal:01067")["search_id"] == weekly["search_id"]
+    now[0] += 86400 + 1
+    assert store.get_by_key("postal:01067") is None
+
+
+def test_a_deadline_in_the_past_still_yields_a_short_fresh_window(monkeypatch, tmp_path):
+    now = [1_000_000.0]
+    monkeypatch.setattr(cache.time, "time", lambda: now[0])
+    store = PersistentSnapshotStore(tmp_path / "cache.sqlite3", freshness_minutes=30, retention_hours=168, max_snapshots=100)
+
+    store.put("postal:01067", {"postal_code": "01067"}, fresh_until=now[0] - 5)
+    now[0] += 30
+    assert store.get_by_key("postal:01067") is not None
+    now[0] += 60
+    assert store.get_by_key("postal:01067") is None
+
+
+def test_retention_never_ends_before_freshness(monkeypatch, tmp_path):
+    now = [1_000_000.0]
+    monkeypatch.setattr(cache.time, "time", lambda: now[0])
+    store = PersistentSnapshotStore(tmp_path / "cache.sqlite3", freshness_minutes=30, retention_hours=1, max_snapshots=100)
+
+    result = store.put("postal:01067", {"postal_code": "01067"}, fresh_until=now[0] + 4 * 3600)
+    now[0] += 3 * 3600
+    assert store.get_by_id(result["search_id"]) is not None

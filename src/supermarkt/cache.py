@@ -141,8 +141,15 @@ class PersistentSnapshotStore:
             payload["created_at"] = float(row["created_at"])
             return payload
 
-    def put(self, cache_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def put(self, cache_key: str, payload: dict[str, Any], fresh_until: float | None = None) -> dict[str, Any]:
+        """Store a snapshot. ``fresh_until`` overrides the default freshness
+        window (a POSIX timestamp); it is never shorter than one minute so a
+        caller that passes a moment already in the past still gets a hit."""
         now = time.time()
+        if fresh_until is None:
+            fresh_until = now + self.freshness_seconds
+        else:
+            fresh_until = max(float(fresh_until), now + 60)
         search_id = secrets.token_urlsafe(18)
         stored = dict(payload)
         stored.pop("search_id", None)
@@ -158,8 +165,8 @@ class PersistentSnapshotStore:
                     search_id,
                     cache_key,
                     now,
-                    now + self.freshness_seconds,
-                    now + self.retention_seconds,
+                    fresh_until,
+                    max(now + self.retention_seconds, fresh_until),
                     blob,
                 ),
             )

@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from .config import CACHE_TTL_MINUTES
+from .config import CACHE_TTL_MINUTES, CACHE_WEEKLY
 from .security import api_auth_configured
 from . import runtime
 
@@ -19,6 +19,7 @@ def health() -> dict[str, Any]:
         "service": "korbklar",
         "backend": "persistent-sqlite-cache",
         "cache_ttl_minutes": CACHE_TTL_MINUTES,
+        "cache_weekly": CACHE_WEEKLY,
         "api_auth_configured": api_auth_configured(),
         **runtime.get_image_service().health(),
         "sources": {

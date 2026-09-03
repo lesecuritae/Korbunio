@@ -223,7 +223,7 @@ private server without an administrator key remains usable without a token. See
 
 No external database server is required. SQLite stores offer snapshots so filtering, sorting, and incremental result loading do not repeatedly query retailer sources.
 
-The persistent data path holds offer snapshots, an automatically generated signing key, the local image cache, and cached REWE and Kaufland store mappings. Snapshots are fresh for 30 minutes by default (`SUPERMARKT_CACHE_TTL_MINUTES=30`), up to 100 are retained (`SUPERMARKT_CACHE_MAX_SNAPSHOTS=100`), and result links remain available for 168 hours or seven days (`SUPERMARKT_RESULT_RETENTION_HOURS=168`). REWE and Kaufland store mappings are cached for 86,400 seconds or one day; this does not replace fresh offer retrieval.
+The persistent data path holds offer snapshots, an automatically generated signing key, the local image cache, and cached REWE and Kaufland store mappings. A complete snapshot of the current week stays fresh until the next offer change, Thursday or Sunday at midnight Berlin time (the server already selects the coming week on Sundays), because leaflets do not change in between (`SUPERMARKT_CACHE_WEEKLY=1`; set it to `0` for a fixed TTL). Snapshots with a failed source and next-week previews are fresh for 30 minutes (`SUPERMARKT_CACHE_TTL_MINUTES=30`), and `refresh=1` always re-queries. Up to 100 snapshots are retained (`SUPERMARKT_CACHE_MAX_SNAPSHOTS=100`), and result links remain available for 168 hours or seven days (`SUPERMARKT_RESULT_RETENTION_HOURS=168`). REWE and Kaufland store mappings are cached for 86,400 seconds or one day; this does not replace fresh offer retrieval.
 
 The image cache defaults to 604,800 seconds or seven days, 512 MiB total, and 4 MiB per file. These values are configurable.
 
@@ -250,6 +250,7 @@ The default setup needs no `.env`. [`.env.example`](.env.example) documents ever
 - `SUPERMARKT_KAUFLAND_CACHE_DIR`
 - `SUPERMARKT_REWE_CACHE_DIR`
 - `SUPERMARKT_CACHE_TTL_MINUTES`
+- `SUPERMARKT_CACHE_WEEKLY`
 - `SUPERMARKT_CACHE_MAX_SNAPSHOTS`
 - `SUPERMARKT_RESULT_RETENTION_HOURS`
 - `SUPERMARKT_TIMEOUT_SECONDS`
