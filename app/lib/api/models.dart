@@ -348,9 +348,14 @@ class SearchProgress {
   bool get isFailed => status == 'failed';
 }
 
-/// A shopping list exposed by the server's KitchenOwl integration.
+/// A shopping list exposed by the server's KitchenOwl integration or read
+/// from a KitchenOwl the app talks to directly.
 class ShoppingListTarget {
-  const ShoppingListTarget({required this.entityId, required this.label});
+  const ShoppingListTarget({
+    required this.entityId,
+    required this.label,
+    this.householdId = '',
+  });
 
   factory ShoppingListTarget.fromJson(Map<String, dynamic> json) =>
       ShoppingListTarget(
@@ -360,6 +365,10 @@ class ShoppingListTarget {
 
   final String entityId;
   final String label;
+
+  /// The KitchenOwl household the list belongs to. Only the direct
+  /// connection knows it; it is what articles and categories hang on.
+  final String householdId;
 }
 
 /// What the server reports about its shopping-list integration.

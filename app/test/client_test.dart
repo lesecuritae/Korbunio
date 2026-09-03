@@ -138,53 +138,121 @@ void main() {
   });
 
   group('direct KitchenOwl transfer', () {
-    test('discovers lists and transfers the real offer fields', () async {
-      final requests = <http.BaseRequest>[];
-      final client = KitchenOwlClient(
-        baseUrl: 'https://owl.example',
-        token: 'long-lived',
-        httpClient: MockClient((request) {
-          requests.add(request);
-          if (request.url.path == '/api/household') {
-            return http.Response(
-              jsonEncode([
-                {'id': 7, 'name': 'Zuhause'},
-              ]),
-              200,
-            );
-          }
-          if (request.url.path == '/api/household/7/shoppinglist') {
-            return http.Response(
-              jsonEncode([
-                {'id': 12, 'name': 'Einkauf'},
-              ]),
-              200,
-            );
-          }
-          if (request.url.path == '/api/shoppinglist/12/add-item-by-name') {
-            return http.Response(jsonEncode({'id': 99}), 200);
-          }
-          return http.Response('{}', 404);
-        }),
-      );
-      final targets = await client.targets();
+    KitchenOwlClient owl(
+      List<http.Request> requests, {
+      List<String> items = const [],
+    }) => KitchenOwlClient(
+      baseUrl: 'https://owl.example',
+      token: 'long-lived',
+      httpClient: MockClient((request) {
+        requests.add(request as http.Request);
+        Object? body;
+        switch ((request.method, request.url.path)) {
+          case ('GET', '/api/household'):
+            body = [
+              {'id': 7, 'name': 'Zuhause'},
+            ];
+          case ('GET', '/api/household/7/shoppinglist'):
+            body = [
+              {'id': 12, 'name': 'Einkauf'},
+            ];
+          case ('GET', '/api/household/7/item'):
+            body = [
+              for (final name in items) {'id': 1, 'name': name},
+            ];
+          case ('GET', '/api/household/7/category'):
+            body = [
+              {'id': 3, 'name': 'Obst'},
+            ];
+          case ('POST', '/api/household/7/category'):
+            body = {'id': 5, 'name': 'neu'};
+          case ('POST', '/api/shoppinglist/12/add-item-by-name'):
+            body = {'id': 99};
+          case ('POST', '/api/item/99'):
+            body = {'id': 99};
+          case ('GET', '/api/shoppinglist/12/items'):
+            body = [
+              {'name': 'Butter'},
+              {
+                'item': {'name': 'Milch'},
+              },
+            ];
+          default:
+            return http.Response('{}', 404);
+        }
+        return http.Response(jsonEncode(body), 200);
+      }),
+    );
+
+    Map<String, dynamic> bodyOf(http.Request request) =>
+        jsonDecode(request.body) as Map<String, dynamic>;
+
+    test('discovers lists together with their household', () async {
+      final requests = <http.Request>[];
+      final targets = await owl(requests).targets();
       expect(targets.single.entityId, '12');
       expect(targets.single.label, 'Zuhause · Einkauf');
-      final offer = Offer.fromJson({
-        'product': 'Kerrygold Butter',
-        'retailer': 'REWE',
-        'effective_price_text': '1,59 €',
-        'pack': '250 g',
-        'validity': 'bis 03.09.',
-      });
-      expect(await client.addOffer('12', offer), 'Kerrygold Butter');
-      final post = requests.last as http.Request;
-      expect(post.headers['Authorization'], 'Bearer long-lived');
-      final payload = jsonDecode(post.body) as Map<String, dynamic>;
-      expect(payload['name'], 'Kerrygold Butter');
-      expect(payload['description'], contains('REWE'));
-      expect(payload['description'], contains('1,59 €'));
+      expect(targets.single.householdId, '7');
+      expect(requests.first.headers['Authorization'], 'Bearer long-lived');
     });
+
+    test(
+      'an offer lands on the household article, under the shop category',
+      () async {
+        final requests = <http.Request>[];
+        final client = owl(requests, items: ['Butter', 'Milch']);
+        final offer = Offer.fromJson({
+          'product': 'Kerrygold Butter',
+          'retailer': 'REWE',
+          'effective_price_text': '1,59 €',
+          'pack': '250 g',
+          'validity': 'bis 03.09.',
+        });
+        expect(await client.addOffer('12', offer, householdId: '7'), 'Butter');
+
+        final added = requests.firstWhere(
+          (request) => request.url.path.endsWith('/add-item-by-name'),
+        );
+        expect(bodyOf(added)['name'], 'Butter');
+        // Offer wording, price, validity; the shop is the category and the
+        // pack size stays out.
+        expect(
+          bodyOf(added)['description'],
+          'Kerrygold Butter · 1,59 € · bis 03.09.',
+        );
+
+        final category = requests.firstWhere(
+          (request) =>
+              request.method == 'POST' &&
+              request.url.path == '/api/household/7/category',
+        );
+        expect(bodyOf(category)['name'], '🔴 REWE');
+        final filed = requests.firstWhere(
+          (request) => request.url.path == '/api/item/99',
+        );
+        expect(bodyOf(filed)['category'], {'id': 5});
+      },
+    );
+
+    test('without a household the shortened name is used as is', () async {
+      final requests = <http.Request>[];
+      final offer = Offer.fromJson({
+        'product': 'JA! Weizenbrötchen 6 Stück',
+        'retailer': 'REWE',
+        'regular_price_text': '0,99 €',
+      });
+      expect(await owl(requests).addOffer('12', offer), 'Weizenbrötchen');
+      expect(requests.map((request) => request.url.path), [
+        '/api/shoppinglist/12/add-item-by-name',
+      ]);
+    });
+
+    test(
+      'reads what is currently on the list, nested names included',
+      () async {
+        expect(await owl([]).entries('12'), {'Butter', 'Milch'});
+      },
+    );
 
     test('rejects direct KitchenOwl tokens over HTTP', () async {
       final client = KitchenOwlClient(

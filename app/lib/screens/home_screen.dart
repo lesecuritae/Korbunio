@@ -611,9 +611,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        LocalShoppingListButton(
-                          store: widget.localShoppingList,
-                        ),
+                        if (!widget.settings.kitchenOwlOnly)
+                          LocalShoppingListButton(
+                            store: widget.localShoppingList,
+                          ),
                         IconButton(
                           tooltip: 'Verbindungen und Einstellungen',
                           onPressed: _busy ? null : _openSettings,

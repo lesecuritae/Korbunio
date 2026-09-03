@@ -63,22 +63,35 @@ search by hand.
 
 ## Shopping list
 
-Every offer carries an **Auf KitchenOwl** button that files it straight into
-the list named in the bar above the results, the same one-tap flow the browser
-uses. The button then reads "in <list>" so a filed offer stays recognisable
-while scrolling. Checking the article off in KitchenOwl clears that mark
-again on the next load, since KitchenOwl removes a checked entry from the
-list. The chosen list is remembered on the device.
+Every offer carries a **Zur Einkaufsliste** button that adds it to the
+persistent local shopping list. That list opens from the basket icon and can
+be exported through the clipboard without a server connection.
 
-The user can connect KitchenOwl directly in **Settings → Connections**. The
-long-lived token stays on the device and is sent only to the configured HTTPS
-KitchenOwl host. It is never forwarded to the KorbKlar server. If the server
-provides its own compatible KitchenOwl endpoint, the client can still use that
-as a fallback.
+With a KitchenOwl connected in **Settings → Connections**, each offer gets a
+second button, **Auf KitchenOwl**, that files it straight into the list named
+in the bar above the results. The button then reads "in <article>" so a filed
+offer stays recognisable while scrolling. Checking the article off in
+KitchenOwl clears that mark again on the next load, since KitchenOwl removes
+a checked entry from the list. The chosen list is remembered on the device.
+The switch **Nur KitchenOwl verwenden** hides the local list altogether, so
+the offer card keeps a single button; it falls back to the local list while
+KitchenOwl is unreachable.
 
-Where no KitchenOwl list is configured, offers go to the persistent local
-shopping list. It can be opened from the basket icon and exported through the
-clipboard without a server connection.
+What KitchenOwl receives is an article, not a headline. The app reads the
+household's own articles and files the offer on the one that matches, so
+"JA! Weizenbrötchen 6 Stück" lands on the existing "Brötchen" with its icon
+(`services/kitchenowl_articles.dart`, the same rules the browser side once
+used: whole-word matching, head noun last, longest match wins). Where none
+matches, the offer name is shortened to the staple: private-label shouting,
+pack sizes and "aus der Region" go. The note under the article carries the
+offer wording, the price and the validity, nothing else. The article is filed
+under a category named after the shop with a colour dot, "🔴 REWE", so the
+list sorts by store; missing categories are created.
+
+The long-lived token stays on the device and is sent only to the configured
+HTTPS KitchenOwl host. It is never forwarded to the KorbKlar server. If the
+server provides its own compatible KitchenOwl endpoint, the client can still
+use that as a fallback.
 
 ## Toolchain
 

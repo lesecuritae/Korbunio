@@ -18,6 +18,7 @@ class OfferCard extends StatelessWidget {
     required this.sending,
     required this.onAddToList,
     required this.onOpenSource,
+    this.onAddToKitchenOwl,
   });
 
   final Offer offer;
@@ -31,11 +32,18 @@ class OfferCard extends StatelessWidget {
   /// the web interface's `single-retailer` rule.
   final bool showRetailer;
 
-  /// The list this offer was already filed in, or null while it has not been.
+  /// The KitchenOwl list this offer was already filed in, or null while it
+  /// has not been.
   final String? filedIn;
   final bool sending;
-  final VoidCallback onAddToList;
+
+  /// Adds the offer to the app's local list. Null hides that button, which
+  /// is what "only KitchenOwl" in the settings means.
+  final VoidCallback? onAddToList;
   final VoidCallback onOpenSource;
+
+  /// Files the offer in KitchenOwl. Null while no KitchenOwl is connected.
+  final VoidCallback? onAddToKitchenOwl;
 
   Color _stateColor(String state, KorbColors colors) =>
       state == 'best' ? colors.good : colors.text;
@@ -184,31 +192,45 @@ class OfferCard extends StatelessWidget {
           Row(
             children: [
               const Spacer(),
-              TextButton.icon(
-                onPressed: sending || filedIn != null ? null : onAddToList,
-                icon: sending
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        filedIn != null ? Icons.check : Icons.add_shopping_cart,
-                        size: 18,
-                      ),
-                label: Text(
-                  filedIn != null ? 'in $filedIn' : 'Zur Einkaufsliste',
+              if (onAddToList != null)
+                TextButton.icon(
+                  onPressed: sending ? null : onAddToList,
+                  icon: const Icon(Icons.add_shopping_cart, size: 18),
+                  label: const Text('Zur Einkaufsliste'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.accent,
+                    disabledForegroundColor: colors.muted,
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
-                style: TextButton.styleFrom(
-                  foregroundColor: filedIn != null
-                      ? colors.good
-                      : colors.accent,
-                  disabledForegroundColor: filedIn != null
-                      ? colors.good
-                      : colors.muted,
-                  visualDensity: VisualDensity.compact,
+              if (onAddToKitchenOwl != null)
+                TextButton.icon(
+                  onPressed: sending || filedIn != null
+                      ? null
+                      : onAddToKitchenOwl,
+                  icon: sending
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          filedIn != null ? Icons.check : Icons.playlist_add,
+                          size: 18,
+                        ),
+                  label: Text(
+                    filedIn != null ? 'in $filedIn' : 'Auf KitchenOwl',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: filedIn != null
+                        ? colors.good
+                        : colors.accent,
+                    disabledForegroundColor: filedIn != null
+                        ? colors.good
+                        : colors.muted,
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
-              ),
             ],
           ),
         ],
