@@ -13,6 +13,7 @@ from .config import (
 from .images import ImageService
 from .service import SupermarketEngine
 from .jobs import SearchJobStore
+from .clawforge.feed_sync import IntelligenceService
 
 _engine: Optional[SupermarketEngine] = None
 _engine_lock = threading.Lock()
@@ -20,6 +21,8 @@ _image_service: Optional[ImageService] = None
 _image_service_lock = threading.Lock()
 _jobs: Optional[SearchJobStore] = None
 _jobs_lock = threading.Lock()
+_intelligence: Optional[IntelligenceService] = None
+_intelligence_lock = threading.Lock()
 
 
 def get_engine() -> SupermarketEngine:
@@ -50,3 +53,11 @@ def get_jobs() -> SearchJobStore:
         if _jobs is None:
             _jobs = SearchJobStore(get_engine())
         return _jobs
+
+
+def get_intelligence() -> IntelligenceService:
+    global _intelligence
+    with _intelligence_lock:
+        if _intelligence is None:
+            _intelligence = IntelligenceService.create()
+        return _intelligence

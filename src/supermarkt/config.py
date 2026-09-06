@@ -67,6 +67,7 @@ IMAGE_MAX_FILE_BYTES = _env_int(
     "SUPERMARKT_IMAGE_MAX_FILE_BYTES", 4 * 1024 * 1024, 128 * 1024, 8 * 1024 * 1024
 )
 CACHE_TTL_MINUTES = _env_int("SUPERMARKT_CACHE_TTL_MINUTES", 30, 1, 1440)
+CLAWFORGE_INTELLIGENCE_DB = _env_path("CLAWFORGE_INTELLIGENCE_DB", DATA_DIR / "clawforge-intelligence.sqlite3")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -74,6 +75,10 @@ def _env_bool(name: str, default: bool) -> bool:
     if raw is None or not raw.strip():
         return default
     return raw.strip().casefold() in {"1", "true", "yes", "on", "ja"}
+
+
+CLAWFORGE_INTELLIGENCE_AUTOSTART = _env_bool("CLAWFORGE_INTELLIGENCE_AUTOSTART", False)
+CLAWFORGE_FEED_TIMEOUT_SECONDS = _env_int("CLAWFORGE_FEED_TIMEOUT_SECONDS", 20, 1, 300)
 
 
 # A complete snapshot of the current week stays fresh until the next offer

@@ -317,11 +317,19 @@ src/supermarkt/
 ├── browser_routes.py    browser routes
 ├── media_routes.py      image and media routes
 ├── health_routes.py     health check
+├── clawforge/           feed synchronization, ASN/BGP/RPKI, and trust
+├── feed_sync.py         provider adapters, scheduler, and intelligence store
+├── intelligence_routes.py internal intelligence and network APIs
 ├── runtime.py           shared runtime objects
 └── static/              interface HTML, CSS, and JavaScript
 ```
 
 The internal Python package name `supermarkt` remains for technical reasons. Adapters in `sources/` understand their sources, `service.py` orchestrates direct sources and fallbacks, and `compare.py` builds comparisons. The browser and REST API share the same runtime; the frontend does not calculate prices independently.
+
+Optional Clawforge feed synchronization starts with
+`CLAWFORGE_INTELLIGENCE_AUTOSTART=1`. It stores state in
+`CLAWFORGE_INTELLIGENCE_DB`, applies per-provider intervals and rate-limit
+protection, and never performs a blocking action directly from feed data.
 
 ## Limitations
 

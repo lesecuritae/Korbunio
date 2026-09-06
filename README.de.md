@@ -336,11 +336,19 @@ src/supermarkt/
 ├── browser_routes.py    Browser-Routen
 ├── media_routes.py      Bild- und Medienrouten
 ├── health_routes.py     Healthcheck
+├── clawforge/            Feed-Synchronisation, ASN/BGP/RPKI und Trust
+├── feed_sync.py          Provider-Adapter, Scheduler und Intelligence-Store
+├── intelligence_routes.py interne Intelligence- und Network-APIs
 ├── runtime.py           gemeinsame Runtime-Objekte
 └── static/              HTML, CSS und JavaScript der Oberfläche
 ```
 
 Die Händleradapter kennen die jeweiligen Datenquellen. Die Oberfläche berechnet keine Preise. Dadurch können Quellen, Vergleichskern, REST-API und Browseroberfläche unabhängig voneinander geändert und getestet werden.
+
+Die optionale Clawforge-Feed-Synchronisation wird mit
+`CLAWFORGE_INTELLIGENCE_AUTOSTART=1` aktiviert. Sie speichert ihren Zustand in
+`CLAWFORGE_INTELLIGENCE_DB`, verwendet je Provider Abrufintervalle und
+Rate-Limit-Schutz und führt keine Blockierungsaktion direkt aus Feed-Daten aus.
 
 ## Grenzen
 
