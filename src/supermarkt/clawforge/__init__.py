@@ -31,14 +31,17 @@ from .intelligence import (
     effective_indicator_confidence,
 )
 from .risk_engine import CompositeAssessment, Decision, PolicyEngine, RiskEngine, RiskSignals
+from .persistence import DatabaseBackend, Migration, MigrationRunner, SQLiteBackend
 from .feed_sync import (
     FeedAdapter,
     FeedHTTPClient,
     FeedScheduler,
     FeedSourceRegistry,
     FeedSyncError,
+    IntelligenceConsumer,
     IntelligenceService,
     IntelligenceStore,
+    RiskEvent,
     SyncResult,
     build_feed_registry,
 )
@@ -70,13 +73,19 @@ __all__ = [
     "PolicyEngine",
     "RiskEngine",
     "RiskSignals",
+    "DatabaseBackend",
+    "Migration",
+    "MigrationRunner",
+    "SQLiteBackend",
     "FeedAdapter",
     "FeedHTTPClient",
     "FeedScheduler",
     "FeedSourceRegistry",
     "FeedSyncError",
+    "IntelligenceConsumer",
     "IntelligenceService",
     "IntelligenceStore",
+    "RiskEvent",
     "SyncResult",
     "build_feed_registry",
 ]

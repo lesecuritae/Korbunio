@@ -42,6 +42,11 @@ Jeder Indicator speichert `first_seen`, `last_seen` und `expires_at`. Gleiche
 Werte werden pro Provider und Indicator-Typ dedupliziert. Abgelaufene Werte
 werden vor der weiteren Bewertung entfernt.
 
+Nach dem Store-Commit übernimmt `IntelligenceConsumer` die Bewertung über die
+Risk Engine und schreibt ein begründetes Ereignis in `risk_history`. Mehrere
+Quellen für denselben Wert werden gemeinsam als korroboriertes Signal bewertet;
+der Consumer löst selbst keine Blockierung aus.
+
 ## Lizenzen und Datenschutz
 
 Vor der Aktivierung sind Nutzungsbedingungen, Redistribuierung, API-Limits und

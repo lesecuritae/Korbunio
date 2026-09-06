@@ -28,8 +28,17 @@ zu einem sichtbaren Fehlerstatus und nicht zu einem stillen Vertrauensbonus.
 
 Die Feed-Synchronisation schreibt Providerstatus und normalisierte Daten in die
 SQLite-Tabellen `providers`, `provider_status`, `indicators`, `asn_records`,
-`bgp_events`, `risk_history` und `trust_history`. Die Tabellen sind logisch so
-geschnitten, dass später ein PostgreSQL-Repository ergänzt werden kann.
+`bgp_events`, `risk_history` und `trust_history`. Der
+`IntelligenceConsumer` bewertet neue Indicators unmittelbar nach dem Store-
+Commit. Jede Bewertung speichert Indicator, Quelle, Score-Änderung, Grund und
+Zeitpunkt in `risk_history`; positive Trust-Signale werden zusätzlich in
+`trust_history` festgehalten. Mehrere unterschiedliche Quellen für denselben
+Indicator werden als korroboriertes Signal an die Engine übergeben.
+
+Das Schema wird über `schema_migrations` und den `MigrationRunner` versioniert.
+`SQLiteBackend` ist die aktuelle Implementierung der kleinen
+`DatabaseBackend`-Schnittstelle; ein PostgreSQL-Backend kann später dieselbe
+Repository-Grenze verwenden.
 
 ## LLM-Grenze
 

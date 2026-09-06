@@ -10,13 +10,16 @@ from supermarkt.clawforge.feed_sync import (
     FeedScheduler,
     FeedSyncError,
     HTTPFeedResponse,
+    IntelligenceConsumer,
     IntelligenceStore,
     build_feed_registry,
     parse_feodo,
     parse_threatfox,
     parse_urlhaus,
 )
-from supermarkt.clawforge.intelligence import IndicatorType, ThreatIndicator, ThreatProvider, ThreatProviderRegistry
+from supermarkt.clawforge.intelligence import BGPRoute, IndicatorType, ThreatIndicator, ThreatProvider, ThreatProviderRegistry
+from supermarkt.clawforge.network_trust import NetworkObservation, TrustedNetworkRegistry
+from supermarkt.clawforge.risk_engine import Decision
 
 
 class FakeClient:
@@ -118,6 +121,7 @@ def test_old_indicators_expire(tmp_path: Path):
     provider = ThreatProvider("expiry", "Expiry", "test")
     store = IntelligenceStore(tmp_path / "intelligence.sqlite3")
     store.register_provider(provider)
+    store.attach_consumer(IntelligenceConsumer(store))
     old = datetime.now(UTC) - timedelta(days=2)
     store.store_indicators(
         "expiry",
@@ -125,6 +129,93 @@ def test_old_indicators_expire(tmp_path: Path):
     )
     assert store.expire(datetime.now(UTC)) == 1
     assert store.indicators(provider_id="expiry") == []
+    assert store.risk_events(indicator="203.0.113.22") == []
+
+
+def test_consumer_persists_indicator_risk_event_and_survives_restart(tmp_path: Path):
+    db_path = tmp_path / "intelligence.sqlite3"
+    store = IntelligenceStore(db_path)
+    provider = ThreatProvider("threatfox", "ThreatFox", "abuse.ch")
+    store.register_provider(provider)
+    store.attach_consumer(IntelligenceConsumer(store))
+    indicator = ThreatIndicator(
+        "203.0.113.70", "ip", categories=("botnet-c2",), confidence=90, source="threatfox"
+    )
+    assert store.store_indicators(provider.id, [indicator]) == 1
+    events = store.risk_events(indicator=indicator.value)
+    assert len(events) == 1
+    assert events[0]["source"] == "threatfox"
+    assert events[0]["score_change"] > 0
+    assert events[0]["reason"]
+
+    restarted = IntelligenceStore(db_path)
+    assert len(restarted.indicators(provider_id=provider.id)) == 1
+    assert len(restarted.risk_events(indicator=indicator.value)) == 1
+    assert {row[0] for row in restarted._connect().execute("SELECT version FROM schema_migrations")} == {1, 2, 3}
+
+
+def test_duplicate_indicator_does_not_create_duplicate_risk_event(tmp_path: Path):
+    store = IntelligenceStore(tmp_path / "intelligence.sqlite3")
+    provider = ThreatProvider("feed", "Feed", "test")
+    store.register_provider(provider)
+    store.attach_consumer(IntelligenceConsumer(store))
+    indicator = ThreatIndicator("198.51.100.70", "ip", confidence=80, source="feed")
+    store.store_indicators(provider.id, [indicator])
+    store.store_indicators(provider.id, [indicator])
+    assert len(store.risk_events(indicator=indicator.value)) == 1
+
+
+def test_multiple_provider_signals_raise_correlated_indicator_risk(tmp_path: Path):
+    store = IntelligenceStore(tmp_path / "intelligence.sqlite3")
+    first = ThreatProvider("feed-a", "Feed A", "a")
+    second = ThreatProvider("feed-b", "Feed B", "b")
+    store.register_provider(first)
+    store.register_provider(second)
+    store.attach_consumer(IntelligenceConsumer(store))
+    value = "198.51.100.71"
+    store.store_indicators(first.id, [ThreatIndicator(value, "ip", confidence=30, source="feed-a")])
+    first_event = store.risk_events(indicator=value)[0]
+    store.store_indicators(second.id, [ThreatIndicator(value, "ip", confidence=30, source="feed-b")])
+    latest = store.risk_events(indicator=value)
+    assert len(latest) == 2
+    assert latest[0]["score_change"] > first_event["score_change"]
+
+
+def test_trusted_network_reduces_indicator_risk_and_single_feed_cannot_block(tmp_path: Path):
+    store = IntelligenceStore(tmp_path / "intelligence.sqlite3")
+    trust = TrustedNetworkRegistry()
+    network = trust.register(name="Server VLAN", type="vlan", networks=("203.0.113.0/24",))
+    trust.verify(network.id)
+    consumer = IntelligenceConsumer(store, trusted_networks=trust)
+    indicator = ThreatIndicator("203.0.113.8", "ip", confidence=100, source="one-feed")
+    untrusted_event, untrusted = IntelligenceConsumer(store).evaluate_indicator(indicator, persist=False)
+    trusted_event, trusted = consumer.evaluate_indicator(
+        indicator, observation=NetworkObservation(ip=indicator.value), persist=False
+    )
+    assert trusted.risk.risk_score < untrusted.risk.risk_score
+    assert trusted.risk.trust_score >= 40
+    assert trusted.policy.decision is not Decision.BLOCK
+    assert untrusted_event.score_change > trusted_event.score_change
+
+
+def test_bgp_history_is_deduplicated_and_records_origin_changes(tmp_path: Path):
+    store = IntelligenceStore(tmp_path / "intelligence.sqlite3")
+    store.attach_consumer(IntelligenceConsumer(store))
+    route = BGPRoute("203.0.113.0/24", "AS64500", stable_days=40, rpki_status="valid")
+    assert store.store_bgp_routes("ripe-ris", [route]) == 1
+    assert store.store_bgp_routes("ripe-ris", [route]) == 0
+    assert len(store.bgp_events(prefix=route.prefix)) == 1
+    changed = BGPRoute(
+        route.prefix, "AS64501", status="changed", rpki_status="invalid", previous_origin_asn="AS64500"
+    )
+    assert store.store_bgp_routes("ripe-ris", [changed]) == 1
+    rows = store.bgp_events(prefix=route.prefix)
+    assert len(rows) == 2
+    current = next(row for row in rows if row["origin_asn"] == "AS64501")
+    assert current["change"] == "origin_changed"
+    assert current["first_seen"] and current["last_seen"]
+    assert any(row["source"] == "ripe-ris" for row in store.risk_events(indicator=route.prefix))
+    assert store._connect().execute("SELECT COUNT(*) FROM trust_history").fetchone()[0] >= 1
 
 
 def test_registry_contains_phase_one_and_extension_sources(tmp_path: Path):

@@ -15,7 +15,7 @@ from .clawforge import (
     assess_network,
     network_intelligence,
 )
-from .clawforge.feed_sync import FeedScheduler, IntelligenceService, IntelligenceStore
+from .clawforge.feed_sync import FeedScheduler, IntelligenceConsumer, IntelligenceService, IntelligenceStore
 
 __all__ = [
     "__version__",
@@ -36,6 +36,7 @@ __all__ = [
     "assess_network",
     "network_intelligence",
     "FeedScheduler",
+    "IntelligenceConsumer",
     "IntelligenceService",
     "IntelligenceStore",
 ]

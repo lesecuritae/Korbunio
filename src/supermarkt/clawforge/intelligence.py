@@ -291,6 +291,8 @@ class BGPRoute:
     stable_days: int = 0
     rpki_status: str = "unknown"
     previous_origin_asn: str = ""
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
 
 
 class BGPIntelligence:

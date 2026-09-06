@@ -21,8 +21,10 @@ die bereits berechneten Risk- und Trust-Werte. Rohdaten bleiben im
 Intelligence-Layer.
 
 Die Synchronisationsschicht persistiert ASN-Daten in `asn_records` und
-Routing-Ereignisse in `bgp_events`. Die Adapter sind für RIPEstat, BGPView,
-RIPE RIS, RouteViews, BGPStream, CAIDA, RPKI, Team Cymru, PeeringDB und
+Routing-Historie in `bgp_events`. Für jeden Prefix und Origin-ASN werden erster
+und letzter Zeitpunkt sowie Änderungen gespeichert; wiederholte identische
+Routen werden dedupliziert. Die Adapter sind für RIPEstat, BGPView, RIPE RIS,
+RouteViews, BGPStream, CAIDA, RPKI, Team Cymru, PeeringDB und
 Spamhaus ASN Reputation registriert. Provider-spezifische Endpunkte und
 Zugangsdaten bleiben konfigurierbar; Datenquellen werden nicht als direkte
 Blockierentscheidung verwendet.

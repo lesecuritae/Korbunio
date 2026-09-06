@@ -31,7 +31,9 @@ from .intelligence import (
     ThreatProviderRegistry,
     normalize_indicator,
 )
-from .network_trust import TrustedNetworkRegistry
+from .network_trust import NetworkObservation, TrustedNetworkRegistry
+from .persistence import DatabaseBackend, Migration, MigrationRunner, SQLiteBackend
+from .risk_engine import RiskEngine, RiskSignals
 
 
 class FeedSyncError(RuntimeError):
@@ -162,6 +164,8 @@ def _ioc_type(value: str) -> IndicatorType:
         return IndicatorType.HASH
     if value in {"prefix", "cidr", "network"}:
         return IndicatorType.PREFIX
+    if value in {"asn", "autonomous-system", "autonomous_system"}:
+        return IndicatorType.ASN
     return IndicatorType.DOMAIN
 
 
@@ -239,74 +243,138 @@ def parse_nvd(payload: Any, source: str = "nvd") -> Iterable[ThreatIndicator]:
             yield _indicator(value, IndicatorType.DOMAIN, source=source, categories=("cve",), confidence=60, metadata={"source_identifier": cve.get("sourceIdentifier") if isinstance(cve, Mapping) else ""})
 
 
-class IntelligenceStore:
-    """SQLite persistence with PostgreSQL-friendly logical tables."""
+_MIGRATIONS = (
+    Migration(
+        1,
+        "initial intelligence schema",
+        """
+        CREATE TABLE IF NOT EXISTS providers (
+            provider_id TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL,
+            interval_seconds INTEGER NOT NULL, confidence INTEGER NOT NULL,
+            categories TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS provider_status (
+            provider_id TEXT PRIMARY KEY REFERENCES providers(provider_id),
+            state TEXT NOT NULL, last_attempt TEXT, last_success TEXT,
+            next_run TEXT, failure_count INTEGER NOT NULL DEFAULT 0,
+            error TEXT, retry_after TEXT, indicators_count INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS indicators (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, provider_id TEXT NOT NULL,
+            indicator_type TEXT NOT NULL, value TEXT NOT NULL,
+            categories TEXT NOT NULL, confidence INTEGER NOT NULL,
+            first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, expires_at TEXT NOT NULL,
+            observed_at TEXT, metadata TEXT NOT NULL,
+            UNIQUE(provider_id, indicator_type, value)
+        );
+        CREATE INDEX IF NOT EXISTS idx_indicators_expiry ON indicators(expires_at);
+        CREATE TABLE IF NOT EXISTS asn_records (
+            provider_id TEXT NOT NULL, asn TEXT NOT NULL, organisation TEXT,
+            provider TEXT, country TEXT, prefixes TEXT NOT NULL,
+            network_type TEXT, reputation INTEGER NOT NULL, updated_at TEXT NOT NULL,
+            PRIMARY KEY(provider_id, asn)
+        );
+        CREATE TABLE IF NOT EXISTS bgp_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, provider_id TEXT NOT NULL,
+            prefix TEXT NOT NULL, origin_asn TEXT NOT NULL, status TEXT,
+            stable_days INTEGER NOT NULL, rpki_status TEXT, previous_origin_asn TEXT,
+            observed_at TEXT NOT NULL,
+            UNIQUE(provider_id, prefix, origin_asn, observed_at)
+        );
+        CREATE TABLE IF NOT EXISTS risk_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL,
+            risk_score INTEGER NOT NULL, reasons TEXT NOT NULL, observed_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS trust_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL,
+            trust_score INTEGER NOT NULL, reasons TEXT NOT NULL, observed_at TEXT NOT NULL
+        );
+        """,
+    ),
+    Migration(
+        2,
+        "risk and route history fields",
+        """
+        ALTER TABLE risk_history ADD COLUMN indicator TEXT NOT NULL DEFAULT '';
+        ALTER TABLE risk_history ADD COLUMN source TEXT NOT NULL DEFAULT '';
+        ALTER TABLE risk_history ADD COLUMN score_change INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE risk_history ADD COLUMN reason TEXT NOT NULL DEFAULT '';
+        ALTER TABLE risk_history ADD COLUMN timestamp TEXT;
+        ALTER TABLE bgp_events ADD COLUMN asn TEXT NOT NULL DEFAULT '';
+        ALTER TABLE bgp_events ADD COLUMN origin TEXT NOT NULL DEFAULT '';
+        ALTER TABLE bgp_events ADD COLUMN first_seen TEXT;
+        ALTER TABLE bgp_events ADD COLUMN last_seen TEXT;
+        ALTER TABLE bgp_events ADD COLUMN change TEXT NOT NULL DEFAULT '';
+        """,
+    ),
+    Migration(
+        3,
+        "deduplicated BGP route history",
+        """
+        ALTER TABLE bgp_events RENAME TO bgp_events_legacy;
+        CREATE TABLE bgp_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, provider_id TEXT NOT NULL,
+            prefix TEXT NOT NULL, origin_asn TEXT NOT NULL,
+            asn TEXT NOT NULL, origin TEXT NOT NULL, status TEXT,
+            stable_days INTEGER NOT NULL, rpki_status TEXT,
+            previous_origin_asn TEXT, observed_at TEXT NOT NULL,
+            first_seen TEXT NOT NULL, last_seen TEXT NOT NULL,
+            change TEXT NOT NULL DEFAULT '',
+            UNIQUE(provider_id, prefix, origin_asn)
+        );
+        INSERT INTO bgp_events(
+            provider_id,prefix,origin_asn,asn,origin,status,stable_days,rpki_status,
+            previous_origin_asn,observed_at,first_seen,last_seen,change
+        )
+        SELECT provider_id,prefix,origin_asn,
+            CASE WHEN asn = '' THEN origin_asn ELSE asn END,
+            CASE WHEN origin = '' THEN origin_asn ELSE origin END,
+            status,stable_days,rpki_status,previous_origin_asn,
+            MAX(observed_at),
+            COALESCE(MIN(first_seen), MIN(observed_at)),
+            COALESCE(MAX(last_seen), MAX(observed_at)),
+            COALESCE(MAX(change), '')
+        FROM bgp_events_legacy
+        GROUP BY provider_id,prefix,origin_asn;
+        DROP TABLE bgp_events_legacy;
+        CREATE INDEX idx_bgp_events_prefix ON bgp_events(prefix);
+        """,
+    ),
+)
 
-    def __init__(self, path: str | os.PathLike[str]) -> None:
+
+class IntelligenceStore:
+    """Persistent intelligence repository behind a small database boundary."""
+
+    def __init__(self, path: str | os.PathLike[str], *, backend: DatabaseBackend | None = None) -> None:
         self.path = str(path)
+        self.backend = backend or SQLiteBackend(self.path)
         self._lock = threading.RLock()
+        self._consumer: IntelligenceConsumer | None = None
         parent = os.path.dirname(self.path)
         if parent:
             os.makedirs(parent, exist_ok=True)
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.path, timeout=20)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA journal_mode=WAL")
-        db.execute("PRAGMA busy_timeout=10000")
-        return db
+        return self.backend.connect()
 
     def _initialize(self) -> None:
         with self._lock, self._connect() as db:
-            db.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS providers (
-                    provider_id TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL,
-                    interval_seconds INTEGER NOT NULL, confidence INTEGER NOT NULL,
-                    categories TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1
-                );
-                CREATE TABLE IF NOT EXISTS provider_status (
-                    provider_id TEXT PRIMARY KEY REFERENCES providers(provider_id),
-                    state TEXT NOT NULL, last_attempt TEXT, last_success TEXT,
-                    next_run TEXT, failure_count INTEGER NOT NULL DEFAULT 0,
-                    error TEXT, retry_after TEXT, indicators_count INTEGER NOT NULL DEFAULT 0
-                );
-                CREATE TABLE IF NOT EXISTS indicators (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, provider_id TEXT NOT NULL,
-                    indicator_type TEXT NOT NULL, value TEXT NOT NULL,
-                    categories TEXT NOT NULL, confidence INTEGER NOT NULL,
-                    first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, expires_at TEXT NOT NULL,
-                    observed_at TEXT, metadata TEXT NOT NULL,
-                    UNIQUE(provider_id, indicator_type, value)
-                );
-                CREATE INDEX IF NOT EXISTS idx_indicators_expiry ON indicators(expires_at);
-                CREATE TABLE IF NOT EXISTS asn_records (
-                    provider_id TEXT NOT NULL, asn TEXT NOT NULL, organisation TEXT,
-                    provider TEXT, country TEXT, prefixes TEXT NOT NULL,
-                    network_type TEXT, reputation INTEGER NOT NULL, updated_at TEXT NOT NULL,
-                    PRIMARY KEY(provider_id, asn)
-                );
-                CREATE TABLE IF NOT EXISTS bgp_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, provider_id TEXT NOT NULL,
-                    prefix TEXT NOT NULL, origin_asn TEXT NOT NULL, status TEXT,
-                    stable_days INTEGER NOT NULL, rpki_status TEXT, previous_origin_asn TEXT,
-                    observed_at TEXT NOT NULL, UNIQUE(provider_id, prefix, origin_asn, observed_at)
-                );
-                CREATE TABLE IF NOT EXISTS risk_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL,
-                    risk_score INTEGER NOT NULL, reasons TEXT NOT NULL, observed_at TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS trust_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL,
-                    trust_score INTEGER NOT NULL, reasons TEXT NOT NULL, observed_at TEXT NOT NULL
-                );
-                """
-            )
+            MigrationRunner.run(db, _MIGRATIONS)
 
     @staticmethod
     def _iso(value: datetime | None) -> str | None:
         return value.astimezone(UTC).isoformat() if value else None
+
+    def attach_consumer(self, consumer: "IntelligenceConsumer") -> None:
+        """Attach the evaluator used for newly stored intelligence."""
+        self._consumer = consumer
+
+    def _ensure_consumer(self) -> "IntelligenceConsumer":
+        if self._consumer is None:
+            self._consumer = IntelligenceConsumer(self)
+        return self._consumer
 
     def register_provider(self, provider: ThreatProvider) -> None:
         with self._lock, self._connect() as db:
@@ -335,12 +403,18 @@ class IntelligenceStore:
 
     def store_indicators(self, provider_id: str, indicators: Iterable[ThreatIndicator]) -> int:
         count = 0
+        to_assess: list[ThreatIndicator] = []
         with self._lock, self._connect() as db:
             for item in indicators:
                 now = datetime.now(UTC)
                 first = item.first_seen or item.observed_at or now
                 last = item.last_seen or item.observed_at or first
                 expires = item.expires_at or last + timedelta(days=30)
+                existing = db.execute(
+                    "SELECT confidence,categories,metadata FROM indicators "
+                    "WHERE provider_id = ? AND indicator_type = ? AND value = ?",
+                    (provider_id, item.indicator_type.value, item.value),
+                ).fetchone()
                 db.execute(
                     """INSERT INTO indicators(provider_id,indicator_type,value,categories,confidence,first_seen,last_seen,expires_at,observed_at,metadata)
                     VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_id,indicator_type,value) DO UPDATE SET
@@ -350,7 +424,15 @@ class IntelligenceStore:
                     observed_at=excluded.observed_at, metadata=excluded.metadata""",
                     (provider_id, item.indicator_type.value, item.value, json.dumps(item.categories), item.confidence, self._iso(first), self._iso(last), self._iso(expires), self._iso(item.observed_at), json.dumps(dict(item.metadata), default=str)),
                 )
+                if expires > now and (existing is None or (
+                    int(existing[0]) != item.confidence
+                    or str(existing[1]) != json.dumps(item.categories)
+                    or str(existing[2]) != json.dumps(dict(item.metadata), default=str)
+                )):
+                    to_assess.append(item)
                 count += 1
+        if to_assess:
+            self._ensure_consumer().consume_indicators(to_assess)
         return count
 
     def expire(self, now: datetime | None = None) -> int:
@@ -359,18 +441,24 @@ class IntelligenceStore:
             result = db.execute("DELETE FROM indicators WHERE expires_at <= ?", (value,))
             return result.rowcount
 
-    def indicators(self, *, provider_id: str | None = None, limit: int = 1000) -> list[dict[str, Any]]:
+    def indicators(self, *, provider_id: str | None = None, limit: int = 1000, include_expired: bool = False) -> list[dict[str, Any]]:
         query = "SELECT * FROM indicators"
         params: list[Any] = []
+        clauses: list[str] = []
         if provider_id:
-            query += " WHERE provider_id = ?"
+            clauses.append("provider_id = ?")
             params.append(provider_id)
+        if not include_expired:
+            clauses.append("expires_at > ?")
+            params.append(self._iso(datetime.now(UTC)))
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY last_seen DESC LIMIT ?"
         params.append(max(1, min(10000, int(limit))))
         with self._lock, self._connect() as db:
             return [dict(row) for row in db.execute(query, params).fetchall()]
 
-    def indicator_objects(self, *, provider_id: str | None = None, limit: int = 1000) -> tuple[ThreatIndicator, ...]:
+    def indicator_objects(self, *, provider_id: str | None = None, limit: int = 1000, include_expired: bool = False) -> tuple[ThreatIndicator, ...]:
         values = [
                 ThreatIndicator(
                     row["value"],
@@ -384,7 +472,7 @@ class IntelligenceStore:
                     expires_at=_utc(row.get("expires_at")),
                     metadata=json.loads(row["metadata"]),
                 )
-                for row in self.indicators(provider_id=provider_id, limit=limit)
+                for row in self.indicators(provider_id=provider_id, limit=limit, include_expired=include_expired)
         ]
         return tuple(values)
 
@@ -413,12 +501,59 @@ class IntelligenceStore:
 
     def store_bgp_routes(self, provider_id: str, routes: Iterable[BGPRoute]) -> int:
         count = 0
+        to_assess: list[tuple[BGPRoute, str]] = []
         with self._lock, self._connect() as db:
-            observed = self._iso(datetime.now(UTC))
             for route in routes:
-                db.execute("""INSERT OR IGNORE INTO bgp_events(provider_id,prefix,origin_asn,status,stable_days,rpki_status,previous_origin_asn,observed_at)
-                VALUES(?,?,?,?,?,?,?,?)""", (provider_id, route.prefix, route.origin_asn, route.status, route.stable_days, route.rpki_status, route.previous_origin_asn, observed))
-                count += 1
+                observed_at = route.last_seen or datetime.now(UTC)
+                first_seen = route.first_seen or observed_at
+                existing = db.execute(
+                    "SELECT * FROM bgp_events WHERE provider_id = ? AND prefix = ? AND origin_asn = ?",
+                    (provider_id, route.prefix, route.origin_asn),
+                ).fetchone()
+                previous = db.execute(
+                    "SELECT origin_asn FROM bgp_events WHERE provider_id = ? AND prefix = ? "
+                    "ORDER BY last_seen DESC LIMIT 1",
+                    (provider_id, route.prefix),
+                ).fetchone()
+                origin_changed = bool(previous and str(previous[0]) != route.origin_asn)
+                change = route.status if route.status in {"changed", "anomalous"} else ""
+                if route.previous_origin_asn or origin_changed:
+                    change = "origin_changed"
+                if existing is None:
+                    db.execute(
+                        """INSERT INTO bgp_events(
+                        provider_id,prefix,origin_asn,asn,origin,status,stable_days,rpki_status,
+                        previous_origin_asn,observed_at,first_seen,last_seen,change
+                        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (provider_id, route.prefix, route.origin_asn, route.origin_asn, route.origin_asn,
+                         route.status, route.stable_days, route.rpki_status, route.previous_origin_asn,
+                         self._iso(observed_at), self._iso(first_seen), self._iso(observed_at), change),
+                    )
+                    count += 1
+                    to_assess.append((route, provider_id))
+                    continue
+                materially_changed = any(
+                    str(existing[key]) != str(value)
+                    for key, value in (
+                        ("status", route.status),
+                        ("stable_days", route.stable_days),
+                        ("rpki_status", route.rpki_status),
+                        ("previous_origin_asn", route.previous_origin_asn),
+                        ("change", change),
+                    )
+                )
+                db.execute(
+                    """UPDATE bgp_events SET status=?,stable_days=?,rpki_status=?,
+                    previous_origin_asn=?,observed_at=?,first_seen=MIN(first_seen,?),
+                    last_seen=?,change=? WHERE id=?""",
+                    (route.status, route.stable_days, route.rpki_status, route.previous_origin_asn,
+                     self._iso(observed_at), self._iso(first_seen), self._iso(observed_at), change, existing["id"]),
+                )
+                if materially_changed:
+                    count += 1
+                    to_assess.append((route, provider_id))
+        if to_assess:
+            self._ensure_consumer().consume_bgp_routes(to_assess)
         return count
 
     def bgp_events(self, prefix: str | None = None, limit: int = 1000) -> list[dict[str, Any]]:
@@ -433,12 +568,196 @@ class IntelligenceStore:
             return [dict(row) for row in db.execute(query, params).fetchall()]
 
     def record_risk(self, subject: str, risk_score: int, reasons: Iterable[str] = ()) -> None:
+        values = tuple(reasons)
         with self._lock, self._connect() as db:
-            db.execute("INSERT INTO risk_history(subject,risk_score,reasons,observed_at) VALUES(?,?,?,?)", (subject, int(risk_score), json.dumps(tuple(reasons)), self._iso(datetime.now(UTC))))
+            now = self._iso(datetime.now(UTC))
+            db.execute(
+                "INSERT INTO risk_history(subject,risk_score,reasons,observed_at,indicator,source,score_change,reason,timestamp) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (subject, int(risk_score), json.dumps(values), now, subject, "", int(risk_score), "; ".join(values), now),
+            )
+
+    def record_risk_event(
+        self,
+        *,
+        indicator: str,
+        source: str,
+        score_change: int,
+        risk_score: int,
+        trust_score: int,
+        reason: str,
+        timestamp: datetime | None = None,
+    ) -> None:
+        event_time = timestamp or datetime.now(UTC)
+        with self._lock, self._connect() as db:
+            db.execute(
+                "INSERT INTO risk_history(subject,risk_score,reasons,observed_at,indicator,source,score_change,reason,timestamp) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (indicator, int(risk_score), json.dumps((reason,)), self._iso(event_time), indicator, source,
+                 int(score_change), reason, self._iso(event_time)),
+            )
+
+    def risk_events(self, *, indicator: str | None = None, limit: int = 1000) -> list[dict[str, Any]]:
+        query = "SELECT * FROM risk_history"
+        params: list[Any] = []
+        if indicator:
+            query += " WHERE indicator = ?"
+            params.append(indicator)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(max(1, min(10000, int(limit))))
+        with self._lock, self._connect() as db:
+            return [dict(row) for row in db.execute(query, params).fetchall()]
 
     def record_trust(self, subject: str, trust_score: int, reasons: Iterable[str] = ()) -> None:
         with self._lock, self._connect() as db:
             db.execute("INSERT INTO trust_history(subject,trust_score,reasons,observed_at) VALUES(?,?,?,?)", (subject, int(trust_score), json.dumps(tuple(reasons)), self._iso(datetime.now(UTC))))
+
+
+@dataclass(frozen=True)
+class RiskEvent:
+    indicator: str
+    source: str
+    score_change: int
+    risk_score: int
+    trust_score: int
+    reason: str
+    timestamp: datetime
+
+
+class IntelligenceConsumer:
+    """Connect normalized intelligence to the existing risk and policy engine."""
+
+    def __init__(
+        self,
+        store: IntelligenceStore,
+        *,
+        trusted_networks: TrustedNetworkRegistry | None = None,
+        engine: RiskEngine | None = None,
+    ) -> None:
+        self.store = store
+        self.trusted_networks = trusted_networks or TrustedNetworkRegistry()
+        self.engine = engine or RiskEngine(self.trusted_networks)
+
+    @staticmethod
+    def _signals(indicator: ThreatIndicator, *, evidence_sources: Iterable[str] = ()) -> RiskSignals:
+        categories = {str(value).casefold() for value in indicator.categories}
+        source = indicator.source.casefold()
+        reputation = min(30, max(0, round(indicator.confidence * 0.3)))
+        ip_reputation = reputation if indicator.indicator_type is IndicatorType.IP else 0
+        asn_reputation = reputation if indicator.indicator_type is IndicatorType.ASN or "asn" in categories or "asn" in source else 0
+        domain_reputation = reputation if indicator.indicator_type in (IndicatorType.DOMAIN, IndicatorType.URL) else 0
+        sources = frozenset(value for value in evidence_sources if value) or frozenset({indicator.source})
+        return RiskSignals(
+            ip_reputation=ip_reputation,
+            asn_reputation=asn_reputation,
+            domain_reputation=domain_reputation,
+            evidence_sources=sources,
+            reasons=(f"{indicator.source}: {', '.join(indicator.categories) or 'indicator'}",),
+        )
+
+    @staticmethod
+    def _observation(indicator: ThreatIndicator, observation: NetworkObservation | None = None) -> NetworkObservation:
+        if observation is not None:
+            return observation
+        values: dict[str, Any] = {}
+        if indicator.indicator_type is IndicatorType.IP:
+            values["ip"] = indicator.value
+        elif indicator.indicator_type is IndicatorType.PREFIX:
+            values["prefix"] = indicator.value
+        elif indicator.indicator_type is IndicatorType.ASN:
+            values["asn"] = indicator.value
+        return NetworkObservation(**values)
+
+    def evaluate_indicator(
+        self,
+        indicator: ThreatIndicator,
+        *,
+        observation: NetworkObservation | None = None,
+        related_indicators: Iterable[ThreatIndicator] = (),
+        persist: bool = True,
+    ) -> tuple[RiskEvent, Any]:
+        network_observation = self._observation(indicator, observation)
+        related = tuple(related_indicators) or (indicator,)
+        signals = self._signals(indicator, evidence_sources=(item.source for item in related))
+        baseline = self.engine.evaluate(network_observation)
+        assessment = self.engine.evaluate(network_observation, indicators=related, signals=signals)
+        reasons = tuple(dict.fromkeys((*assessment.signals.reasons, *assessment.risk.reasons, *assessment.policy.reasons)))
+        reason = "; ".join(reasons) or f"{indicator.source} indicator"
+        event = RiskEvent(
+            indicator=indicator.value,
+            source=indicator.source,
+            score_change=assessment.risk.risk_score - baseline.risk.risk_score,
+            risk_score=assessment.risk.risk_score,
+            trust_score=assessment.risk.trust_score,
+            reason=reason,
+            timestamp=datetime.now(UTC),
+        )
+        if persist:
+            self.store.record_risk_event(
+                indicator=event.indicator,
+                source=event.source,
+                score_change=event.score_change,
+                risk_score=event.risk_score,
+                trust_score=event.trust_score,
+                reason=event.reason,
+                timestamp=event.timestamp,
+            )
+            if event.trust_score:
+                self.store.record_trust(event.indicator, event.trust_score, reasons=(event.reason,))
+        return event, assessment
+
+    def consume_indicators(self, indicators: Iterable[ThreatIndicator]) -> tuple[RiskEvent, ...]:
+        values = tuple(indicators)
+        stored = self.store.indicator_objects()
+        events = []
+        for indicator in values:
+            related = tuple(item for item in stored if item.value == indicator.value)
+            events.append(self.evaluate_indicator(indicator, related_indicators=related)[0])
+        return tuple(events)
+
+    def consume_bgp_route(
+        self,
+        route: BGPRoute,
+        source: str,
+        *,
+        observation: NetworkObservation | None = None,
+        persist: bool = True,
+    ) -> tuple[RiskEvent, Any]:
+        network_observation = observation or NetworkObservation(
+            prefix=route.prefix,
+            asn=route.origin_asn,
+            bgp_status=route.status,
+            rpki_status=route.rpki_status,
+        )
+        signals = RiskSignals(evidence_sources=frozenset({source}), reasons=(f"{source}: route assessment",))
+        baseline = self.engine.evaluate(NetworkObservation(prefix=route.prefix, asn=route.origin_asn))
+        assessment = self.engine.evaluate(network_observation, signals=signals)
+        reasons = tuple(dict.fromkeys((*assessment.signals.reasons, *assessment.risk.reasons, *assessment.policy.reasons)))
+        event = RiskEvent(
+            indicator=route.prefix,
+            source=source,
+            score_change=assessment.risk.risk_score - baseline.risk.risk_score,
+            risk_score=assessment.risk.risk_score,
+            trust_score=assessment.risk.trust_score,
+            reason="; ".join(reasons) or f"{source} route assessment",
+            timestamp=datetime.now(UTC),
+        )
+        if persist:
+            self.store.record_risk_event(
+                indicator=event.indicator,
+                source=event.source,
+                score_change=event.score_change,
+                risk_score=event.risk_score,
+                trust_score=event.trust_score,
+                reason=event.reason,
+                timestamp=event.timestamp,
+            )
+            if event.trust_score:
+                self.store.record_trust(event.indicator, event.trust_score, reasons=(event.reason,))
+        return event, assessment
+
+    def consume_bgp_routes(self, routes: Iterable[tuple[BGPRoute, str]]) -> tuple[RiskEvent, ...]:
+        return tuple(self.consume_bgp_route(route, source)[0] for route, source in routes)
 
 
 class FeedAdapter:
@@ -548,7 +867,16 @@ def parse_bgp_routes(payload: Any, _source: str) -> Iterable[BGPRoute]:
         prefix = item.get("prefix") or item.get("prefix_name")
         origin = item.get("origin_asn") or item.get("origin") or item.get("asn")
         if prefix and origin:
-            yield BGPRoute(str(prefix), str(origin), str(item.get("status", "stable")), int(item.get("stable_days", 0) or 0), str(item.get("rpki_status", "unknown")), str(item.get("previous_origin_asn", "")))
+            yield BGPRoute(
+                str(prefix),
+                str(origin),
+                str(item.get("status", "stable")),
+                int(item.get("stable_days", 0) or 0),
+                str(item.get("rpki_status", "unknown")),
+                str(item.get("previous_origin_asn", "")),
+                _utc(item.get("first_seen"), None) if item.get("first_seen") else None,
+                _utc(item.get("last_seen"), None) if item.get("last_seen") else None,
+            )
 
 
 def parse_rpki(payload: Any, _source: str) -> Iterable[BGPRoute]:
@@ -557,7 +885,14 @@ def parse_rpki(payload: Any, _source: str) -> Iterable[BGPRoute]:
     origin = data.get("origin") or data.get("origin_asn") or data.get("asn") or "unknown"
     status = data.get("status") or data.get("validity") or data.get("rpki_status") or "unknown"
     if prefix:
-        yield BGPRoute(str(prefix), str(origin), status=str(status).casefold(), rpki_status=str(status).casefold())
+        yield BGPRoute(
+            str(prefix),
+            str(origin),
+            status=str(status).casefold(),
+            rpki_status=str(status).casefold(),
+            first_seen=_utc(data.get("first_seen"), None) if data.get("first_seen") else None,
+            last_seen=_utc(data.get("last_seen"), None) if data.get("last_seen") else None,
+        )
 
 
 @dataclass(frozen=True)
@@ -730,6 +1065,7 @@ def build_feed_registry(*, env: Mapping[str, str] | None = None, client: FeedHTT
     store = IntelligenceStore(path)
     for provider in registry.all():
         store.register_provider(provider)
+    store.attach_consumer(IntelligenceConsumer(store))
     scheduler = FeedScheduler(registry, store, adapters)
     return registry, store, scheduler
 
@@ -750,11 +1086,15 @@ class IntelligenceService:
     store: IntelligenceStore
     scheduler: FeedScheduler
     trust: TrustedNetworkRegistry
+    consumer: IntelligenceConsumer
 
     @classmethod
     def create(cls, *, env: Mapping[str, str] | None = None) -> "IntelligenceService":
         registry, store, scheduler = build_feed_registry(env=env)
-        return cls(registry, store, scheduler, TrustedNetworkRegistry())
+        trust = TrustedNetworkRegistry()
+        consumer = IntelligenceConsumer(store, trusted_networks=trust)
+        store.attach_consumer(consumer)
+        return cls(registry, store, scheduler, trust, consumer)
 
     def start(self) -> None:
         self.scheduler.start()
@@ -794,6 +1134,7 @@ class FeedSourceRegistry:
     @classmethod
     def create(cls, *, env: Mapping[str, str] | None = None, client: FeedHTTPClient | None = None) -> "FeedSourceRegistry":
         providers, store, scheduler = build_feed_registry(env=env, client=client)
+        store.attach_consumer(IntelligenceConsumer(store))
         return cls(providers, store, scheduler)
 
 
@@ -808,8 +1149,10 @@ __all__ = [
     "FeedSyncError",
     "FeedTimeoutError",
     "HTTPFeedResponse",
+    "IntelligenceConsumer",
     "IntelligenceService",
     "IntelligenceStore",
+    "RiskEvent",
     "SyncResult",
     "build_feed_registry",
     "parse_bgp_routes",
