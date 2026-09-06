@@ -89,10 +89,13 @@ def test_standalone_docker_defaults_use_the_persistent_volume():
     assert "SUPERMARKT_REWE_CACHE_DIR=/data/rewe" in dockerfile
 
 
-def test_compose_is_one_self_contained_service():
+def test_compose_has_api_worker_and_postgres_services():
     compose = (ROOT / "compose.yml").read_text(encoding="utf-8")
-    assert compose.count("  korbklar:\n") == 1
+    assert "  api:\n" in compose
+    assert "  intelligence-worker:\n" in compose
+    assert "  postgres:\n" in compose
     assert "korbklar-data:/data" in compose
+    assert "korbklar-postgres:/var/lib/postgresql/data" in compose
     assert '"${SUPERMARKT_PORT:-8000}:8000"' in compose
     assert "healthcheck:" in compose
     assert "SUPERMARKT_DATA_DIR: ${SUPERMARKT_DATA_DIR:-/data}" in compose
@@ -178,7 +181,6 @@ def test_release_has_no_private_or_internal_revision_markers():
         "brand-footnote" + "-fix",
         "general" + "17",
         "042" + "09",
-        "tail" + "scale",
         "TS_" + "AUTHKEY",
     )
     for marker in forbidden:

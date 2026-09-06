@@ -31,7 +31,8 @@ from .intelligence import (
     effective_indicator_confidence,
 )
 from .risk_engine import CompositeAssessment, Decision, PolicyEngine, RiskEngine, RiskSignals
-from .persistence import DatabaseBackend, Migration, MigrationRunner, SQLiteBackend
+from .persistence import DatabaseBackend, Migration, MigrationRunner, PostgreSQLBackend, SQLiteBackend, backend_from_environment
+from .backup import BackupManager, BackupManifest
 from .feed_sync import (
     FeedAdapter,
     FeedHTTPClient,
@@ -74,9 +75,13 @@ __all__ = [
     "RiskEngine",
     "RiskSignals",
     "DatabaseBackend",
+    "BackupManager",
+    "BackupManifest",
     "Migration",
     "MigrationRunner",
+    "PostgreSQLBackend",
     "SQLiteBackend",
+    "backend_from_environment",
     "FeedAdapter",
     "FeedHTTPClient",
     "FeedScheduler",

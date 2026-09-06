@@ -38,6 +38,11 @@ Die Synchronisation wird über `CLAWFORGE_INTELLIGENCE_AUTOSTART=1` beim
 Anwendungsstart aktiviert. Ohne Aktivierung bleiben Adapter und Datenbank
 verfügbar, aber es werden keine externen Feeds abgerufen.
 
+Für den getrennten Betrieb startet `python -m supermarkt.intelligence_worker`
+den Scheduler als eigenen Prozess. Compose verwendet diesen Worker neben dem
+API-Service; die Runtime-Konfiguration und Backend-Auswahl sind in
+`docs/intelligence/runtime.md` beschrieben.
+
 Jeder Indicator speichert `first_seen`, `last_seen` und `expires_at`. Gleiche
 Werte werden pro Provider und Indicator-Typ dedupliziert. Abgelaufene Werte
 werden vor der weiteren Bewertung entfernt.

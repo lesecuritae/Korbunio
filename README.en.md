@@ -330,6 +330,8 @@ Optional Clawforge feed synchronization starts with
 `CLAWFORGE_INTELLIGENCE_AUTOSTART=1`. It stores state in
 `CLAWFORGE_INTELLIGENCE_DB`, applies per-provider intervals and rate-limit
 protection, and never performs a blocking action directly from feed data.
+In Compose, synchronization runs in the separate `intelligence-worker`; the
+API and worker can use PostgreSQL with the optional `postgres` extra.
 
 ## Limitations
 

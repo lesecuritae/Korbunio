@@ -79,6 +79,9 @@ def _env_bool(name: str, default: bool) -> bool:
 
 CLAWFORGE_INTELLIGENCE_AUTOSTART = _env_bool("CLAWFORGE_INTELLIGENCE_AUTOSTART", False)
 CLAWFORGE_FEED_TIMEOUT_SECONDS = _env_int("CLAWFORGE_FEED_TIMEOUT_SECONDS", 20, 1, 300)
+CLAWFORGE_INTELLIGENCE_BACKEND = _env_text("CLAWFORGE_INTELLIGENCE_BACKEND", "sqlite").casefold()
+CLAWFORGE_POSTGRES_DSN = os.getenv("CLAWFORGE_POSTGRES_DSN", "").strip()
+CLAWFORGE_WORKER_POLL_SECONDS = _env_int("CLAWFORGE_WORKER_POLL_SECONDS", 5, 1, 300)
 
 
 # A complete snapshot of the current week stays fresh until the next offer

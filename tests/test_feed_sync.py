@@ -73,6 +73,7 @@ def test_invalid_feed_and_provider_failure_are_recorded(tmp_path: Path):
     status = store.provider_status()[0]
     assert status["failure_count"] == 1
     assert status["error"] == "bad response"
+    assert store.audit_events(event_type="intelligence_provider_error")[0]["subject"] == "broken"
     scheduler.stop()
 
 
@@ -151,7 +152,7 @@ def test_consumer_persists_indicator_risk_event_and_survives_restart(tmp_path: P
     restarted = IntelligenceStore(db_path)
     assert len(restarted.indicators(provider_id=provider.id)) == 1
     assert len(restarted.risk_events(indicator=indicator.value)) == 1
-    assert {row[0] for row in restarted._connect().execute("SELECT version FROM schema_migrations")} == {1, 2, 3}
+    assert {row[0] for row in restarted._connect().execute("SELECT version FROM schema_migrations")} == {1, 2, 3, 4}
 
 
 def test_duplicate_indicator_does_not_create_duplicate_risk_event(tmp_path: Path):

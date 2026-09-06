@@ -28,7 +28,7 @@ zu einem sichtbaren Fehlerstatus und nicht zu einem stillen Vertrauensbonus.
 
 Die Feed-Synchronisation schreibt Providerstatus und normalisierte Daten in die
 SQLite-Tabellen `providers`, `provider_status`, `indicators`, `asn_records`,
-`bgp_events`, `risk_history` und `trust_history`. Der
+`bgp_events`, `risk_history`, `trust_history` und `audit_events`. Der
 `IntelligenceConsumer` bewertet neue Indicators unmittelbar nach dem Store-
 Commit. Jede Bewertung speichert Indicator, Quelle, Score-Änderung, Grund und
 Zeitpunkt in `risk_history`; positive Trust-Signale werden zusätzlich in

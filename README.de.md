@@ -349,6 +349,9 @@ Die optionale Clawforge-Feed-Synchronisation wird mit
 `CLAWFORGE_INTELLIGENCE_AUTOSTART=1` aktiviert. Sie speichert ihren Zustand in
 `CLAWFORGE_INTELLIGENCE_DB`, verwendet je Provider Abrufintervalle und
 Rate-Limit-Schutz und führt keine Blockierungsaktion direkt aus Feed-Daten aus.
+Im Compose-Betrieb läuft die Synchronisation im separaten
+`intelligence-worker`; API und Worker können PostgreSQL über das optionale
+`postgres`-Extra verwenden.
 
 ## Grenzen
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 import ipaddress
 import json
 import os
-import sqlite3
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeout
@@ -32,7 +31,7 @@ from .intelligence import (
     normalize_indicator,
 )
 from .network_trust import NetworkObservation, TrustedNetworkRegistry
-from .persistence import DatabaseBackend, Migration, MigrationRunner, SQLiteBackend
+from .persistence import DatabaseBackend, Migration, MigrationRunner, SQLiteBackend, backend_from_environment
 from .risk_engine import RiskEngine, RiskSignals
 
 
@@ -340,6 +339,21 @@ _MIGRATIONS = (
         CREATE INDEX idx_bgp_events_prefix ON bgp_events(prefix);
         """,
     ),
+    Migration(
+        4,
+        "audit event history",
+        """
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            actor TEXT NOT NULL DEFAULT '',
+            subject TEXT NOT NULL DEFAULT '',
+            details TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
+        """,
+    ),
 )
 
 
@@ -356,7 +370,7 @@ class IntelligenceStore:
             os.makedirs(parent, exist_ok=True)
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect(self) -> Any:
         return self.backend.connect()
 
     def _initialize(self) -> None:
@@ -425,9 +439,9 @@ class IntelligenceStore:
                     (provider_id, item.indicator_type.value, item.value, json.dumps(item.categories), item.confidence, self._iso(first), self._iso(last), self._iso(expires), self._iso(item.observed_at), json.dumps(dict(item.metadata), default=str)),
                 )
                 if expires > now and (existing is None or (
-                    int(existing[0]) != item.confidence
-                    or str(existing[1]) != json.dumps(item.categories)
-                    or str(existing[2]) != json.dumps(dict(item.metadata), default=str)
+                    int(existing["confidence"]) != item.confidence
+                    or str(existing["categories"]) != json.dumps(item.categories)
+                    or str(existing["metadata"]) != json.dumps(dict(item.metadata), default=str)
                 )):
                     to_assess.append(item)
                 count += 1
@@ -515,7 +529,7 @@ class IntelligenceStore:
                     "ORDER BY last_seen DESC LIMIT 1",
                     (provider_id, route.prefix),
                 ).fetchone()
-                origin_changed = bool(previous and str(previous[0]) != route.origin_asn)
+                origin_changed = bool(previous and str(previous["origin_asn"]) != route.origin_asn)
                 change = route.status if route.status in {"changed", "anomalous"} else ""
                 if route.previous_origin_asn or origin_changed:
                     change = "origin_changed"
@@ -611,6 +625,32 @@ class IntelligenceStore:
     def record_trust(self, subject: str, trust_score: int, reasons: Iterable[str] = ()) -> None:
         with self._lock, self._connect() as db:
             db.execute("INSERT INTO trust_history(subject,trust_score,reasons,observed_at) VALUES(?,?,?,?)", (subject, int(trust_score), json.dumps(tuple(reasons)), self._iso(datetime.now(UTC))))
+
+    def record_audit_event(
+        self,
+        event_type: str,
+        *,
+        actor: str = "system",
+        subject: str = "",
+        details: Mapping[str, Any] | None = None,
+        created_at: datetime | None = None,
+    ) -> None:
+        with self._lock, self._connect() as db:
+            db.execute(
+                "INSERT INTO audit_events(event_type,actor,subject,details,created_at) VALUES(?,?,?,?,?)",
+                (event_type, actor, subject, json.dumps(dict(details or {}), default=str), self._iso(created_at or datetime.now(UTC))),
+            )
+
+    def audit_events(self, *, event_type: str | None = None, limit: int = 1000) -> list[dict[str, Any]]:
+        query = "SELECT * FROM audit_events"
+        params: list[Any] = []
+        if event_type:
+            query += " WHERE event_type = ?"
+            params.append(event_type)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(max(1, min(10000, int(limit))))
+        with self._lock, self._connect() as db:
+            return [dict(row) for row in db.execute(query, params).fetchall()]
 
 
 @dataclass(frozen=True)
@@ -978,6 +1018,12 @@ class FeedScheduler:
             provider.error = message
             provider.last_sync = now
         self.store.update_provider_status(provider_id, state="error", next_run=next_run, retry_after=next_run, failure_count=failures, error=message)
+        self.store.record_audit_event(
+            "intelligence_provider_error",
+            subject=provider_id,
+            details={"error": message, "failure_count": failures},
+            created_at=now,
+        )
         return SyncResult(provider_id, "error", error=message, next_run=next_run)
 
     def run_due(self, *, now: datetime | None = None) -> tuple[SyncResult, ...]:
@@ -1062,7 +1108,8 @@ def build_feed_registry(*, env: Mapping[str, str] | None = None, client: FeedHTT
         provider = _provider(ident, name, endpoint, 1440, ("network-context",), 55)
         add(provider, FeedAdapter(provider, endpoint, parser=parse_generic_indicator_feed, rate_limit_seconds=300, client=client, **common))
     path = env.get("CLAWFORGE_INTELLIGENCE_DB", "") or os.path.join(env.get("SUPERMARKT_DATA_DIR", "."), "clawforge-intelligence.sqlite3")
-    store = IntelligenceStore(path)
+    backend = backend_from_environment(env, path)
+    store = IntelligenceStore(path, backend=backend)
     for provider in registry.all():
         store.register_provider(provider)
     store.attach_consumer(IntelligenceConsumer(store))
