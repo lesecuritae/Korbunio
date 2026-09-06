@@ -1,16 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:korbklar_app/api/models.dart';
-import 'package:korbklar_app/services/offline_store.dart';
-import 'package:korbklar_app/services/local_shopping_list.dart';
+import 'package:korbunio_app/api/models.dart';
+import 'package:korbunio_app/services/offline_store.dart';
+import 'package:korbunio_app/services/local_shopping_list.dart';
 
 void main() {
   test(
     'stores and restores provider results without changing prices',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'korbklar-offline-',
+        'korbunio-offline-',
       );
       addTearDown(() => directory.delete(recursive: true));
       final store = await OfflineStore.open(directory: directory);
@@ -51,7 +51,7 @@ void main() {
   test(
     'local shopping list survives restart and preserves offer data',
     () async {
-      final directory = await Directory.systemTemp.createTemp('korbklar-list-');
+      final directory = await Directory.systemTemp.createTemp('korbunio-list-');
       addTearDown(() => directory.delete(recursive: true));
       final store = await LocalShoppingListStore.open(directory: directory);
       final offer = Offer.fromJson({

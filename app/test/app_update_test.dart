@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:korbklar_app/services/app_update.dart';
+import 'package:korbunio_app/services/app_update.dart';
 
 const _sha = '497df04a44a36054fe9fa78eabb43c1ce887ced6fcfb1e0cff5215b11153f431';
 
 Map<String, dynamic> _release(String tag, {bool withDigest = true}) => {
   'tag_name': tag,
-  'html_url': 'https://github.com/lesecuritae/KorbKlar/releases/tag/$tag',
+  'html_url': 'https://github.com/lesecuritae/Korbunio/releases/tag/$tag',
   'body': 'Neue Angebote schneller.',
   'published_at': '2026-09-02T01:55:32Z',
   'assets': [
@@ -18,7 +18,7 @@ Map<String, dynamic> _release(String tag, {bool withDigest = true}) => {
         'name': 'app-$abi-release.apk',
         'size': 18917885,
         'browser_download_url':
-            'https://github.com/lesecuritae/KorbKlar/releases/download/$tag/app-$abi-release.apk',
+            'https://github.com/lesecuritae/Korbunio/releases/download/$tag/app-$abi-release.apk',
         if (withDigest) 'digest': 'sha256:$_sha',
       },
   ],
@@ -32,7 +32,7 @@ AppUpdateService _service(
 }) => AppUpdateService(
   client: MockClient((request) async {
     expect(request.url.host, 'api.github.com');
-    expect(request.url.path, '/repos/lesecuritae/KorbKlar/releases/latest');
+    expect(request.url.path, '/repos/lesecuritae/Korbunio/releases/latest');
     return http.Response(jsonEncode(body), status);
   }),
   abi: abi,

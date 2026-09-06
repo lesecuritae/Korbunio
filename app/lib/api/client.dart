@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 
 import 'models.dart';
 
-class KorbKlarException implements Exception {
-  KorbKlarException(this.message, {this.statusCode});
+class KorbunioException implements Exception {
+  KorbunioException(this.message, {this.statusCode});
 
   final String message;
   final int? statusCode;
@@ -38,22 +38,22 @@ class ResultHandle {
   final String token;
 }
 
-/// Talks to a KorbKlar server.
+/// Talks to a Korbunio server.
 ///
 /// The app uses the authenticated API equivalents of the browser endpoints:
 /// the comparison engine, normalisation and loyalty logic stay on the server,
 /// exactly as the project intends. No price is computed here.
 /// What a connection check found.
 enum ServerCheck {
-  /// A KorbKlar server that accepts this client.
+  /// A Korbunio server that accepts this client.
   ok,
 
-  /// A KorbKlar server that requires an API key the client did not supply,
+  /// A Korbunio server that requires an API key the client did not supply,
   /// or supplied wrongly.
   needsApiKey,
 
-  /// Nothing that identifies itself as KorbKlar.
-  notKorbKlar,
+  /// Nothing that identifies itself as Korbunio.
+  notKorbunio,
 }
 
 class ServerDefaults {
@@ -69,8 +69,8 @@ class MarketChoice {
   final String label;
 }
 
-class KorbKlarClient {
-  KorbKlarClient({
+class KorbunioClient {
+  KorbunioClient({
     required String baseUrl,
     String apiKey = '',
     http.Client? httpClient,
@@ -135,7 +135,7 @@ class KorbKlarClient {
     } catch (_) {
       detail = 'HTTP ${response.statusCode}';
     }
-    throw KorbKlarException(detail, statusCode: response.statusCode);
+    throw KorbunioException(detail, statusCode: response.statusCode);
   }
 
   Map<String, dynamic> _json(http.Response response) {
@@ -146,7 +146,7 @@ class KorbKlarClient {
     // charset parameter, which would mangle product names such as "Müller".
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     if (decoded is! Map<String, dynamic>) {
-      throw KorbKlarException('Unerwartete Antwort vom Server.');
+      throw KorbunioException('Unerwartete Antwort vom Server.');
     }
     return decoded;
   }
@@ -154,39 +154,39 @@ class KorbKlarClient {
   Future<T> _guard<T>(Future<T> Function() action) async {
     try {
       return await action();
-    } on KorbKlarException {
+    } on KorbunioException {
       rethrow;
     } on TimeoutException {
-      throw KorbKlarException('Zeitüberschreitung. Server erreichbar?');
+      throw KorbunioException('Zeitüberschreitung. Server erreichbar?');
     } catch (error) {
-      throw KorbKlarException('Server nicht erreichbar: $error');
+      throw KorbunioException('Server nicht erreichbar: $error');
     }
   }
 
-  /// Confirms the base URL points at a KorbKlar instance this client may use.
+  /// Confirms the base URL points at a Korbunio instance this client may use.
   ///
   /// ``/health`` stays reachable without authorisation but withholds its
   /// detail fields, which makes it a cheap and side-effect-free way to tell
   /// "wrong address" from "needs an API key".
   Future<ServerCheck> check() => _guard(() async {
     final securityError = connectionSecurityError(baseUrl, apiKey);
-    if (securityError != null) throw KorbKlarException(securityError);
+    if (securityError != null) throw KorbunioException(securityError);
     final health = await _http.get(_uri('/health')).timeout(_timeout);
     final healthPayload = _json(health);
-    if (healthPayload['service'] != 'korbklar') return ServerCheck.notKorbKlar;
+    if (healthPayload['service'] != 'korbunio') return ServerCheck.notKorbunio;
     final response = await _http
         .get(_uri('/api/v1/client'), headers: _headers())
         .timeout(_timeout);
     if (response.statusCode == 401) return ServerCheck.needsApiKey;
     final payload = _json(response);
-    return payload['service'] == 'korbklar'
+    return payload['service'] == 'korbunio'
         ? ServerCheck.ok
-        : ServerCheck.notKorbKlar;
+        : ServerCheck.notKorbunio;
   });
 
   Future<ServerDefaults> defaults() => _guard(() async {
     final securityError = connectionSecurityError(baseUrl, apiKey);
-    if (securityError != null) throw KorbKlarException(securityError);
+    if (securityError != null) throw KorbunioException(securityError);
     final response = await _http
         .get(_uri('/api/v1/client'), headers: _headers())
         .timeout(_timeout);
@@ -203,12 +203,12 @@ class KorbKlarClient {
   /// Exchanges the server's administrator key for a separate app token.
   /// The administrator key is only sent in this request and can then be
   /// replaced in encrypted storage by the returned client token.
-  Future<String> createAppToken({String label = 'KorbKlar Android'}) =>
+  Future<String> createAppToken({String label = 'Korbunio Android'}) =>
       _guard(() async {
         final securityError = connectionSecurityError(baseUrl, apiKey);
-        if (securityError != null) throw KorbKlarException(securityError);
+        if (securityError != null) throw KorbunioException(securityError);
         if (apiKey.isEmpty) {
-          throw KorbKlarException('Bitte zuerst den Admin-API-Key eingeben.');
+          throw KorbunioException('Bitte zuerst den Admin-API-Key eingeben.');
         }
         final response = await _http
             .post(
@@ -221,7 +221,7 @@ class KorbKlarClient {
             .timeout(_timeout);
         final token = _json(response)['token'];
         if (token is! String || token.isEmpty) {
-          throw KorbKlarException('Der Server lieferte keinen App-Token.');
+          throw KorbunioException('Der Server lieferte keinen App-Token.');
         }
         return token;
       });
@@ -237,7 +237,7 @@ class KorbKlarClient {
     String nettoScottieMarketId = '',
   }) => _guard(() async {
     final securityError = connectionSecurityError(baseUrl, apiKey);
-    if (securityError != null) throw KorbKlarException(securityError);
+    if (securityError != null) throw KorbunioException(securityError);
     final response = await _http
         .post(
           _uri('/api/v1/search/jobs'),
@@ -256,7 +256,7 @@ class KorbKlarClient {
         .timeout(_timeout);
     final jobId = _json(response)['job_id'];
     if (jobId is! String || jobId.isEmpty) {
-      throw KorbKlarException('Server lieferte keine Auftragsnummer.');
+      throw KorbunioException('Server lieferte keine Auftragsnummer.');
     }
     return jobId;
   });
@@ -311,7 +311,7 @@ class KorbKlarClient {
       try {
         progress = await searchProgress(jobId);
         failures = 0;
-      } on KorbKlarException {
+      } on KorbunioException {
         failures++;
         if (failures >= pollFailureLimit) rethrow;
         // Back off further with each failure, so a sleeping radio gets time
@@ -375,7 +375,7 @@ class KorbKlarClient {
   ///
   /// Older servers without the integration answer 404; that is reported as
   /// "not configured" rather than as an error, so the app stays usable
-  /// against any KorbKlar instance.
+  /// against any Korbunio instance.
   Future<ShoppingListInfo> shoppingListTargets(
     ResultHandle handle,
   ) => _guard(() async {

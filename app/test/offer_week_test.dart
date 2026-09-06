@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:korbklar_app/services/offer_week.dart';
+import 'package:korbunio_app/services/offer_week.dart';
 
 void main() {
   // 2026-09-02 is a Wednesday.

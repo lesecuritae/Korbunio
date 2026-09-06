@@ -12,7 +12,7 @@ Future<void> main() async {
   final offlineStore = await OfflineStore.open();
   final localShoppingList = await LocalShoppingListStore.open();
   runApp(
-    KorbKlarApp(
+    KorbunioApp(
       settings: settings,
       offlineStore: offlineStore,
       localShoppingList: localShoppingList,
@@ -20,8 +20,8 @@ Future<void> main() async {
   );
 }
 
-class KorbKlarApp extends StatefulWidget {
-  const KorbKlarApp({
+class KorbunioApp extends StatefulWidget {
+  const KorbunioApp({
     super.key,
     required this.settings,
     required this.offlineStore,
@@ -33,10 +33,10 @@ class KorbKlarApp extends StatefulWidget {
   final LocalShoppingListStore localShoppingList;
 
   @override
-  State<KorbKlarApp> createState() => _KorbKlarAppState();
+  State<KorbunioApp> createState() => _KorbunioAppState();
 }
 
-class _KorbKlarAppState extends State<KorbKlarApp> {
+class _KorbunioAppState extends State<KorbunioApp> {
   ThemeMode get _themeMode => switch (widget.settings.themeMode) {
     'light' => ThemeMode.light,
     'dark' => ThemeMode.dark,
@@ -46,7 +46,7 @@ class _KorbKlarAppState extends State<KorbKlarApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'KorbKlar',
+      title: 'Korbunio',
       debugShowCheckedModeBanner: false,
       theme: korbLightTheme(),
       darkTheme: korbDarkTheme(),
@@ -62,8 +62,8 @@ class _KorbKlarAppState extends State<KorbKlarApp> {
 }
 
 /// The wordmark used on both screens, matching the web header.
-class KorbKlarWordmark extends StatelessWidget {
-  const KorbKlarWordmark({super.key, this.fontSize = 25});
+class KorbunioWordmark extends StatelessWidget {
+  const KorbunioWordmark({super.key, this.fontSize = 25});
 
   final double fontSize;
 

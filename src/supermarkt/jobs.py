@@ -20,7 +20,7 @@ class SearchJobStore:
         self.max_records = max(max(2, int(max_pending)), int(max_records))
         self._jobs: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
-        self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="korbklar-search")
+        self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="korbunio-search")
         self._capacity = threading.BoundedSemaphore(max(2, int(max_pending)))
 
     def start(self, postal_code: str, aldi_region: str = "auto", refresh: bool = False, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "") -> str:
@@ -31,7 +31,7 @@ class SearchJobStore:
         with self._lock:
             self._purge(now)
             self._jobs[job_id] = {"job_id": job_id, "status": "waiting", "postal_code": postal_code, "aldi_region": aldi_region,
-                "source": "KorbKlar", "retailer": "Alle Händler", "category": "Alle Kategorien",
+                "source": "Korbunio", "retailer": "Alle Händler", "category": "Alle Kategorien",
                 "step": "Suche wird vorbereitet", "progress": 0, "processed_sources": 0,
                 "total_sources": 0, "processed_products": 0, "created_at": now, "updated_at": now}
         try:

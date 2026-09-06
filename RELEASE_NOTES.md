@@ -38,7 +38,7 @@ regulären Angebotswechsel frisch, statt sie innerhalb derselben Woche unnötig
 zu verwerfen.
 
 Release-Builds der Android-App setzen weiterhin zwingend den dauerhaften
-KorbKlar-Release-Key voraus. Lokale Debug-Builds bleiben ohne diesen Schlüssel
+Korbunio-Release-Key voraus. Lokale Debug-Builds bleiben ohne diesen Schlüssel
 möglich, können aber nicht versehentlich als Release gebaut werden.
 
 # 0.1.12
@@ -51,7 +51,7 @@ gespeichert wurde.
 # 0.1.11
 
 Die Android-App bietet jetzt dieselbe freie Händlerauswahl wie die
-KorbKlar-Weboberfläche. Die gewählten Händler bleiben lokal gespeichert und
+Korbunio-Weboberfläche. Die gewählten Händler bleiben lokal gespeichert und
 werden bei der nächsten Angebotssuche automatisch wieder verwendet.
 
 Die lokale Einkaufsliste ist nun auch direkt aus der Angebotsübersicht
@@ -60,18 +60,18 @@ Vergleichen jederzeit öffnen, ohne zur Startseite zurückzugehen.
 
 # 0.1.10
 
-KorbKlar 0.1.10 liefert die Android-App erstmals mit einer dauerhaften
+Korbunio 0.1.10 liefert die Android-App erstmals mit einer dauerhaften
 Release-Signatur aus. Künftige APK-Aktualisierungen können dadurch installiert
 werden, ohne die lokal gespeicherten App-Daten zu verlieren.
 
-Eigene KorbKlar-Server lassen sich jetzt sicher mit der App koppeln: Ein
+Eigene Korbunio-Server lassen sich jetzt sicher mit der App koppeln: Ein
 Admin-API-Key erzeugt einmalig einen getrennten App-Token, dessen Klartext nur
 im sicheren Android-Speicher liegt. Der Server speichert ausschließlich einen
 Hash. Die App bietet außerdem eine ausdrückliche Auswahl zwischen System-,
 heller und dunkler Darstellung.
 
 dm ist über den offiziellen, frei erreichbaren Ausverkaufskatalog als Händler
-verfügbar. KorbKlar zeigt dabei ausschließlich tatsächlich gekennzeichnete
+verfügbar. Korbunio zeigt dabei ausschließlich tatsächlich gekennzeichnete
 Ausverkaufsartikel und weist transparent darauf hin, dass Onlinepreise keine
 Filialverfügbarkeit zusichern. Eine Erläuterung in der Ergebnisansicht macht
 zudem deutlich, dass grüne Preise den günstigsten direkt vergleichbaren Preis
@@ -83,8 +83,8 @@ Rücklesen der Angebotsinformationen funktionieren mit der aktuellen API.
 
 # 0.1.9
 
-KorbKlar 0.1.9 ergänzt einen eigenständigen Android-Client. Ein eigener
-KorbKlar-Server lässt sich in der App konfigurieren; bereits geladene Angebote
+Korbunio 0.1.9 ergänzt einen eigenständigen Android-Client. Ein eigener
+Korbunio-Server lässt sich in der App konfigurieren; bereits geladene Angebote
 und die lokale Einkaufsliste bleiben auch ohne Serververbindung verfügbar.
 
 Die App kann die Postleitzahl nach Zustimmung aus dem Gerätestandort ermitteln,
@@ -94,7 +94,7 @@ und werden über unverschlüsselte Verbindungen nicht übertragen.
 
 # 0.1.8
 
-KorbKlar 0.1.8 löst HOL’AB!-Märkte anhand der tatsächlich angefragten PLZ auf.
+Korbunio 0.1.8 löst HOL’AB!-Märkte anhand der tatsächlich angefragten PLZ auf.
 Damit werden regionale Angebote beispielsweise für 21423 korrekt dem Markt
 Winsen/Luhe zugeordnet, statt vom voreingestellten Kartenausschnitt der
 Marktseite abhängig zu sein.
@@ -111,7 +111,7 @@ vorgegebene Referenzdatum.
 
 # 0.1.7
 
-KorbKlar 0.1.7 ergänzt eine optionale Auswahl zwischen aktueller Angebotswoche
+Korbunio 0.1.7 ergänzt eine optionale Auswahl zwischen aktueller Angebotswoche
 und Folgewoche. Direkte Händlerquellen werden – soweit technisch verfügbar –
 gezielt für die Vorschauwoche geladen. Fehlt die Vorschau bei einem Händler,
 bleibt dessen aktueller Bestand sichtbar und die Oberfläche weist transparent
@@ -137,7 +137,7 @@ gleichmäßiger Einzelpfand pro Flasche ausgegeben.
 
 # 0.1.6
 
-KorbKlar 0.1.6 repariert die Filialauflösung für Orte, deren exakte
+Korbunio 0.1.6 repariert die Filialauflösung für Orte, deren exakte
 REWE-Märkte auf unterschiedlichen Orts- und Bundeslandseiten veröffentlicht
 werden. Exakte Treffer werden anhand der numerischen Markt-ID zusammengeführt,
 dedupliziert und vollständig zur manuellen Auswahl angeboten; die gewählte
@@ -165,7 +165,7 @@ wirkungslos erscheinende Lidl-Filialauswahl vorgetäuscht.
 
 # 0.1.5
 
-KorbKlar 0.1.5 behebt die unvollständige ALDI-Süd-Erfassung und verbessert die
+Korbunio 0.1.5 behebt die unvollständige ALDI-Süd-Erfassung und verbessert die
 Bedienung der Ergebnisansicht. Der strukturierte offizielle ALDI-Süd-Prospekt
 ist nun die vollständige Primärquelle; dadurch erscheinen auch Lebensmittel,
 Obst und Gemüse, die auf der bisherigen Angebotsseite fehlten. Verkaufspreis,
@@ -189,7 +189,7 @@ Funktionen, Händlerpfade, Einkaufsliste und Exportgrenzen wurden dokumentiert.
 
 # 0.1.4
 
-KorbKlar 0.1.4 korrigiert die Bildauswahl des offiziellen Globus-Adapters.
+Korbunio 0.1.4 korrigiert die Bildauswahl des offiziellen Globus-Adapters.
 Vollständige Prospekt-, Vorschau- und PDF-Seiten werden nicht mehr als
 Produktbilder gespeichert. Der Adapter verwendet ausschließlich ein explizit
 am Artikel hinterlegtes Produkt- oder Einzelangebotsbild; liefern die
@@ -217,11 +217,11 @@ werden weder Pfand noch Grundpreise als Artikelpreis oder Produktname erfasst.
 Die app-spezifische Bring-Übergabe wurde entfernt; allgemeines Web Share,
 Textkopie, TXT und JSON bleiben erhalten. Für KitchenOwl ist eine getestete,
 netzwerkfreie Adaptergrenze passend zum offiziellen `name`-/`description`-Schema
-vorbereitet. Zugangsdaten oder API-Tokens werden nicht in KorbKlar gespeichert.
+vorbereitet. Zugangsdaten oder API-Tokens werden nicht in Korbunio gespeichert.
 
 # 0.1.3
 
-KorbKlar 0.1.3 priorisiert konkrete Produktmerkmale vor Händler- und
+Korbunio 0.1.3 priorisiert konkrete Produktmerkmale vor Händler- und
 Quellkategorien. Dadurch werden unter anderem CLEANMAXX Bodenkehrer,
 MÄLZER&FU Ice Cream und FUNNY-FRISCH Pom-Bär korrekt eingeordnet.
 Geschmacksangaben wie „Franzbrötchen“ überschreiben die eigentliche Produktart
@@ -240,11 +240,11 @@ ALDI Süd werden weiterhin direkt über die Händlerauswahl gesteuert.
 
 # 0.1.2
 
-KorbKlar 0.1.2 präzisiert die Pfandanzeige für Mehrfachgebinde. Beim BLACK-CAT-Energy-Viererpack wird jetzt ausdrücklich „0,25 € je Dose · 1,00 € gesamt für 4“ angezeigt. Der Gesamtpfandwert des Verkaufspacks bleibt für Warenkorb und Einkaufsliste erhalten; eine einzelne Dose wird weiterhin mit 0,25 € Pfand geführt. Die Projektdokumentation enthält außerdem eine freiwillige Monero-Unterstützungsmöglichkeit; KorbKlar bleibt ohne Spende vollständig kostenlos und uneingeschränkt nutzbar.
+Korbunio 0.1.2 präzisiert die Pfandanzeige für Mehrfachgebinde. Beim BLACK-CAT-Energy-Viererpack wird jetzt ausdrücklich „0,25 € je Dose · 1,00 € gesamt für 4“ angezeigt. Der Gesamtpfandwert des Verkaufspacks bleibt für Warenkorb und Einkaufsliste erhalten; eine einzelne Dose wird weiterhin mit 0,25 € Pfand geführt. Die Projektdokumentation enthält außerdem eine freiwillige Monero-Unterstützungsmöglichkeit; Korbunio bleibt ohne Spende vollständig kostenlos und uneingeschränkt nutzbar.
 
 # 0.1.1
 
-KorbKlar 0.1.1 führt „Netto schwarz“ als eigenständigen Händler neben Netto Marken-Discount ein. Die offizielle Netto-Angebotsseite liefert reguläre Wochenangebote und öffentlich ausgewiesene Netto+-Mitgliederpreise. Die offizielle Marktsuche ordnet eine exakte PLZ bevorzugt zu und begrenzt den Nächstmarkt-Fallback auf 15 km. Beide Netto-Unternehmen und ihre Programme bleiben technisch getrennt; persönliche Coupons, Stempelkarten und nicht bezifferte Vorteile werden nicht geschätzt.
+Korbunio 0.1.1 führt „Netto schwarz“ als eigenständigen Händler neben Netto Marken-Discount ein. Die offizielle Netto-Angebotsseite liefert reguläre Wochenangebote und öffentlich ausgewiesene Netto+-Mitgliederpreise. Die offizielle Marktsuche ordnet eine exakte PLZ bevorzugt zu und begrenzt den Nächstmarkt-Fallback auf 15 km. Beide Netto-Unternehmen und ihre Programme bleiben technisch getrennt; persönliche Coupons, Stempelkarten und nicht bezifferte Vorteile werden nicht geschätzt.
 
 Mitgliederpreise ohne veröffentlichten regulären Vergleichspreis werden nur bei aktivierter Mitgliedschaft gezeigt und niemals als regulärer Verkaufspreis umetikettiert. REWE Bonus bleibt eine Gutschrift, während veröffentlichte App-/Kartenpreise als bedingte Kassenpreise modelliert werden. PAYBACK-Punkte und persönliche Coupons werden weiterhin nicht pauschal in Euro umgerechnet.
 
@@ -260,7 +260,7 @@ Das Laufzeitimage verwendet eine gepinnte Python-3.13-Alpine-Basis. Damit wird d
 
 # 0.1.0
 
-KorbKlar 0.1.0 erweitert den Vergleich um eine gespeicherte Händlerauswahl und eine manuelle REWE-Filialauswahl bei mehreren exakten PLZ-Treffern. Die Vergleichs-API akzeptiert optional `retailers`; jede Händler- und REWE-Marktauswahl erhält einen getrennten Cache-Schlüssel.
+Korbunio 0.1.0 erweitert den Vergleich um eine gespeicherte Händlerauswahl und eine manuelle REWE-Filialauswahl bei mehreren exakten PLZ-Treffern. Die Vergleichs-API akzeptiert optional `retailers`; jede Händler- und REWE-Marktauswahl erhält einen getrennten Cache-Schlüssel.
 
 Globus wird über den offiziellen Markt- und Prospektdatenstrom geladen. Für PLZ 93073 wird der Markt Neutraubling aufgelöst; die offizielle Quelle gewinnt vollständig, Marktguru dient nur bei Fehlern oder leeren offiziellen Daten als ungemischter Fallback.
 
@@ -270,7 +270,7 @@ Die reproduzierbare Suite umfasst 207 bestandene Tests. Live geprüft wurden Glo
 
 # 0.0.7
 
-KorbKlar 0.0.7 integriert die geprüften Änderungen aus dem Fork von Claudia Dietrich:
+Korbunio 0.0.7 integriert die geprüften Änderungen aus dem Fork von Claudia Dietrich:
 
 - Native Windows-Einrichtung mit lokal gebundener Anwendung und automatischer Suche nach Chromium, Chrome oder Edge. Linux- und Docker-Aufrufe verwenden dieselbe portable Browserauflösung.
 - Ein bewusster Schalter auf der Startseite kann den Angebotscache für eine Suche umgehen. Ohne Auswahl bleibt das bisherige Cacheverhalten unverändert.
@@ -282,11 +282,11 @@ Die browserlokale Einkaufsliste, Combi/famila Nordwest, die getrennten ALDI-Regi
 
 # 0.0.6
 
-KorbKlar 0.0.6 erweitert den versionierten, PLZ-genauen offiziellen ALDI-Regionsnachweis für Aachen, den Kreis Düren, den nördlichen Kreis Heinsberg, Mülheim an der Ruhr, Duisburg-Walsum und Dorsten. Die Zuordnung verwendet keine pauschale `52xxx`- oder Präfixregel. Unbekannte PLZ bleiben dem begrenzten Standort-Fallback vorbehalten; Gummersbach und Siegen bleiben ausdrücklich als Grenzfälle mit beiden Regionen erhalten. Auf der Startseite kann der Nutzer die automatische Erkennung optional durch „ALDI Nord“, „ALDI Süd“ oder „Nord und Süd“ ersetzen; die Auswahl wird bis in den getrennten regionalen Quellenabruf weitergereicht.
+Korbunio 0.0.6 erweitert den versionierten, PLZ-genauen offiziellen ALDI-Regionsnachweis für Aachen, den Kreis Düren, den nördlichen Kreis Heinsberg, Mülheim an der Ruhr, Duisburg-Walsum und Dorsten. Die Zuordnung verwendet keine pauschale `52xxx`- oder Präfixregel. Unbekannte PLZ bleiben dem begrenzten Standort-Fallback vorbehalten; Gummersbach und Siegen bleiben ausdrücklich als Grenzfälle mit beiden Regionen erhalten. Auf der Startseite kann der Nutzer die automatische Erkennung optional durch „ALDI Nord“, „ALDI Süd“ oder „Nord und Süd“ ersetzen; die Auswahl wird bis in den getrennten regionalen Quellenabruf weitergereicht.
 
 # 0.0.5
 
-KorbKlar 0.0.5 behebt zwei Datenverluste auf dem Weg vom Angebot in die browserlokale Einkaufsliste:
+Korbunio 0.0.5 behebt zwei Datenverluste auf dem Weg vom Angebot in die browserlokale Einkaufsliste:
 
 - Das bereits abgesicherte lokale Bildproxy-Ziel wird im kanonischen IndexedDB-Modell gespeichert und als Produktbild in der Einkaufsliste dargestellt. Es bleibt nach Reload sowie im JSON-Backup erhalten. Fremde, direkte oder ausführbare Bildziele werden nicht gerendert.
 - Ausdrücklich von ALDI, REWE oder Marktguru veröffentlichte Pfandbeträge werden in das Angebotsmodell übernommen, getrennt als Integer-Cent gespeichert und mengenabhängig in Position, Händlergruppe und Gesamtsumme eingerechnet. Aus Verpackungsbezeichnungen wie „Dose“ oder „Flasche“ wird kein Pfandwert geraten.
@@ -297,7 +297,7 @@ Die übrigen Hinweise aus Issue #8 – insbesondere der ohne ungeschwärzte PLZ 
 
 Revision: Zenq & Enzo
 
-KorbKlar 0.0.4 korrigiert die Verarbeitung der offiziellen ALDI-Süd-Wochenangebote. Gültigkeiten werden nun mit der Priorität Produktkarte, Angebotsgruppe und Wochenzeitraum ermittelt. Montag-, Donnerstag-, Freitag-/Samstag- und weitere ausdrücklich genannte Aktionstage bleiben dadurch erhalten.
+Korbunio 0.0.4 korrigiert die Verarbeitung der offiziellen ALDI-Süd-Wochenangebote. Gültigkeiten werden nun mit der Priorität Produktkarte, Angebotsgruppe und Wochenzeitraum ermittelt. Montag-, Donnerstag-, Freitag-/Samstag- und weitere ausdrücklich genannte Aktionstage bleiben dadurch erhalten.
 
 Der Abruf verwendet das bereits vorhandene gehärtete Browserprofil von `curl_cffi`. Alte Vorwochen, redundante Themenansichten und parallele Kategorieparser werden nicht mehr zu einem gemischten Bestand vereinigt. Die angebotsbezogene Deduplizierung bevorzugt einen präzisen Zeitraum gegenüber einer groben Wochenangabe, behält aber echte Preis-, Packungs- und Zeitraumvarianten. Lose Ware mit der Schreibweise „Preis €/1 kg“ wird ebenfalls vollständig erfasst.
 
@@ -308,7 +308,7 @@ Combi und famila Nordwest ergänzen als optionale regionale Händler die bestehe
 - ALDI behandelt bestätigte Regionen und die Grenzstädte Gummersbach/Siegen ohne PLZ-Präfix-Heuristik.
 - HOL’AB! ist über die offizielle Markt- und Angebotsseite integriert. Pfand, Mengenbedingungen und Teilabdeckung bleiben sichtbar getrennt.
 - 18 einheitliche deutsche Kategorien, getrennte Produkt-/Quelllinks, REWE-Deeplinks und ehrliche offizielle Lidl-Suchfallbacks.
-- Zugängliche Bild-Lightbox, lokales KorbKlar-Hintergrundmotiv und automatisches helles/dunkles Farbschema.
+- Zugängliche Bild-Lightbox, lokales Korbunio-Hintergrundmotiv und automatisches helles/dunkles Farbschema.
 - Browserlokaler Bereich „Einkauf“ mit IndexedDB, manuellen Artikeln, Mengensteuerung, Abhaken, Händlergruppen und rundungssicherer Cent-/Pfandberechnung.
 - Lokaler Text-/Messenger-Import und -Export, TXT, Web Share sowie versioniertes JSON-Backup mit Vorschau und Größenlimit; keine persönlichen Listendaten erreichen den Server.
 - Kanonisches Listenmodell mit Adaptergrenze für mögliche spätere KitchenOwl-/Grocy-Anbindungen, ohne Sync oder neue externe Abhängigkeit.
@@ -352,21 +352,21 @@ Die damaligen Auditdetails bleiben in der Git-Historie nachvollziehbar; im aktiv
 
 Lizenz: BSD-3-Clause. Copyright (c) 2026 lesecuritae für Tarnkappe.info.
 
-KorbKlar ist die überarbeitete Ausgabe des bisherigen Supermarkt-Preisvergleichs. Die Vergleichslogik und die bestehenden Quellenadapter bleiben erhalten; Name, Oberfläche und öffentliche Projektmetadaten wurden auf KorbKlar umgestellt.
+Korbunio ist die überarbeitete Ausgabe des bisherigen Supermarkt-Preisvergleichs. Die Vergleichslogik und die bestehenden Quellenadapter bleiben erhalten; Name, Oberfläche und öffentliche Projektmetadaten wurden auf Korbunio umgestellt.
 
 ## Änderungen
 
-- Neues KorbKlar-Branding für Weboberfläche, Favicon und README-Grafik.
-- Docker-Dienst, Container und Daten-Volume tragen den neuen Namen `korbklar`.
-- Python-Paketmetadaten und User-Agent wurden auf KorbKlar aktualisiert.
-- Native Installationen verwenden für neue Laufzeitdaten `~/.local/state/korbklar`; ein vorhandener alter Zustandspfad wird automatisch weiterverwendet.
-- Dunkles Farbschema an die grüne KorbKlar-Farbwelt angepasst.
+- Neues Korbunio-Branding für Weboberfläche, Favicon und README-Grafik.
+- Docker-Dienst, Container und Daten-Volume tragen den neuen Namen `korbunio`.
+- Python-Paketmetadaten und User-Agent wurden auf Korbunio aktualisiert.
+- Native Installationen verwenden für neue Laufzeitdaten `~/.local/state/korbunio`; ein vorhandener alter Zustandspfad wird automatisch weiterverwendet.
+- Dunkles Farbschema an die grüne Korbunio-Farbwelt angepasst.
 - README- und SVG-Branding bereinigt; die Header-Grafik kommt ohne problematische SVG-Filter aus.
 - Bestehende Preis-, Mengen-, Marken-, Händler-, Bild- und Cache-Regressionstests bleiben erhalten.
 
 ## Docker-Hinweis beim Umstieg
 
-Durch den neuen Compose-Projektnamen und das neue Volume `korbklar-data` wird ein bestehendes Docker-Volume der alten Ausgabe nicht automatisch eingebunden. Darin liegen nur Laufzeitdaten wie Snapshots, Signierschlüssel und Bildcache. Für einen frischen Start kann das alte Volume unangetastet bleiben; bestehende signierte Ergebnislinks gelten dann nicht im neuen Volume weiter.
+Durch den neuen Compose-Projektnamen und das neue Volume `korbunio-data` wird ein bestehendes Docker-Volume der alten Ausgabe nicht automatisch eingebunden. Darin liegen nur Laufzeitdaten wie Snapshots, Signierschlüssel und Bildcache. Für einen frischen Start kann das alte Volume unangetastet bleiben; bestehende signierte Ergebnislinks gelten dann nicht im neuen Volume weiter.
 
 ---
 

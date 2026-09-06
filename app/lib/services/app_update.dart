@@ -11,7 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 /// Where the app is published. The releases of this repository carry one
 /// signed APK per ABI, and GitHub records a SHA-256 digest for each asset.
-const String kUpdateRepository = 'lesecuritae/KorbKlar';
+const String kUpdateRepository = 'lesecuritae/Korbunio';
 
 enum AppUpdateStatus { available, current, error }
 
@@ -244,7 +244,7 @@ class AppUpdateService {
   Future<File> download(AppUpdateInfo info, UpdateProgress onProgress) async {
     _cancelDownload = false;
     final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/korbklar-update-${info.tag}-$_abi.apk');
+    final file = File('${dir.path}/korbunio-update-${info.tag}-$_abi.apk');
     if (await file.exists()) await file.delete();
     final sink = file.openWrite();
     var received = 0;
@@ -314,7 +314,7 @@ class AppUpdateService {
       final dir = await getTemporaryDirectory();
       await for (final entity in dir.list()) {
         if (entity is File &&
-            entity.uri.pathSegments.last.startsWith('korbklar-update-') &&
+            entity.uri.pathSegments.last.startsWith('korbunio-update-') &&
             entity.path.endsWith('.apk')) {
           await entity.delete();
         }

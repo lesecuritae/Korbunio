@@ -58,17 +58,17 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           test -n "$ANDROID_KEYSTORE_BASE64"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/korbklar-release.jks
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/korbunio-release.jks
 
       - name: Build APK
         working-directory: app
         # Split per ABI so the download stays small; the arm64 file fits
         # every phone from the last several years.
         env:
-          KORBKLAR_STORE_FILE: ../korbklar-release.jks
-          KORBKLAR_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          KORBKLAR_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KORBKLAR_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KORBUNIO_STORE_FILE: ../korbunio-release.jks
+          KORBUNIO_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KORBUNIO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KORBUNIO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: flutter build apk --release --split-per-abi
 
       - name: Verify release signature
@@ -81,7 +81,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: korbklar-apk
+          name: korbunio-apk
           path: app/build/app/outputs/flutter-apk/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -89,11 +89,11 @@ jobs:
       - name: Explain how to install it
         run: |
           {
-            echo "### KorbKlar app"
+            echo "### Korbunio app"
             echo
-            echo "Download the **korbklar-apk** artifact from this run and install"
+            echo "Download the **korbunio-apk** artifact from this run and install"
             echo "\`app-arm64-v8a-release.apk\` on the phone."
             echo
-            echo "The APK is signed with KorbKlar's persistent release key and can"
-            echo "be updated by future KorbKlar releases without losing app data."
+            echo "The APK is signed with Korbunio's persistent release key and can"
+            echo "be updated by future Korbunio releases without losing app data."
           } >> "$GITHUB_STEP_SUMMARY"

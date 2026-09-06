@@ -30,14 +30,14 @@ class AppUpdateFlow {
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('KorbKlar ${info.version} verfügbar'),
+        title: Text('Korbunio ${info.version} verfügbar'),
         content: SingleChildScrollView(
           child: Text(
             '${info.notes.isEmpty ? 'Eine neue Version ist verfügbar.' : info.notes}\n\n'
             'Die APK (${(info.size / 1024 / 1024).toStringAsFixed(1)} MB) kommt '
             'direkt aus dem GitHub-Release und wird vor der Installation gegen '
             'die dort hinterlegte Prüfsumme geprüft. Android kann beim ersten '
-            'Mal fragen, ob KorbKlar unbekannte Apps installieren darf.',
+            'Mal fragen, ob Korbunio unbekannte Apps installieren darf.',
           ),
         ),
         actions: [

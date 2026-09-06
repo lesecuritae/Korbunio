@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  KorbKlar is self-hosted. A typical instance runs plain HTTP on a LAN, a
+  Korbunio is self-hosted. A typical instance runs plain HTTP on a LAN, a
   VPN or a home server, so Android's default cleartext block would make the
   app unusable for most operators.
 

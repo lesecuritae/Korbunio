@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "de.korbklar.korbklar_app"
+    namespace = "de.korbunio.korbunio_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "de.korbklar.korbklar_app"
+        applicationId = "de.korbunio.korbunio_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -25,16 +25,16 @@ android {
         versionName = flutter.versionName
     }
 
-    val releaseKeystorePath = System.getenv("KORBKLAR_STORE_FILE")
+    val releaseKeystorePath = System.getenv("KORBUNIO_STORE_FILE")
     val releaseBuildRequested = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
 
     signingConfigs {
         create("release") {
             if (!releaseKeystorePath.isNullOrBlank()) {
                 storeFile = file(releaseKeystorePath)
-                storePassword = System.getenv("KORBKLAR_STORE_PASSWORD")
-                keyAlias = System.getenv("KORBKLAR_KEY_ALIAS")
-                keyPassword = System.getenv("KORBKLAR_KEY_PASSWORD")
+                storePassword = System.getenv("KORBUNIO_STORE_PASSWORD")
+                keyAlias = System.getenv("KORBUNIO_KEY_ALIAS")
+                keyPassword = System.getenv("KORBUNIO_KEY_PASSWORD")
             }
         }
     }
@@ -42,7 +42,7 @@ android {
     buildTypes {
         release {
             require(!releaseBuildRequested || !releaseKeystorePath.isNullOrBlank()) {
-                "KORBKLAR_STORE_FILE is required for a signed release build"
+                "KORBUNIO_STORE_FILE is required for a signed release build"
             }
             if (!releaseKeystorePath.isNullOrBlank()) {
                 signingConfig = signingConfigs.getByName("release")

@@ -14,7 +14,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: lesecuritae/korbklar
+  IMAGE_NAME: lesecuritae/korbunio
 
 jobs:
   publish:

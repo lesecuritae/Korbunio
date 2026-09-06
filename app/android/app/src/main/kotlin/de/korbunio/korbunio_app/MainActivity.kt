@@ -1,4 +1,4 @@
-package de.korbklar.korbklar_app
+package de.korbunio.korbunio_app
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const storageKey = "korbklar.theme.v1";
+  const storageKey = "korbunio.theme.v1";
   const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
   function storedTheme() {

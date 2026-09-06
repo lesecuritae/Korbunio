@@ -1,6 +1,6 @@
-# KorbKlar
+# Korbunio
 
-![KorbKlar](docs/readme-header.svg)
+![Korbunio](docs/readme-header.svg)
 
 ## Choose your language / Sprache wählen
 

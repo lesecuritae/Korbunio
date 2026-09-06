@@ -8,14 +8,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:korbklar_app/api/client.dart';
-import 'package:korbklar_app/screens/results_screen.dart';
-import 'package:korbklar_app/services/offline_store.dart';
-import 'package:korbklar_app/services/local_shopping_list.dart';
-import 'package:korbklar_app/theme.dart';
+import 'package:korbunio_app/api/client.dart';
+import 'package:korbunio_app/screens/results_screen.dart';
+import 'package:korbunio_app/services/offline_store.dart';
+import 'package:korbunio_app/services/local_shopping_list.dart';
+import 'package:korbunio_app/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:korbklar_app/services/settings.dart';
+import 'package:korbunio_app/services/settings.dart';
 
 /// Renders the result list headlessly so its layout and palette can be
 /// reviewed without a device.
@@ -168,12 +168,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final settings = await Settings.load();
     final offlineStore = await OfflineStore.open(
-      directory: await Directory.systemTemp.createTemp('korbklar-golden-'),
+      directory: await Directory.systemTemp.createTemp('korbunio-golden-'),
     );
     final localShoppingList = await LocalShoppingListStore.open(
-      directory: await Directory.systemTemp.createTemp('korbklar-list-golden-'),
+      directory: await Directory.systemTemp.createTemp('korbunio-list-golden-'),
     );
-    final client = KorbKlarClient(
+    final client = KorbunioClient(
       baseUrl: 'http://korb.example',
       httpClient: _StubClient(page),
     );

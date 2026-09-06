@@ -73,7 +73,7 @@ class Settings {
   static const _retailers = 'selected_retailers';
   static const _listEntity = 'shopping_list_entity';
   static const _legacyApiKey = 'api_key';
-  static const _apiKey = 'korbklar_api_token';
+  static const _apiKey = 'korbunio_api_token';
   static const _kitchenOwlUrl = 'kitchenowl_url';
   static const _kitchenOwlTokenKey = 'kitchenowl_token';
   static const _themeMode = 'theme_mode';

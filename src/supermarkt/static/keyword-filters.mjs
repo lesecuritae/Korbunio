@@ -1,5 +1,5 @@
 export const KEYWORD_SCHEMA_VERSION=1;
-export const KEYWORD_STORAGE_KEY="korbklar.productKeywords.v1";
+export const KEYWORD_STORAGE_KEY="korbunio.productKeywords.v1";
 
 export function normalizeKeywords(values){
   const unique=new Map();

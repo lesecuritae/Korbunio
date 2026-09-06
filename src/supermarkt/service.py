@@ -497,7 +497,7 @@ class SourceLoader:
         if not offers:
             raise ToolError("Keine Supermarktangebote konnten geladen werden")
 
-        notify(status="processing", progress=96, source="KorbKlar", retailer="Alle Händler", category="Alle Kategorien", step="Angebote werden zusammengeführt", processed_sources=completed_sources, processed_products=len(offers))
+        notify(status="processing", progress=96, source="Korbunio", retailer="Alle Händler", category="Alle Kategorien", step="Angebote werden zusammengeführt", processed_sources=completed_sources, processed_products=len(offers))
 
         return {
             "postal_code": postal_code,

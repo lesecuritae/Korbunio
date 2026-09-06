@@ -1,7 +1,7 @@
 import {KEYWORD_STORAGE_KEY,keywordDocument,normalizeKeywords,parseKeywordDocument} from "./keyword-filters.mjs";
 
 const pageData=document.body.dataset,searchId=pageData.searchId,token=pageData.token;
-const FILTER_STORAGE_KEY="korbklar.result-filters.v1",KEYWORD_ENABLED_KEY="korbklar.keyword-filter-enabled.v1";
+const FILTER_STORAGE_KEY="korbunio.result-filters.v1",KEYWORD_ENABLED_KEY="korbunio.keyword-filter-enabled.v1";
 const selectedPrograms=new Set((pageData.loyalty||"").split(",").filter(Boolean)),selectedRetailers=new Set(),offerById=new Map();
 const $=id=>document.getElementById(id),esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let page=1,loading=false,done=false,category="",view="best_only",debounce=null,requestSeq=0,controller=null,lightboxTrigger=null,programsInitialized=false,keywords=[],keywordEnabled=false;
@@ -39,7 +39,7 @@ function renderKeywords(){
     row.append(input,remove);return row;
   }));
 }
-function downloadKeywords(){const blob=new Blob([JSON.stringify(keywordDocument(keywords),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download="korbklar-schlagworte.json";link.click();URL.revokeObjectURL(url)}
+function downloadKeywords(){const blob=new Blob([JSON.stringify(keywordDocument(keywords),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download="korbunio-schlagworte.json";link.click();URL.revokeObjectURL(url)}
 
 $("keywordEnabled").checked=keywordEnabled;
 $("keywordEnabled").onchange=event=>{keywordEnabled=event.target.checked;try{localStorage.setItem(KEYWORD_ENABLED_KEY,String(keywordEnabled))}catch(_error){}query(true)};
@@ -84,7 +84,7 @@ function renderPrograms(programs,note){
 }
 
 $("rows").addEventListener("click",event=>{const button=event.target.closest(".imageButton");if(!button)return;lightboxTrigger=button;$("lightboxImage").src=button.dataset.src;$("lightboxImage").alt=button.dataset.alt;$("lightboxTitle").textContent=button.dataset.alt;document.documentElement.classList.add("modalOpen");$("lightbox").showModal();$("lightboxClose").focus()});
-$("rows").addEventListener("click",async event=>{const button=event.target.closest(".shoppingAdd");if(!button)return;button.disabled=true;await globalThis.KorbKlarShopping.addOffer(offerById.get(button.dataset.offerId));button.textContent="Hinzugefügt ✓";setTimeout(()=>{button.disabled=false;button.textContent="Zur Einkaufsliste"},1200)});
+$("rows").addEventListener("click",async event=>{const button=event.target.closest(".shoppingAdd");if(!button)return;button.disabled=true;await globalThis.KorbunioShopping.addOffer(offerById.get(button.dataset.offerId));button.textContent="Hinzugefügt ✓";setTimeout(()=>{button.disabled=false;button.textContent="Zur Einkaufsliste"},1200)});
 function closeLightbox(){$("lightbox").close();document.documentElement.classList.remove("modalOpen");$("lightboxImage").src="";lightboxTrigger?.focus()}
 $("lightboxClose").onclick=closeLightbox;$("lightbox").addEventListener("click",event=>{if(event.target===$("lightbox"))closeLightbox()});$("lightbox").addEventListener("cancel",event=>{event.preventDefault();closeLightbox()});
 $("q").addEventListener("input",()=>{clearTimeout(debounce);debounce=setTimeout(()=>query(true),300)});

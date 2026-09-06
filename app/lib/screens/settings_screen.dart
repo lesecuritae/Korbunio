@@ -49,9 +49,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveServer() async {
-    final url = KorbKlarClient.normalizeBaseUrl(_server.text);
+    final url = KorbunioClient.normalizeBaseUrl(_server.text);
     final token = _apiToken.text.trim();
-    final security = KorbKlarClient.connectionSecurityError(url, token);
+    final security = KorbunioClient.connectionSecurityError(url, token);
     if (security != null) return _show(security);
     if (url.isEmpty) {
       await widget.settings.setServerUrl('');
@@ -61,21 +61,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
     setState(() => _busy = true);
-    final client = KorbKlarClient(baseUrl: url, apiKey: token);
+    final client = KorbunioClient(baseUrl: url, apiKey: token);
     try {
       final check = await client.check();
       if (check != ServerCheck.ok) {
         return _show(
           check == ServerCheck.needsApiKey
               ? 'API-Token fehlt oder wurde abgelehnt.'
-              : 'Unter dieser Adresse antwortet kein KorbKlar.',
+              : 'Unter dieser Adresse antwortet kein Korbunio.',
         );
       }
       await widget.settings.setServerUrl(url);
       await widget.settings.setApiKey(token);
       _server.text = url;
-      _show('KorbKlar-Server verbunden.');
-    } on KorbKlarException catch (error) {
+      _show('Korbunio-Server verbunden.');
+    } on KorbunioException catch (error) {
       _show(error.message);
     } finally {
       client.close();
@@ -84,9 +84,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _createAppToken() async {
-    final url = KorbKlarClient.normalizeBaseUrl(_server.text);
+    final url = KorbunioClient.normalizeBaseUrl(_server.text);
     final adminToken = _apiToken.text.trim();
-    final security = KorbKlarClient.connectionSecurityError(url, adminToken);
+    final security = KorbunioClient.connectionSecurityError(url, adminToken);
     if (security != null) return _show(security);
     if (url.isEmpty || adminToken.isEmpty) {
       return _show(
@@ -94,7 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
     setState(() => _busy = true);
-    final client = KorbKlarClient(baseUrl: url, apiKey: adminToken);
+    final client = KorbunioClient(baseUrl: url, apiKey: adminToken);
     try {
       final appToken = await client.createAppToken();
       await widget.settings.setServerUrl(url);
@@ -102,7 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _server.text = url;
       _apiToken.text = appToken;
       _show('Eigener App-Token erstellt und sicher gespeichert.');
-    } on KorbKlarException catch (error) {
+    } on KorbunioException catch (error) {
       _show(error.message);
     } finally {
       client.close();
@@ -111,7 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveKitchenOwl() async {
-    final url = KorbKlarClient.normalizeBaseUrl(_kitchenOwl.text);
+    final url = KorbunioClient.normalizeBaseUrl(_kitchenOwl.text);
     final token = _kitchenOwlToken.text.trim();
     if (url.isEmpty && token.isEmpty) {
       await widget.settings.setKitchenOwlUrl('');
@@ -213,7 +213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const Divider(height: 40),
         const Text(
-          'Eigener KorbKlar-Server',
+          'Eigener Korbunio-Server',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
@@ -227,7 +227,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           autocorrect: false,
           decoration: const InputDecoration(
             labelText: 'Serveradresse',
-            hintText: 'https://korbklar.example.de',
+            hintText: 'https://korbunio.example.de',
           ),
         ),
         const SizedBox(height: 10),
@@ -264,7 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Die App verbindet sich direkt mit deiner KitchenOwl-Instanz. Der Token wird nicht an den KorbKlar-Server übertragen.',
+          'Die App verbindet sich direkt mit deiner KitchenOwl-Instanz. Der Token wird nicht an den Korbunio-Server übertragen.',
         ),
         const SizedBox(height: 12),
         TextField(
@@ -329,7 +329,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           const Text(
             'Neue Versionen kommen als signierte APK aus den GitHub-Releases '
-            'von KorbKlar und werden vor der Installation gegen die dort '
+            'von Korbunio und werden vor der Installation gegen die dort '
             'hinterlegte Prüfsumme geprüft. Die App sucht nur auf Wunsch.',
           ),
           const SizedBox(height: 8),

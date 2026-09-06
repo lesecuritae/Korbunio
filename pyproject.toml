@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "korb-klar"
+name = "korbunio"
 version = "0.1.16"
-description = "KorbKlar: self-hosted comparison of regional supermarket offers in Germany."
+description = "Korbunio: self-hosted comparison of regional supermarket offers in Germany."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "BSD-3-Clause"

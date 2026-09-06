@@ -1,4 +1,4 @@
-/// Typed views over the KorbKlar REST responses.
+/// Typed views over the Korbunio REST responses.
 ///
 /// Field names mirror `presentation.offer_for_response` and
 /// `service.SupermarketEngine.page` on the server. The app never recomputes a

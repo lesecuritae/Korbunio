@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:korbklar_app/api/models.dart';
-import 'package:korbklar_app/services/kitchenowl_articles.dart';
+import 'package:korbunio_app/api/models.dart';
+import 'package:korbunio_app/services/kitchenowl_articles.dart';
 
 Offer _offer({
   String product = '',

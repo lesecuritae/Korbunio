@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("/api/v1/client", include_in_schema=False)
 def client_connection(_: None = Depends(require_api_auth)) -> dict[str, Any]:
     postal_code, retailers = home_defaults()
-    return {"status": "ok", "service": "korbklar", "default_postal_code": postal_code, "default_retailers": list(retailers)}
+    return {"status": "ok", "service": "korbunio", "default_postal_code": postal_code, "default_retailers": list(retailers)}
 
 
 @router.post("/api/v1/access-tokens", include_in_schema=False)
@@ -111,7 +111,7 @@ def aldi_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"
     return {"postal_code": postal_code, "markets": markets, "count": len(markets), "source": "OpenStreetMap/Nominatim"}
 
 
-@router.get("/api/v1/markets", summary="Belegte Märkte der KorbKlar-Händler auflösen", include_in_schema=False)
+@router.get("/api/v1/markets", summary="Belegte Märkte der Korbunio-Händler auflösen", include_in_schema=False)
 def retailer_markets(
     postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"),
     retailers: list[str] = Query(default=[], max_length=20),

@@ -22,6 +22,6 @@ async def lifespan(_app: FastAPI):
             intelligence.stop()
 
 
-app = FastAPI(title="KorbKlar", version=__version__, lifespan=lifespan)
+app = FastAPI(title="Korbunio", version=__version__, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.include_router(router)

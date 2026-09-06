@@ -4,38 +4,38 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:korbklar_app/api/client.dart';
+import 'package:korbunio_app/api/client.dart';
 
-/// Drives a real KorbKlar server, mirroring the opt-in live tests the Python
+/// Drives a real Korbunio server, mirroring the opt-in live tests the Python
 /// project uses. Runs only when a server address is supplied:
 ///
 /// ```bash
-/// flutter test --tags live --dart-define=KORBKLAR_URL=http://127.0.0.1:8000
+/// flutter test --tags live --dart-define=KORBUNIO_URL=http://127.0.0.1:8000
 /// ```
 ///
-/// Add `--dart-define=KORBKLAR_KEY=...` for an instance that requires one.
+/// Add `--dart-define=KORBUNIO_KEY=...` for an instance that requires one.
 ///
-/// Set `KORBKLAR_PLZ` to a postal code your instance can actually resolve.
+/// Set `KORBUNIO_PLZ` to a postal code your instance can actually resolve.
 void main() {
-  const baseUrl = String.fromEnvironment('KORBKLAR_URL');
+  const baseUrl = String.fromEnvironment('KORBUNIO_URL');
   const postalCode = String.fromEnvironment(
-    'KORBKLAR_PLZ',
+    'KORBUNIO_PLZ',
     defaultValue: '26188',
   );
-  const apiKey = String.fromEnvironment('KORBKLAR_KEY');
+  const apiKey = String.fromEnvironment('KORBUNIO_KEY');
 
   if (baseUrl.isEmpty) {
-    test('skipped: pass --dart-define=KORBKLAR_URL to run', () {}, skip: true);
+    test('skipped: pass --dart-define=KORBUNIO_URL to run', () {}, skip: true);
     return;
   }
 
-  late KorbKlarClient client;
+  late KorbunioClient client;
 
   setUpAll(() {
     // The test runner has no browser sandbox, so a self-hosted instance with
     // a self-signed certificate would otherwise be unreachable here.
     HttpOverrides.global = null;
-    client = KorbKlarClient(baseUrl: baseUrl, apiKey: apiKey);
+    client = KorbunioClient(baseUrl: baseUrl, apiKey: apiKey);
   });
 
   tearDownAll(() => client.close());
@@ -94,7 +94,7 @@ void main() {
         () => client.results(
           ResultHandle(searchId: handle.searchId, token: 'wrong'),
         ),
-        throwsA(isA<KorbKlarException>()),
+        throwsA(isA<KorbunioException>()),
       );
     },
     timeout: const Timeout(Duration(minutes: 8)),

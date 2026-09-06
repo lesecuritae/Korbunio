@@ -4,7 +4,7 @@ import '../api/models.dart';
 
 /// Where a collected set of offers can be sent.
 enum ShoppingListRoute {
-  /// The KitchenOwl list behind the KorbKlar server, which stores a proper
+  /// The KitchenOwl list behind the Korbunio server, which stores a proper
   /// article plus a note.
   server,
 

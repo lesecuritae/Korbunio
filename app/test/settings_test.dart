@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:korbklar_app/services/settings.dart';
+import 'package:korbunio_app/services/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

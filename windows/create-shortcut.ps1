@@ -1,4 +1,4 @@
-# Legt die Desktop-Verknüpfung für KorbKlar an.
+# Legt die Desktop-Verknüpfung für Korbunio an.
 param(
     [Parameter(Mandatory = $true)][string] $Root
 )
@@ -11,12 +11,12 @@ if (-not (Test-Path -LiteralPath $target)) {
 }
 
 $shell = New-Object -ComObject WScript.Shell
-$link = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'KorbKlar.lnk'))
+$link = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Korbunio.lnk'))
 $link.TargetPath = $target
 $link.WorkingDirectory = $Root
-$link.Description = 'KorbKlar starten'
+$link.Description = 'Korbunio starten'
 
-$icon = Join-Path $Root 'windows\korbklar.ico'
+$icon = Join-Path $Root 'windows\korbunio.ico'
 if (Test-Path -LiteralPath $icon) {
     $link.IconLocation = "$icon,0"
 }

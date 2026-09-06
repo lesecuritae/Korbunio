@@ -10,7 +10,7 @@ class PostalLocationException implements Exception {
 
 /// Resolves the current Android location to a postal code once. Coordinates
 /// are returned by the OS location service, used for reverse geocoding, and
-/// immediately discarded; KorbKlar persists only the resulting postal code.
+/// immediately discarded; Korbunio persists only the resulting postal code.
 class PostalLocationResolver {
   Future<String> resolve() async {
     if (!await Geolocator.isLocationServiceEnabled()) {

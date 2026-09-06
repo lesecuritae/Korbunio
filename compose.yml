@@ -1,4 +1,4 @@
-name: korbklar
+name: korbunio
 
 x-korb-environment: &korb-environment
   SUPERMARKT_DATA_DIR: ${SUPERMARKT_DATA_DIR:-/data}
@@ -35,16 +35,16 @@ x-korb-environment: &korb-environment
 
 services:
   api:
-    image: ghcr.io/lesecuritae/korbklar:latest
+    image: ghcr.io/lesecuritae/korbunio:latest
     build: .
-    container_name: korbklar-api
+    container_name: korbunio-api
     restart: unless-stopped
     init: true
     security_opt:
       - no-new-privileges:true
     environment: *korb-environment
     volumes:
-      - korbklar-data:/data
+      - korbunio-data:/data
     ports:
       - "${SUPERMARKT_PORT:-8000}:8000"
     healthcheck:
@@ -58,9 +58,9 @@ services:
         condition: service_healthy
 
   intelligence-worker:
-    image: ghcr.io/lesecuritae/korbklar:latest
+    image: ghcr.io/lesecuritae/korbunio:latest
     build: .
-    container_name: korbklar-intelligence-worker
+    container_name: korbunio-intelligence-worker
     restart: unless-stopped
     init: true
     security_opt:
@@ -68,21 +68,21 @@ services:
     command: ["python", "-m", "supermarkt.intelligence_worker"]
     environment: *korb-environment
     volumes:
-      - korbklar-data:/data
+      - korbunio-data:/data
     depends_on:
       postgres:
         condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
-    container_name: korbklar-postgres
+    container_name: korbunio-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: clawforge
       POSTGRES_USER: clawforge
       POSTGRES_PASSWORD: ${CLAWFORGE_POSTGRES_PASSWORD:?set CLAWFORGE_POSTGRES_PASSWORD}
     volumes:
-      - korbklar-postgres:/var/lib/postgresql/data
+      - korbunio-postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U clawforge -d clawforge"]
       interval: 5s
@@ -90,5 +90,5 @@ services:
       retries: 12
 
 volumes:
-  korbklar-data:
-  korbklar-postgres:
+  korbunio-data:
+  korbunio-postgres:

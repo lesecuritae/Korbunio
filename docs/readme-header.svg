@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="title desc">
-  <title id="title">KorbKlar</title>
-  <desc id="desc">KorbKlar vergleicht regionale Supermarktangebote von REWE, Kaufland, EDEKA, ALDI und weiteren Händlern.</desc>
+  <title id="title">Korbunio</title>
+  <desc id="desc">Korbunio vergleicht regionale Supermarktangebote von REWE, Kaufland, EDEKA, ALDI und weiteren Händlern.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="#f4faf6"/>

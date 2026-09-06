@@ -35,7 +35,7 @@ class OfficialRossmannSource:
         self.last_market_label = "Rossmann"
 
     def _render(self, url: str) -> str:
-        with tempfile.TemporaryDirectory(prefix="korbklar-rossmann-") as profile:
+        with tempfile.TemporaryDirectory(prefix="korbunio-rossmann-") as profile:
             try:
                 result = subprocess.run(  # noqa: S603 - fixed browser executable and arguments
                     [

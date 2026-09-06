@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:korbklar_app/services/local_shopping_list.dart';
-import 'package:korbklar_app/widgets/local_shopping_list_button.dart';
+import 'package:korbunio_app/services/local_shopping_list.dart';
+import 'package:korbunio_app/widgets/local_shopping_list_button.dart';
 
 void main() {
   testWidgets('local shopping list button opens the list from results', (
@@ -12,7 +12,7 @@ void main() {
     late Directory root;
     late LocalShoppingListStore shoppingList;
     await tester.runAsync(() async {
-      root = await Directory.systemTemp.createTemp('korbklar-list-nav-');
+      root = await Directory.systemTemp.createTemp('korbunio-list-nav-');
       shoppingList = await LocalShoppingListStore.open(directory: root);
     });
     addTearDown(() => root.delete(recursive: true));

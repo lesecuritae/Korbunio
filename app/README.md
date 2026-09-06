@@ -1,7 +1,7 @@
-# KorbKlar App
+# Korbunio App
 
 Offline-first Flutter client for Android, styled after the web interface and
-optionally connected to any self-hosted [KorbKlar](../README.md) server.
+optionally connected to any self-hosted [Korbunio](../README.md) server.
 
 The app is a view, not a second implementation. Retailer adapters,
 normalisation, unit prices, comparison groups and loyalty logic all stay on the
@@ -22,13 +22,13 @@ price; it renders the values the comparison engine returns.
 - endless scrolling
 - local result cache: previously loaded offers remain searchable without a server
 - persistent local shopping list with offline view and clipboard export
-- direct optional KitchenOwl connection, independent of the KorbKlar server
+- direct optional KitchenOwl connection, independent of the Korbunio server
 - opens straight into the last comparison and re-queries the retailers only
   after an offer change (Thursday, and Sunday for the new week), see below
 - a refresh action that starts a new search by hand
 
 Server address, postal code, loyalty selection and target list are remembered
-on the device. KorbKlar and KitchenOwl tokens are stored in Android's encrypted
+on the device. Korbunio and KitchenOwl tokens are stored in Android's encrypted
 Keystore rather than normal preferences.
 
 On first connection, an app without its own saved postal code or retailer
@@ -89,7 +89,7 @@ under a category named after the shop with a colour dot, "🔴 REWE", so the
 list sorts by store; missing categories are created.
 
 The long-lived token stays on the device and is sent only to the configured
-HTTPS KitchenOwl host. It is never forwarded to the KorbKlar server. If the
+HTTPS KitchenOwl host. It is never forwarded to the Korbunio server. If the
 server provides its own compatible KitchenOwl endpoint, the client can still
 use that as a fallback.
 
@@ -139,7 +139,7 @@ an explicitly chosen LAN or VPN server.
 
 The `Build Android app` workflow produces an installable APK on every push
 that touches `app/`, and can also be started by hand from the Actions tab.
-Download the `korbklar-apk` artifact and install `app-arm64-v8a-release.apk`
+Download the `korbunio-apk` artifact and install `app-arm64-v8a-release.apk`
 on the phone; Android asks once to allow installation from that source.
 
 ### Updating from GitHub releases
@@ -158,7 +158,7 @@ Building locally works too, when the machine's Gradle toolchain is healthy:
 flutter build apk --release
 ```
 
-Official release artifacts are signed with KorbKlar's persistent release key.
+Official release artifacts are signed with Korbunio's persistent release key.
 CI receives the key exclusively through encrypted repository secrets; no key or
 password is stored in Git. Local release builds must provide the corresponding
 signing environment variables and keystore. Unsigned or debug-signed release
@@ -168,7 +168,7 @@ builds fail instead of silently producing a differently signed APK.
 
 Some self-hosted instances run plain HTTP on a LAN or VPN, so Android permits a
 tokenless connection to them. Application-level validation refuses to transmit
-either a KorbKlar or KitchenOwl token over cleartext HTTP. Certificate
+either a Korbunio or KitchenOwl token over cleartext HTTP. Certificate
 validation for HTTPS remains fully enabled.
 
 ## Tests
@@ -183,10 +183,10 @@ Two opt-in suites exist beyond the default run.
 Against a real server:
 
 ```bash
-flutter test --tags live --dart-define=KORBKLAR_URL=http://127.0.0.1:8000 --dart-define=KORBKLAR_PLZ=26188
+flutter test --tags live --dart-define=KORBUNIO_URL=http://127.0.0.1:8000 --dart-define=KORBUNIO_PLZ=26188
 ```
 
-Add `--dart-define=KORBKLAR_KEY=...` for an instance that requires an API key.
+Add `--dart-define=KORBUNIO_KEY=...` for an instance that requires an API key.
 
 Golden images of the result list in both themes, useful for reviewing layout
 and palette without a device:

@@ -12,7 +12,7 @@ BERLIN = ZoneInfo("Europe/Berlin")
 def _default_data_dir() -> Path:
     state_home = os.getenv("XDG_STATE_HOME")
     base = Path(state_home).expanduser() if state_home else Path.home() / ".local" / "state"
-    current = base / "korbklar"
+    current = base / "korbunio"
     legacy = base / "supermarkt-preisvergleich"
     if current.exists() or not legacy.exists():
         return current
@@ -98,7 +98,7 @@ MAX_WORKERS = _env_int("SUPERMARKT_MAX_WORKERS", 8, 2, 24)
 
 MARKTGURU_HOME = "https://www.marktguru.de/"
 MARKTGURU_SEARCH_API = "https://api.marktguru.de/api/v1/offers/search"
-USER_AGENT = _env_text("SUPERMARKT_USER_AGENT", f"korb-klar/{__version__}")
+USER_AGENT = _env_text("SUPERMARKT_USER_AGENT", f"korbunio/{__version__}")
 SEARCH_TERMS = (
     "Obst", "Gemüse", "Fleisch", "Wurst", "Käse", "Milch", "Joghurt", "Butter", "Brot",
     "Backwaren", "Getränke", "Wasser", "Limonade", "Saft", "Bier", "Wein", "Kaffee", "Tee",

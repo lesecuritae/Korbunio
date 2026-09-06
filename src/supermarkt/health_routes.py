@@ -16,7 +16,7 @@ def health() -> dict[str, Any]:
     engine = runtime.get_engine()
     return {
         "status": "ok",
-        "service": "korbklar",
+        "service": "korbunio",
         "backend": "persistent-sqlite-cache",
         "cache_ttl_minutes": CACHE_TTL_MINUTES,
         "cache_weekly": CACHE_WEEKLY,

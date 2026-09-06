@@ -14,7 +14,7 @@ class KitchenOwlException implements Exception {
 }
 
 /// Direct optional connection to a user-owned KitchenOwl instance. The token
-/// is supplied from Android's encrypted storage and never sent to KorbKlar.
+/// is supplied from Android's encrypted storage and never sent to Korbunio.
 ///
 /// Besides the list of targets, the client reads what the household already
 /// keeps so an offer lands on the existing article ("Brötchen" with its icon)

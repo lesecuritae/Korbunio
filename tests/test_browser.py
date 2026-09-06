@@ -39,7 +39,7 @@ def test_theme_switcher_is_shared_persistent_and_overrides_system_theme():
 
     assert all('src="/static/theme.js"' in page for page in pages)
     assert all('class="themeToggle"' in page for page in pages)
-    assert "korbklar.theme.v1" in script
+    assert "korbunio.theme.v1" in script
     assert 'value === "light" || value === "dark"' in script
     assert "localStorage.setItem(storageKey, theme)" in script
     assert "document.documentElement.dataset.theme = theme" in script
@@ -155,16 +155,16 @@ def test_search_job_capacity_error_returns_too_many_requests(monkeypatch):
 
 def test_home_persists_postal_code_and_retailer_selection_locally():
     script = ui.static_text("home-v2.js")
-    assert "korbklar.selectedRetailers.v1" in script
+    assert "korbunio.selectedRetailers.v1" in script
     assert "localStorage.getItem(retailerStorageKey)" in script
     assert "localStorage.setItem(retailerStorageKey" in script
-    assert "korbklar.postalCode.v1" in script
+    assert "korbunio.postalCode.v1" in script
     assert "localStorage.getItem(postalStorageKey)" in script
     assert "localStorage.setItem(postalStorageKey,postal)" in script
     assert "/rewe/markets?postal_code=" in script
-    assert "korbklar.reweMarket." in script
+    assert "korbunio.reweMarket." in script
     assert "/netto/markets?postal_code=" in script
-    assert "korbklar.nettoMarket." in script
+    assert "korbunio.nettoMarket." in script
 
 
 def test_home_exposes_valid_instance_defaults(monkeypatch):

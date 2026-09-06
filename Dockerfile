@@ -18,17 +18,17 @@ RUN apk upgrade --no-cache \
     && python -m pip uninstall -y pip setuptools wheel \
     && rm -rf /root/.cache /usr/local/lib/python3.13/ensurepip
 COPY --from=builder /opt/venv /opt/venv
-RUN addgroup -S -g 10001 korbklar \
-    && adduser -S -D -H -u 10001 -G korbklar korbklar \
-    && mkdir -p /home/korbklar \
+RUN addgroup -S -g 10001 korbunio \
+    && adduser -S -D -H -u 10001 -G korbunio korbunio \
+    && mkdir -p /home/korbunio \
     && mkdir -p /data /app \
-    && chown -R korbklar:korbklar /home/korbklar /data /app
+    && chown -R korbunio:korbunio /home/korbunio /data /app
 
 FROM scratch AS final
 ARG PYTHON_BASE
 ARG APP_VERSION=0.1.8
 COPY --from=runtime-rootfs / /
-LABEL org.opencontainers.image.source="https://github.com/lesecuritae/KorbKlar" \
+LABEL org.opencontainers.image.source="https://github.com/lesecuritae/Korbunio" \
       org.opencontainers.image.version="${APP_VERSION}" \
       org.opencontainers.image.base.name="${PYTHON_BASE}"
 # trivy:ignore:AVD-DS-0031 -- this is a path to a runtime-generated file, not secret material.

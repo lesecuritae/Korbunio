@@ -74,7 +74,7 @@ def test_docker_system_dependencies_are_actually_used():
     assert " curl" in dockerfile and '"curl"' in runtime
     assert 'CMD ["uvicorn"' in dockerfile
     assert "USER 10001" in dockerfile
-    assert "chown -R korbklar:korbklar /home/korbklar /data /app" in dockerfile
+    assert "chown -R korbunio:korbunio /home/korbunio /data /app" in dockerfile
     assert "dumb-init" in dockerfile
     assert 'ENTRYPOINT ["dumb-init", "--"]' in dockerfile
 
@@ -94,8 +94,8 @@ def test_compose_has_api_worker_and_postgres_services():
     assert "  api:\n" in compose
     assert "  intelligence-worker:\n" in compose
     assert "  postgres:\n" in compose
-    assert "korbklar-data:/data" in compose
-    assert "korbklar-postgres:/var/lib/postgresql/data" in compose
+    assert "korbunio-data:/data" in compose
+    assert "korbunio-postgres:/var/lib/postgresql/data" in compose
     assert '"${SUPERMARKT_PORT:-8000}:8000"' in compose
     assert "healthcheck:" in compose
     assert "SUPERMARKT_DATA_DIR: ${SUPERMARKT_DATA_DIR:-/data}" in compose
@@ -117,7 +117,7 @@ def test_runtime_version_matches_package_metadata():
 
     metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert metadata["project"]["version"] == __version__
-    assert USER_AGENT == f"korb-klar/{__version__}"
+    assert USER_AGENT == f"korbunio/{__version__}"
     assert __version__ == "0.1.16"
 
 
@@ -187,7 +187,7 @@ def test_release_has_no_private_or_internal_revision_markers():
         assert marker.casefold() not in text.casefold(), marker
 
 
-def test_public_branding_is_korbklar():
+def test_public_branding_is_korbunio():
     public_files = [
         ROOT / "README.md",
         ROOT / "compose.yml",
@@ -199,7 +199,7 @@ def test_public_branding_is_korbklar():
     ]
     text = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in public_files)
     assert "Supermarkt-Preisvergleich" not in text
-    assert "KorbKlar" in text
+    assert "Korbunio" in text
     assert "supermarkt-preisvergleich/<Version>" not in text
 
 

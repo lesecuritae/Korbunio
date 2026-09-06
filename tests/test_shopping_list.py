@@ -121,16 +121,16 @@ def test_offer_image_uses_only_the_local_proxy_and_survives_json_roundtrip():
     result = js("""(()=>{
       const item=m.offerToItem({offer_id:'energy-1',product:'Energy',retailer:'REWE',regular_price:0.79,deposit:0.25,image_url:'/image?src=https%3A%2F%2Fexample.invalid%2Fenergy.jpg&sig=signed'});
       const restored=m.validateDocument(m.exportDocument([item]))[0];
-      return {item,restored,resolved:m.resolvedImageUrl(restored.image_url,'https://korbklar.example')};
+      return {item,restored,resolved:m.resolvedImageUrl(restored.image_url,'https://korbunio.example')};
     })()""")
     assert result["item"]["image_url"].startswith("/image?")
     assert result["restored"]["image_url"] == result["item"]["image_url"]
-    assert result["resolved"].startswith("https://korbklar.example/image?")
+    assert result["resolved"].startswith("https://korbunio.example/image?")
 
 
 def test_shopping_image_rejects_external_and_script_urls():
     assert js("m.canonicalItem({name:'A',image_url:'javascript:alert(1)'}).image_url") is None
-    assert js("m.resolvedImageUrl('https://tracker.invalid/image?x=1','https://korbklar.example')") is None
+    assert js("m.resolvedImageUrl('https://tracker.invalid/image?x=1','https://korbunio.example')") is None
 
 
 def test_import_limits_and_future_schema_are_rejected():

@@ -1,11 +1,11 @@
 @echo off
 chcp 65001 >nul
 setlocal
-title KorbKlar einrichten
+title Korbunio einrichten
 cd /d "%~dp0.."
 
 echo.
-echo   KorbKlar wird eingerichtet. Beim ersten Mal dauert das ein paar Minuten.
+echo   Korbunio wird eingerichtet. Beim ersten Mal dauert das ein paar Minuten.
 echo.
 
 set "PY="
@@ -42,7 +42,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0create-shortcut.ps1" -
 if errorlevel 1 goto failed
 
 echo.
-echo   Fertig. Auf dem Desktop liegt jetzt "KorbKlar".
+echo   Fertig. Auf dem Desktop liegt jetzt "Korbunio".
 echo   Ein Doppelklick startet das Programm und öffnet den Browser.
 echo.
 pause
