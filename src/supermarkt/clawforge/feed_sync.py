@@ -326,9 +326,9 @@ _MIGRATIONS = (
             previous_origin_asn,observed_at,first_seen,last_seen,change
         )
         SELECT provider_id,prefix,origin_asn,
-            CASE WHEN asn = '' THEN origin_asn ELSE asn END,
-            CASE WHEN origin = '' THEN origin_asn ELSE origin END,
-            status,stable_days,rpki_status,previous_origin_asn,
+            CASE WHEN MAX(asn) = '' THEN origin_asn ELSE MAX(asn) END,
+            CASE WHEN MAX(origin) = '' THEN origin_asn ELSE MAX(origin) END,
+            MAX(status),MAX(stable_days),MAX(rpki_status),MAX(previous_origin_asn),
             MAX(observed_at),
             COALESCE(MIN(first_seen), MIN(observed_at)),
             COALESCE(MAX(last_seen), MAX(observed_at)),
@@ -399,7 +399,11 @@ class IntelligenceStore:
                 confidence=excluded.confidence, categories=excluded.categories, enabled=excluded.enabled""",
                 (provider.id, provider.name, provider.source, int(provider.update_interval.total_seconds()), provider.confidence, json.dumps(provider.categories), int(provider.enabled)),
             )
-            db.execute("INSERT OR IGNORE INTO provider_status(provider_id,state) VALUES(?,?)", (provider.id, "never"))
+            db.execute(
+                "INSERT INTO provider_status(provider_id,state) VALUES(?,?) "
+                "ON CONFLICT(provider_id) DO NOTHING",
+                (provider.id, "never"),
+            )
 
     def update_provider_status(self, provider_id: str, **values: Any) -> None:
         allowed = {"state", "last_attempt", "last_success", "next_run", "failure_count", "error", "retry_after", "indicators_count"}

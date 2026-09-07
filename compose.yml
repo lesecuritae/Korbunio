@@ -69,6 +69,8 @@ services:
     environment: *korb-environment
     volumes:
       - korbunio-data:/data
+    healthcheck:
+      disable: true
     depends_on:
       postgres:
         condition: service_healthy
