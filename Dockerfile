@@ -7,7 +7,7 @@ RUN python -m venv /opt/venv
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN /opt/venv/bin/pip install --upgrade "pip>=26.2" "setuptools>=78.1.1" wheel \
-    && /opt/venv/bin/pip install '.[postgres]' \
+    && /opt/venv/bin/pip install . \
     && /opt/venv/bin/pip uninstall -y pip setuptools wheel \
     && find /opt/venv -type d -name __pycache__ -prune -exec rm -r {} +
 

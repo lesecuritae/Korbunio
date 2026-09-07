@@ -32,9 +32,6 @@ dev = [
   "pytest>=9,<10",
   "ruff>=0.16,<1",
 ]
-postgres = [
-  "psycopg[binary]>=3.2,<4",
-]
 
 [tool.ruff.lint]
 select = ["F", "B", "PERF", "C4", "PIE"]

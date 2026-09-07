@@ -15,7 +15,6 @@ from .api_models import SupermarketRequest
 from .api_routes import router as api_router
 from .browser_routes import router as browser_router
 from .health_routes import router as health_router
-from .intelligence_routes import router as intelligence_router
 from .media_routes import router as media_router, supermarket_image
 from .runtime import get_engine, get_image_service as _image_service_instance
 
@@ -39,4 +38,3 @@ router.include_router(browser_router)
 router.include_router(api_router)
 router.include_router(media_router)
 router.include_router(health_router)
-router.include_router(intelligence_router)
