@@ -44,14 +44,15 @@ class MigrationRunner:
             "version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)"
         )
         applied = set()
-        for row in connection.execute(f"SELECT version FROM {cls.table}").fetchall():
+        # The table name is a class constant, never caller input.
+        for row in connection.execute(f"SELECT version FROM {cls.table}").fetchall():  # nosec B608
             applied.add(int(row[0] if not isinstance(row, Mapping) else row["version"]))
         for migration in sorted(migrations, key=lambda item: item.version):
             if migration.version in applied:
                 continue
             connection.executescript(migration.sql)
             connection.execute(
-                f"INSERT INTO {cls.table}(version,name,applied_at) VALUES(?,?,CURRENT_TIMESTAMP)",
+                f"INSERT INTO {cls.table}(version,name,applied_at) VALUES(?,?,CURRENT_TIMESTAMP)",  # nosec B608
                 (migration.version, migration.name),
             )
         connection.commit()

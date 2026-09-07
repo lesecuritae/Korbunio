@@ -412,7 +412,8 @@ class IntelligenceStore:
             return
         columns = ", ".join(f"{key} = ?" for key in values)
         with self._lock, self._connect() as db:
-            db.execute(f"UPDATE provider_status SET {columns} WHERE provider_id = ?", (*values.values(), provider_id))
+            # Column names are selected exclusively from the allowlist above.
+            db.execute(f"UPDATE provider_status SET {columns} WHERE provider_id = ?", (*values.values(), provider_id))  # nosec B608
 
     def provider_status(self) -> list[dict[str, Any]]:
         with self._lock, self._connect() as db:
