@@ -32,6 +32,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          export CLAWFORGE_POSTGRES_PASSWORD=ci-smoke-test-password
           docker compose config >/dev/null
           SUPERMARKT_PORT=7333 docker compose config | grep -q 'published: "7333"'
           docker compose up -d --build
