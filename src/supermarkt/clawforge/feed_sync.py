@@ -983,8 +983,8 @@ class FeedScheduler:
         with self._lock:
             if not force and provider_id in self._next_run and now < self._next_run[provider_id]:
                 return SyncResult(provider_id, "not_due", next_run=self._next_run[provider_id])
-            previous = self._last_attempt.get(provider_id, 0.0)
-            if current - previous < adapter.rate_limit_seconds:
+            previous = self._last_attempt.get(provider_id)
+            if previous is not None and current - previous < adapter.rate_limit_seconds:
                 next_run = now + timedelta(seconds=adapter.rate_limit_seconds - (current - previous))
                 self._next_run[provider_id] = next_run
                 self.store.update_provider_status(provider_id, state="rate_limited", next_run=next_run, retry_after=next_run)
