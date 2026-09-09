@@ -11,6 +11,7 @@ from .common import clean_text, normalize_aldi_region, validate_postal_code
 from .loyalty import normalize_program_ids
 from .jobs import SearchCapacityError
 from .models import ToolError, resolve_retailer_names
+from .challenges import clear_mueller_cookie, set_mueller_cookie
 from .preferences import home_defaults
 from . import runtime
 from .ui import build_home_html, build_results_html, build_shopping_html
@@ -51,6 +52,30 @@ def home(postal_code: str = Query(default="", max_length=5)) -> HTMLResponse:
 @router.get("/shopping", include_in_schema=False, response_class=HTMLResponse)
 def shopping() -> HTMLResponse:
     return HTMLResponse(build_shopping_html(), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/mueller/challenge", include_in_schema=False)
+def mueller_challenge() -> HTMLResponse:
+    """Show the explicit, user-mediated Müller session handoff."""
+    return HTMLResponse(
+        """<!doctype html><html lang=\"de\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Müller-Bestätigung</title><style>body{font:16px system-ui;max-width:760px;margin:3rem auto;padding:0 1rem;line-height:1.5}main{border:1px solid #dce5e0;border-radius:12px;padding:1.3rem}a,button{font:inherit}textarea{width:100%;min-height:100px;margin:.6rem 0}button{padding:.55rem .8rem}</style><main><h1>Müller-Bestätigung</h1><p>Öffne die offizielle Müller-Seite, bestätige den Check manuell und kopiere anschließend im Browser den <strong>Cookie-Header nur von www.mueller.de</strong> aus den Netzwerkanfragen.</p><p><a href=\"https://www.mueller.de/c/online-angebote/\" target=\"_blank\" rel=\"noopener noreferrer\">Offizielle Müller-Seite öffnen</a></p><form method=\"post\" action=\"/mueller/session\"><label for=\"cookie\">Cookie-Header (wird nur flüchtig im Arbeitsspeicher gehalten)</label><textarea id=\"cookie\" name=\"cookie\" autocomplete=\"off\" required></textarea><button type=\"submit\">Session ausdrücklich an Korbuino übergeben</button></form><p>Die Session wird nicht gespeichert, nicht geloggt und nach kurzer Zeit gelöscht. Bei Mehrprozess-Betrieb muss die Anfrage denselben Prozess erreichen.</p></main></html>""",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.post("/mueller/session", include_in_schema=False)
+def mueller_session(cookie: Annotated[str, Form(min_length=3, max_length=8_192)]) -> RedirectResponse:
+    try:
+        set_mueller_cookie(cookie)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RedirectResponse("/", status_code=303, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/mueller/session/clear", include_in_schema=False)
+def mueller_session_clear() -> RedirectResponse:
+    clear_mueller_cookie()
+    return RedirectResponse("/", status_code=303, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/rewe/markets", include_in_schema=False)

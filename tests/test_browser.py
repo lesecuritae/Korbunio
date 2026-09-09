@@ -27,6 +27,21 @@ def test_home_and_static_assets():
     assert client.get("/static/results-v2.js").status_code == 200
 
 
+def test_mueller_challenge_explains_explicit_session_handoff():
+    response = TestClient(app).get("/mueller/challenge")
+    assert response.status_code == 200
+    assert "www.mueller.de/c/online-angebote/" in response.text
+    assert "Cookie-Header" in response.text
+
+
+def test_mueller_session_handoff_does_not_echo_cookie():
+    client = TestClient(app)
+    response = client.post("/mueller/session", data={"cookie": "__Secure-test=temporary"}, follow_redirects=False)
+    assert response.status_code == 303
+    assert "temporary" not in response.text
+    client.post("/mueller/session/clear", follow_redirects=False)
+
+
 def test_theme_switcher_is_shared_persistent_and_overrides_system_theme():
     client = TestClient(app)
     pages = (

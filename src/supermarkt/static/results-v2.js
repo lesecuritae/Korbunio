@@ -58,7 +58,16 @@ function render(data){
   $("marketBox").querySelector(".marketChange").href=`/?postal_code=${encodeURIComponent(data.postal_code)}`;
   const hidden=Number(data.hidden_count||0);$("stats").textContent=`${data.filtered_offer_count} passende Treffer · ${hidden} teurere Dubletten ${view==="all"?"eingeblendet":"ausgeblendet"}`;
   renderChips(data.retailer_counts);renderCategories(data.category_counts||{});renderPrograms(data.available_loyalty_programs||[],data.loyalty_note||"");renderMarkets(data.retailer_markets||[]);
-  const warnings=data.warnings||[];$("warningsBox").hidden=!warnings.length;$("warnings").replaceChildren(...warnings.map(text=>Object.assign(document.createElement("div"),{textContent:text})));
+  const warnings=data.warnings||[];
+  const challengeUrl=(()=>{try{const value=data.challenge_urls?.Müller||"";const url=new URL(value,location.origin);return url.protocol==="https:"&&["www.mueller.de","mueller.de"].includes(url.hostname.toLowerCase())?url.href:""}catch{return ""}})();
+  const warningNodes=warnings.map(text=>Object.assign(document.createElement("div"),{textContent:text}));
+  if(challengeUrl){
+    const box=document.createElement("div");box.className="providerChallenge";
+    const link=document.createElement("a");link.href="/mueller/challenge";link.target="_blank";link.rel="noopener noreferrer";link.textContent="Müller-Bestätigung öffnen";
+    box.append(link,document.createTextNode(". Nach der manuellen Prüfung kann die Browser-Session ausdrücklich an den Server übergeben und die Suche erneut gestartet werden."));
+    warningNodes.push(box);
+  }
+  $("warningsBox").hidden=!warningNodes.length;$("warnings").replaceChildren(...warningNodes);
   const fragment=document.createDocumentFragment();
   for(const offer of data.offers){
     offerById.set(offer.offer_id,offer);const row=document.createElement("div");row.className="row";

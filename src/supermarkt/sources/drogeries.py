@@ -128,9 +128,15 @@ class OfficialRossmannSource:
 class OfficialMuellerSource:
     OFFERS_URL = "https://www.mueller.de/c/online-angebote/"
     MAX_RESPONSE = 4_000_000
+    CHALLENGE_MESSAGE = (
+        "Müller verlangt eine manuelle Browser-Bestätigung (Client Challenge). "
+        "Öffne die Müller-Seite im Browser, bestätige den Check und starte die Suche erneut."
+    )
 
-    def __init__(self, http: HttpClient) -> None:
+    def __init__(self, http: HttpClient, cookie_provider: Callable[[], str] | None = None, cookie_clearer: Callable[[], None] | None = None) -> None:
         self.http = http
+        self.cookie_provider = cookie_provider
+        self.cookie_clearer = cookie_clearer
         self.last_market_url = "https://www.mueller.de/storefinder/"
         self.last_market_label = "Müller"
 
@@ -140,7 +146,21 @@ class OfficialMuellerSource:
             from bs4 import BeautifulSoup
         except Exception as exc:  # pragma: no cover
             raise ToolError(f"Müller benötigt BeautifulSoup: {exc}") from exc
-        payload = self.http.get_bytes(self.OFFERS_URL, {"Accept": "text/html"})
+        headers = {"Accept": "text/html"}
+        cookie = self.cookie_provider() if self.cookie_provider else ""
+        if cookie:
+            headers["Cookie"] = cookie
+        try:
+            payload = self.http.get_bytes(self.OFFERS_URL, headers)
+        except ToolError as exc:
+            # Fastly's response is a user-facing JavaScript/CAPTCHA challenge.
+            # Do not disable TLS verification or attempt to evade it in the
+            # unattended provider.
+            if any(code in str(exc) for code in ("HTTP 403", "HTTP 429")):
+                if self.cookie_clearer:
+                    self.cookie_clearer()
+                raise ToolError(self.CHALLENGE_MESSAGE) from exc
+            raise
         if len(payload) > self.MAX_RESPONSE:
             raise ToolError("Müller-Antwort überschreitet das Größenlimit")
         page = BeautifulSoup(payload.decode("utf-8", errors="replace"), "html.parser")

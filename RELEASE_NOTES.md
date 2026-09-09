@@ -1,3 +1,16 @@
+# 0.1.30
+
+## User-mediated Müller challenge handling
+
+- Müller HTTP 403/429 responses are reported as a manual browser challenge
+  instead of an opaque provider error.
+- The native Android app opens the first-party Müller page and retries with
+  the WebView session cookies after the user completes the check.
+- The Docker web UI links to the official Müller page without claiming that
+  the background container has authenticated; browser cookies are never
+  copied into server storage.
+- Added regression coverage and provider challenge documentation.
+
 # 0.1.29
 
 ## Correct Aldi prices and product images

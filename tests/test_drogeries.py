@@ -1,3 +1,6 @@
+import pytest
+
+from supermarkt.models import ToolError
 from supermarkt.sources.drogeries import OfficialDmSource, OfficialMuellerSource, OfficialRossmannSource
 
 
@@ -66,6 +69,20 @@ class FakeDmHttp:
         }
 
 
+class MuellerChallengeHttp:
+    def get_bytes(self, url, headers=None):
+        raise ToolError("HTTP 403 bei www.mueller.de")
+
+
+class MuellerCookieHttp:
+    def __init__(self):
+        self.headers = None
+
+    def get_bytes(self, url, headers=None):
+        self.headers = headers
+        return MUELLER_HTML.encode()
+
+
 def test_rossmann_official_advertising_card_mapping():
     offers = OfficialRossmannSource(lambda _url: ROSSMANN_HTML).load("10115")
     assert len(offers) == 1
@@ -104,6 +121,18 @@ def test_mueller_online_offer_mapping_is_labelled_as_online():
     )
     assert "Online" in offer.coverage_note
     assert offer.product_url.endswith("/p/testprodukt-IPN2998372/")
+
+
+def test_mueller_403_is_reported_as_manual_browser_challenge():
+    with pytest.raises(ToolError, match="manuelle Browser-Bestätigung"):
+        OfficialMuellerSource(MuellerChallengeHttp()).load("10115")
+
+
+def test_mueller_explicit_cookie_handoff_is_sent_only_to_mueller():
+    http = MuellerCookieHttp()
+    offers = OfficialMuellerSource(http, lambda: "__Secure-test=temporary").load("10115")
+    assert len(offers) == 1
+    assert http.headers == {"Accept": "text/html", "Cookie": "__Secure-test=temporary"}
 
 
 def test_dm_maps_only_official_clearance_products_and_caches_catalogue():
