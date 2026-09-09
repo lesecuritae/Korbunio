@@ -21,12 +21,19 @@ import org.jsoup.Jsoup
 class ReweProvider(
     private val http: OkHttpClient = OkHttpClient(),
     private val baseUrl: String = "https://www.rewe.de",
+    private val fallback: RetailerProvider? = null,
 ) : RetailerProvider {
     override val id = "rewe"
     override val displayName = "REWE"
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
+        runCatching { fetchPublic(request) }.getOrElse { error ->
+            fallback?.fetch(request) ?: throw error
+        }
+    }
+
+    private fun fetchPublic(request: RetailerRequest): ProviderResult {
         val city = request.citySlug?.trim()?.lowercase(Locale.GERMAN)?.replace(" ", "-")
             ?: error("Für die direkte REWE-Marktsuche wird zusätzlich die Stadt benötigt")
         val marketPage = get("$baseUrl/marktsuche/$city/")
@@ -36,7 +43,7 @@ class ReweProvider(
         val page = get(url)
         val parsed = parseOffers(page, market.id, url)
         if (parsed.offers.isEmpty()) error("Keine auswertbaren REWE-Angebote gefunden")
-        parsed
+        return parsed
     }
 
     private fun get(url: String): String {

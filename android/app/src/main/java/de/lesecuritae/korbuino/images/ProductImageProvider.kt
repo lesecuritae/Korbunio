@@ -37,7 +37,7 @@ class ProductImageProvider(private val http: OkHttpClient = OkHttpClient()) {
                     val image = product["image_front_url"]?.jsonPrimitive?.content.orEmpty()
                     val productName = product["product_name"]?.jsonPrimitive?.content.orEmpty()
                     val productBrand = product["brands"]?.jsonPrimitive?.content.orEmpty()
-                    if (image.isBlank() || !matches(productName, productBrand, name, brand, size)) null
+                    if (!image.startsWith("https://") || !matches(productName, productBrand, name, brand, size)) null
                     else ImageCandidate(image, "Open Food Facts", "exact_gtin", 0.98)
                 }
             }.getOrNull() ?: return@withContext null
@@ -55,7 +55,10 @@ class ProductImageProvider(private val http: OkHttpClient = OkHttpClient()) {
     private fun matches(sourceName: String, sourceBrand: String, name: String, brand: String, size: String): Boolean {
         val actual = "$sourceBrand $sourceName".lowercase()
         val tokens = name.lowercase().split(Regex("\\W+")).filter { it.length > 2 }
-        return tokens.count { actual.contains(it) } >= maxOf(1, tokens.size / 2) &&
+        val nameMatch = tokens.count { actual.contains(it) } >= maxOf(1, tokens.size / 2)
+        val sizeTokens = size.lowercase().split(Regex("\\W+")).filter { it.length > 1 }
+        val sizeMatch = sizeTokens.isEmpty() || sizeTokens.any { actual.contains(it) }
+        return nameMatch && sizeMatch &&
             (brand.isBlank() || sourceBrand.isBlank() || actual.contains(brand.lowercase()))
     }
 }

@@ -12,12 +12,18 @@ the public market and offer pages already used by the web adapter. Market URLs
 are cached for 24 hours, offer cards are normalized locally, and the last
 successful Room snapshot remains available after network or anti-bot failure.
 
-The transport is deliberately replaceable. The first implementation uses
-OkHttp with a mobile browser User-Agent. A Cronet-backed OkHttp transport is
-the next production transport when live Android validation shows that REWE
-requires Chromium's HTTP/2/3 behavior. Certificate verification remains
-enabled; no TLS bypass, private app certificate, or scraped mobile token is
-allowed.
+The transport is deliberately replaceable. The implementation uses an
+OkHttp client with a mobile browser User-Agent and prefers the official
+Cronet transport for HTTP/2/3 when the Play Services engine is available.
+Normal OkHttp remains the fallback. Certificate verification remains enabled;
+there is no TLS bypass, private app certificate, or scraped mobile token.
+
+Direct provider coverage is exposed through one `RetailerProvider` registry.
+REWE and GLOBUS use their public structured pages; ALDI Nord, ALDI Süd,
+Kaufland, Rossmann, Müller and HOL'AB! use their public flyer pages through a
+conservative HTML parser. A provider returns an error or an empty result when
+the public page changes, so stale Room data remains visible instead of being
+silently deleted.
 
 ## Background and data safety
 
@@ -30,6 +36,8 @@ part of JSON export or backup files.
 ## Migration boundary
 
 The Flutter client and Docker service remain available during the provider
-migration. Existing KorbKlar/Korbuino backups remain a compatibility input;
-the native database uses a separate schema and must be migrated explicitly,
-never by silently creating an empty replacement store.
+migration. Existing KorbKlar/Korbuino shopping-list JSON backups remain a
+compatibility input. Native backups exclude SecureStore credentials, and Room
+does not use destructive downgrade behavior; future schema changes must ship
+an explicit migration rather than silently creating an empty replacement
+store.

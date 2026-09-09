@@ -6,9 +6,15 @@ service. Retailer providers fetch public source data directly and persist the
 normalized result in Room.
 
 The REWE provider intentionally uses public offer pages. Its transport is
-isolated behind the provider interface so Cronet can be enabled without
-changing parsing or storage. The provider never disables certificate
-validation and never uses private mobile-app credentials.
+isolated behind the provider interface and uses Cronet-backed OkHttp when
+available, with normal OkHttp as a fallback. Certificate validation is never
+disabled and private mobile-app credentials are never used.
+
+The direct provider registry currently includes REWE, GLOBUS, ALDI Nord,
+ALDI Süd, Kaufland, Rossmann, Müller and HOL'AB!. The generic flyer provider
+accepts only cards with a product name and EUR price and keeps the source URL;
+retailers that require a store-specific flow can be added without moving
+network code into the Compose UI.
 
 Background work is opt-in and scheduled with WorkManager. Manual mode is the
 default; daily mode can require Wi-Fi and charging. A failed sync keeps the
