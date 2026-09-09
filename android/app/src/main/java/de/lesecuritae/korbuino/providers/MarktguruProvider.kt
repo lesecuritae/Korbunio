@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,12 +34,29 @@ class MarktguruProvider(
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
         val credentials = discoverCredentials()
+        val products = linkedMapOf<String, ProductEntity>()
+        val offers = linkedMapOf<String, OfferEntity>()
+        var offset = 0
+        for (pageIndex in 0 until 50) {
+            val root = fetchPage(request.postalCode, offset, credentials)
+            val page = parse(root)
+            page.products.forEach { products[it.id] = it }
+            page.offers.forEach { offers[it.id] = it }
+            val count = root["results"]?.jsonArray?.size ?: 0
+            val total = root["totalResults"]?.jsonPrimitive?.intOrNull ?: 0
+            if (count == 0 || count < 100 || (total > 0 && offset + count >= total)) break
+            offset += count
+        }
+        ProviderResult(products.values.toList(), offers.values.toList())
+    }
+
+    private fun fetchPage(postalCode: String, offset: Int, credentials: Pair<String, String>): JsonObject {
         val url = apiUrl.toHttpUrl().newBuilder()
             .addQueryParameter("as", "web")
             .addQueryParameter("limit", "100")
-            .addQueryParameter("offset", "0")
+            .addQueryParameter("offset", offset.toString())
             .addQueryParameter("q", retailerName)
-            .addQueryParameter("zipCode", request.postalCode)
+            .addQueryParameter("zipCode", postalCode)
             .build()
         val requestBuilder = Request.Builder().url(url)
             .header("Accept", "application/json")
@@ -46,7 +64,7 @@ class MarktguruProvider(
             .header("x-clientkey", credentials.second)
         http.newCall(requestBuilder.build()).execute().use { response ->
             check(response.isSuccessful) { "Marktguru HTTP ${response.code}" }
-            parse(json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject)
+            return json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
         }
     }
 

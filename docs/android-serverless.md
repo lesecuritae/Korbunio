@@ -43,6 +43,8 @@ rounded panels, green accent colors, product imagery, retailer/category
 metadata, prices and shopping-list actions.
 The result screen uses the same `Ergebnisse` / `Einkauf` tabs and horizontal
 retailer tabs with counts as the Docker and Flutter clients.
+The native REWE provider follows regional result pages and uses the regional
+fallback when the public HTML page exposes only a short subset.
 The overview includes an `Alle Händler` selector, individual retailer filters
 and stable retailer/product sorting to match the Docker result flow.
 The optional self-hosted server and KitchenOwl connections are managed from

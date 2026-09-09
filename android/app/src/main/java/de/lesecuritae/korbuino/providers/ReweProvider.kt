@@ -29,8 +29,24 @@ class ReweProvider(
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
-        runCatching { fetchPublic(request) }.getOrElse { error ->
-            fallback?.fetch(request) ?: throw error
+        val direct = runCatching { fetchPublic(request) }
+        val primary = direct.getOrNull()
+        // REWE can return a successfully rendered first page with only a
+        // small visible subset. Prefer the regional, paginated source in that
+        // case so Android does not silently present just the first ten offers.
+        if (primary != null && primary.offers.size > 10) return@withContext primary
+        val regional = runCatching { fallback?.fetch(request) }
+            .getOrNull()
+            ?.let { result ->
+                // Keep the logical retailer stable when the regional source
+                // is used. Otherwise the UI would expose an implementation
+                // detail ("marktguru-rewe") as a second retailer.
+                result.copy(offers = result.offers.map { it.copy(retailerId = id) })
+            }
+        when {
+            regional != null && (primary == null || regional.offers.size > primary.offers.size) -> regional
+            primary != null -> primary
+            else -> throw (direct.exceptionOrNull() ?: error("REWE-Angebote konnten nicht geladen werden"))
         }
     }
 

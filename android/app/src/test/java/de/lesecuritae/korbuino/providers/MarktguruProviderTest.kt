@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -26,5 +27,22 @@ class MarktguruProviderTest {
         assertEquals(99, result.offers.single().priceCents)
         server.takeRequest()
         assertEquals("a", server.takeRequest().getHeader("x-apikey"))
+    }
+
+    @Test fun `follows all result pages instead of stopping at the first hundred`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        val firstPage = (1..100).joinToString(",") { index ->
+            "{\"id\":\"page-one-$index\",\"product\":{\"name\":\"Produkt $index\"},\"price\":\"1,00\"}"
+        }
+        server.enqueue(MockResponse().setBody("{\"totalResults\":101,\"results\":[$firstPage]}"))
+        server.enqueue(MockResponse().setBody("{\"totalResults\":101,\"results\":[{\"id\":\"page-two\",\"product\":{\"name\":\"Letztes Produkt\"},\"price\":\"2,00\"}]}"))
+
+        val provider = MarktguruProvider("REWE", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString())
+        val result = provider.fetch(RetailerRequest("12345"))
+
+        assertEquals(101, result.offers.size)
+        assertTrue(server.takeRequest().path!!.endsWith("/home"))
+        assertEquals("/search?as=web&limit=100&offset=0&q=REWE&zipCode=12345", server.takeRequest().path)
+        assertEquals("/search?as=web&limit=100&offset=100&q=REWE&zipCode=12345", server.takeRequest().path)
     }
 }

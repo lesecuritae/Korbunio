@@ -1,3 +1,13 @@
+# 0.1.28
+
+## Complete REWE result pagination
+
+- Paginated regional Marktguru results instead of accepting only the first
+  100 records.
+- A short direct REWE result now falls back to the complete regional result,
+  preventing the native app from silently showing only ten offers.
+- Added regression coverage for multi-page result retrieval.
+
 # 0.1.27
 
 ## Native results navigation parity
