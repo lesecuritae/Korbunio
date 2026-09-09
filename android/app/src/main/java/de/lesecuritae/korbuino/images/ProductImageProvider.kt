@@ -20,7 +20,7 @@ data class ImageCandidate(
 class ProductImageProvider(private val http: OkHttpClient = OkHttpClient()) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun find(productId: String, gtin: String?, name: String, brand: String, size: String): ProductImageEntity? =
+    suspend fun find(productId: String, gtin: String?, name: String, brand: String, size: String, retailer: String = ""): ProductImageEntity? =
         withContext(Dispatchers.IO) {
             val code = gtin?.filter(Char::isDigit).orEmpty()
             if (code.isBlank()) return@withContext null
@@ -49,6 +49,9 @@ class ProductImageProvider(private val http: OkHttpClient = OkHttpClient()) {
                 confidence = candidate.confidence,
                 verifiedAt = System.currentTimeMillis(),
                 cachedAt = System.currentTimeMillis(),
+                retailer = retailer,
+                sourceType = "open-product-database",
+                gtin = code,
             )
         }
 

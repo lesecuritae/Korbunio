@@ -49,3 +49,12 @@ compatibility input. Native backups exclude SecureStore credentials, and Room
 does not use destructive downgrade behavior; future schema changes must ship
 an explicit migration rather than silently creating an empty replacement
 store.
+
+The app exposes JSON backup import/export through the Android document picker.
+Legacy Flutter shopping-list documents are normalized into the local Room list;
+unknown fields are ignored and SecureStore values are filtered by key name and
+never written to the backup.
+
+Room schema upgrades use explicit migrations. The image metadata migration
+keeps GTIN, retailer, source type, confidence and verification timestamps so
+external product images can be audited and reused offline.

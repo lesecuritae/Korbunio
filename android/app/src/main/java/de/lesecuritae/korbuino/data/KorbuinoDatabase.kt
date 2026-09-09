@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -13,7 +15,7 @@ import androidx.room.RoomDatabase
         ProviderCacheEntity::class, ProductImageEntity::class,
         SettingEntity::class, SyncStateEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class KorbuinoDatabase : RoomDatabase() {
@@ -22,6 +24,7 @@ abstract class KorbuinoDatabase : RoomDatabase() {
     abstract fun providerDao(): ProviderDao
     abstract fun settingsDao(): SettingsDao
     abstract fun shoppingListDao(): ShoppingListDao
+    abstract fun imageDao(): ImageDao
 
     companion object {
         fun create(context: Context): KorbuinoDatabase = Room.databaseBuilder(
@@ -30,6 +33,14 @@ abstract class KorbuinoDatabase : RoomDatabase() {
             "korbuino.db",
         // Never erase user data on a downgrade. Future schema changes must ship
         // an explicit Room migration; otherwise startup fails safely.
-        ).build()
+        ).addMigrations(MIGRATION_1_2).build()
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE product_images ADD COLUMN retailer TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE product_images ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'external'")
+                database.execSQL("ALTER TABLE product_images ADD COLUMN gtin TEXT")
+            }
+        }
     }
 }

@@ -40,6 +40,15 @@ interface ProviderDao {
 }
 
 @Dao
+interface ImageDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(value: ProductImageEntity)
+
+    @Query("SELECT * FROM product_images WHERE productId IN (:ids)")
+    suspend fun find(ids: List<String>): List<ProductImageEntity>
+}
+
+@Dao
 interface SettingsDao {
     @Query("SELECT value FROM settings WHERE `key` = :key LIMIT 1")
     suspend fun get(key: String): String?

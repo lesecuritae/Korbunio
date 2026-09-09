@@ -80,6 +80,9 @@ data class ProductImageEntity(
     val confidence: Double,
     val verifiedAt: Long,
     val cachedAt: Long,
+    val retailer: String = "",
+    val sourceType: String = "external",
+    val gtin: String? = null,
 )
 
 @Entity(tableName = "settings")

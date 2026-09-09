@@ -2,6 +2,8 @@ package de.lesecuritae.korbuino
 
 import android.app.Application
 import android.content.Intent
+import android.net.Uri
+import de.lesecuritae.korbuino.backup.BackupService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.lesecuritae.korbuino.data.KorbuinoDatabase
@@ -15,8 +17,13 @@ import de.lesecuritae.korbuino.providers.RetailerRequest
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlClient
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlTarget
 import de.lesecuritae.korbuino.security.SecureStore
+import de.lesecuritae.korbuino.images.ProductImageProvider
+import de.lesecuritae.korbuino.images.ImageCache
 import de.lesecuritae.korbuino.update.UpdateInfo
 import de.lesecuritae.korbuino.update.UpdateService
+import de.lesecuritae.korbuino.work.BackgroundMode
+import de.lesecuritae.korbuino.work.BackgroundScheduler
+import de.lesecuritae.korbuino.work.BackgroundSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +41,7 @@ data class MainUiState(
     val kitchenOwlUrl: String = "",
     val kitchenTargets: List<KitchenOwlTarget> = emptyList(),
     val update: UpdateInfo? = null,
+    val dailySync: Boolean = false,
     val message: String = "Noch keine Angebote geladen",
 )
 
@@ -42,11 +50,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val registry = ProviderRegistry.default(NetworkClientFactory.create(application))
     private val _state = MutableStateFlow(MainUiState())
     private val secureStore = SecureStore(application)
+    private val imageProvider = ProductImageProvider(NetworkClientFactory.create(application))
+    private val imageCache = ImageCache(application, NetworkClientFactory.create(application))
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
     val retailers = registry.all().map { it.id to it.displayName }
 
     init {
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                Triple(secureStore.get("postal_code").orEmpty(), secureStore.get("city").orEmpty(), secureStore.get("retailer_id") ?: "rewe")
+            }
+            _state.value = _state.value.copy(postalCode = saved.first, city = saved.second, retailerId = saved.third, dailySync = secureStore.get("daily_sync") == "true")
+            if (_state.value.dailySync) {
+                BackgroundScheduler.apply(
+                    getApplication(), BackgroundSettings(mode = BackgroundMode.DAILY),
+                    saved.first, saved.second, saved.third,
+                )
+            }
+        }
         viewModelScope.launch {
             database.offerDao().observeAll().collect { offers ->
                 _state.value = _state.value.copy(offers = offers)
@@ -59,9 +81,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun postalCode(value: String) { _state.value = _state.value.copy(postalCode = value.filter(Char::isDigit).take(5)) }
-    fun city(value: String) { _state.value = _state.value.copy(city = value.take(60)) }
-    fun retailer(value: String) { if (retailers.any { it.first == value }) _state.value = _state.value.copy(retailerId = value) }
+    fun postalCode(value: String) {
+        val clean = value.filter(Char::isDigit).take(5)
+        _state.value = _state.value.copy(postalCode = clean)
+        secureStore.put("postal_code", clean)
+    }
+    fun city(value: String) {
+        val clean = value.take(60)
+        _state.value = _state.value.copy(city = clean)
+        secureStore.put("city", clean)
+    }
+    fun retailer(value: String) {
+        if (retailers.any { it.first == value }) {
+            _state.value = _state.value.copy(retailerId = value)
+            secureStore.put("retailer_id", value)
+        }
+    }
+
+    fun setDailySync(enabled: Boolean) {
+        val current = _state.value
+        _state.value = current.copy(dailySync = enabled)
+        secureStore.put("daily_sync", enabled.toString())
+        BackgroundScheduler.apply(
+            getApplication(), BackgroundSettings(mode = if (enabled) BackgroundMode.DAILY else BackgroundMode.MANUAL),
+            current.postalCode, current.city, current.retailerId,
+        )
+        _state.value = _state.value.copy(message = if (enabled) "Tägliche Aktualisierung aktiviert" else "Automatische Aktualisierung deaktiviert")
+    }
 
     fun addShoppingItem(name: String) {
         val clean = name.trim().take(120)
@@ -96,6 +142,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _state.value = _state.value.copy(loading = false, message = "Installationsdialog wird geöffnet")
                 start(intent)
             }.onFailure { error -> _state.value = _state.value.copy(loading = false, message = "Update: ${error.message}") }
+        }
+    }
+
+    fun exportBackup(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openOutputStream(uri)?.use { BackupService(getApplication()).export(it) }
+                        ?: error("Backup-Ziel konnte nicht geöffnet werden")
+                }
+            }.onSuccess { _state.value = _state.value.copy(message = "Backup gespeichert") }
+                .onFailure { error -> _state.value = _state.value.copy(message = "Backup: ${error.message}") }
+        }
+    }
+
+    fun importBackup(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use { BackupService(getApplication()).import(it) }
+                        ?: error("Backup konnte nicht geöffnet werden")
+                }
+            }.onSuccess { _state.value = _state.value.copy(message = "Backup importiert") }
+                .onFailure { error -> _state.value = _state.value.copy(message = "Backup: ${error.message}") }
         }
     }
 
@@ -144,6 +214,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .onSuccess { result ->
                     database.productDao().upsertAll(result.products)
                     database.offerDao().upsertAll(result.offers)
+                    withContext(Dispatchers.IO) {
+                        val knownImages = database.imageDao().find(result.products.map { it.id }).map { it.productId }.toSet()
+                        // Image enrichment is deliberately bounded so a large
+                        // flyer cannot turn one refresh into hundreds of API calls.
+                        result.products.filter { !it.gtin.isNullOrBlank() && it.id !in knownImages }.take(20).forEach { product ->
+                            runCatching {
+                                imageProvider.find(product.id, product.gtin, product.name, product.brand, "", provider.id)
+                            }.getOrNull()?.let { image ->
+                                database.imageDao().upsert(image)
+                                imageCache.download(image.imageUrl)
+                            }
+                        }
+                    }
                     _state.value = _state.value.copy(loading = false, message = "${result.offers.size} Angebote gespeichert")
                 }
                 .onFailure { error -> _state.value = _state.value.copy(loading = false, message = "Offline/Fehler: ${error.message}") }
