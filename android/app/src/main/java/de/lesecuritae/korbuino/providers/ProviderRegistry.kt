@@ -17,6 +17,13 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                 HtmlFlyerProvider("rossmann", "Rossmann", "https://www.rossmann.de/de/angebote/m/angebote/", http),
                 HtmlFlyerProvider("mueller", "Müller", "https://www.mueller.de/c/online-angebote/", http),
                 HtmlFlyerProvider("holab", "HOL'AB!", "https://holab.de/angebote", http),
+                HtmlFlyerProvider("netto-schwarz", "Netto mit Hund", "https://netto.de/angebote/", http),
+                HtmlFlyerProvider("netto-marken", "Netto Marken-Discount", "https://www.netto-online.de/angebote/", http),
+                DmProvider(http),
+                MarktguruProvider("Combi", http),
+                MarktguruProvider("famila Nordwest", http),
+                MarktguruProvider("Lidl", http),
+                MarktguruProvider("PENNY", http),
             ),
         )
     }
