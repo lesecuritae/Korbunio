@@ -1,3 +1,10 @@
+# 0.1.21
+
+Die native Android-App bietet bei der Updateprüfung nur noch tatsächlich
+neuere Releases an. Gleich alte oder ältere Versionen werden nicht mehr als
+Update gemeldet. Die signierte APK und ihre SHA-256-Prüfsumme sind als
+Release-Artefakte veröffentlicht.
+
 # 0.1.20
 
 Die In-App-Updateprüfung bietet jetzt nur Releases an, die tatsächlich neuer
