@@ -1,5 +1,12 @@
 # Korbuino native Android client
 
+This is the **serverless production Android app**. The published APK is built
+from this Gradle project, not from the Flutter compatibility client in
+`../app/`. It uses direct retailer providers, stores normalized offers in Room,
+and remains usable with the Korbuino server completely stopped. Internet access
+is still needed to refresh live retailer data; previously synchronized data and
+the shopping list remain available offline.
+
 This module is a native Kotlin/Jetpack Compose application. It does not embed
 the Korbuino web UI, run a local HTTP server, or require the Korbuino Docker
 service. Retailer providers fetch public source data directly and persist the

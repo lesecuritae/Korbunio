@@ -26,7 +26,7 @@ RUN addgroup -S -g 10001 korbunio \
 
 FROM scratch AS final
 ARG PYTHON_BASE
-ARG APP_VERSION=0.1.21
+ARG APP_VERSION=0.1.22
 ARG VCS_REF=unknown
 COPY --from=runtime-rootfs / /
 LABEL org.opencontainers.image.source="https://github.com/lesecuritae/Korbunio" \

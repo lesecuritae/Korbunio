@@ -1,3 +1,13 @@
+# 0.1.22
+
+## Serverless native Android release
+
+- The published Korbuino APK is now built from the native Kotlin/Compose app
+  under `android/`.
+- Retailer data is fetched directly from the configured data sources and
+  cached in the device Room database; a Korbuino server is not required.
+- The Flutter client remains available as a server-backed compatibility client.
+
 # 0.1.21
 
 Die native Android-App bietet bei der Updateprüfung nur noch tatsächlich
