@@ -1,3 +1,18 @@
+# 0.1.17
+
+Die native Korbuino-App erhält eine eigenständige Kotlin-/Compose-Grundlage
+ohne Korbuino-Serverabhängigkeit. Angebote werden direkt über registrierte
+Android-Provider abgerufen und lokal in Room gespeichert. REWE nutzt öffentliche
+Marktseiten mit einem direkten regionalen Marktguru-Fallback; GLOBUS, ALDI
+Nord/Süd, Kaufland, Rossmann, Müller und HOL'AB! sind über öffentliche
+Angebotsseiten eingebunden. Die lokale Einkaufsliste, sichere KitchenOwl-
+Verbindung, Backup-Import/Export ohne Zugangsdaten, Offline-Bildcache und
+WorkManager-Synchronisation sind enthalten.
+
+Die Web-/Docker-Version bleibt kompatibel. Ein Android-Gerätetest ist in der
+Build-VM nicht möglich; die Provider-Fixtures, native Unit-Tests, Lint,
+Release-Build und Docker-Healthcheck wurden ausgeführt.
+
 # 0.1.16
 
 Angebote können nun direkt aus der Android-App als vorhandene Haushaltsartikel
