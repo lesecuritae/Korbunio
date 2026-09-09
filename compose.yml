@@ -9,6 +9,12 @@ services:
     init: true
     security_opt:
       - no-new-privileges:true
+    # The host resolver may rewrite blocked retailer hosts to a local
+    # filtering certificate. Use explicit public resolvers so legitimate
+    # certificate validation sees the retailer's real endpoint.
+    dns:
+      - ${SUPERMARKT_DNS_PRIMARY:-1.1.1.1}
+      - ${SUPERMARKT_DNS_SECONDARY:-8.8.8.8}
     environment:
       SUPERMARKT_DATA_DIR: ${SUPERMARKT_DATA_DIR:-/data}
       SUPERMARKT_CACHE_DB: ${SUPERMARKT_CACHE_DB:-/data/supermarkt-cache.sqlite3}

@@ -10,6 +10,8 @@
 - Docker diagnostics now distinguish an unavailable optional ALDI prospect
   host from the successfully loaded official web catalogue and clarify that
   Netto branch selection is location context, not branch stock data.
+- Docker now uses configurable public DNS resolvers by default so host-side
+  filtering cannot replace retailer certificates with a block page.
 - Added regression coverage for Aldi price and image parsing.
 
 # 0.1.28
