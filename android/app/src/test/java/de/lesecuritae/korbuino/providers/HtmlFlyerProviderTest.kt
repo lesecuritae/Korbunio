@@ -58,4 +58,38 @@ class HtmlFlyerProviderTest {
         assertEquals(179, result.offers.single().priceCents)
         assertEquals(server.url("/images/apple.jpg").toString(), result.offers.single().imageUrl)
     }
+
+    @Test fun `uses a user rendered Müller document without a second network request`() = runTest {
+        val rendered = """
+            <html><body><article data-product-id="mueller-1">
+              <h3 class="product-tile__product-name">Müller Shampoo 300 ml</h3>
+              <span data-testid="plp-currentPrice-label">2,49 €</span>
+              <img src="https://cdn.example.test/mueller.jpg">
+            </article></body></html>
+        """.trimIndent()
+        val provider = HtmlFlyerProvider(
+            "mueller", "Müller", "https://www.mueller.de/c/online-angebote/", OkHttpClient(),
+            renderedHtmlProvider = { rendered },
+        )
+
+        val result = provider.fetch(RetailerRequest("12345"))
+
+        assertEquals(1, result.offers.size)
+        assertEquals(249, result.offers.single().priceCents)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun `reports empty rendered Müller documents instead of a successful empty sync`() = runTest {
+        val provider = HtmlFlyerProvider(
+            "mueller", "Müller", "https://www.mueller.de/c/online-angebote/", OkHttpClient(),
+            renderedHtmlProvider = { "<html><body>Nur Navigation</body></html>" },
+        )
+
+        try {
+            provider.fetch(RetailerRequest("12345"))
+            error("expected empty Müller document to fail")
+        } catch (error: IllegalStateException) {
+            assertTrue(error.message.orEmpty().contains("dynamischen Angebote"))
+        }
+    }
 }

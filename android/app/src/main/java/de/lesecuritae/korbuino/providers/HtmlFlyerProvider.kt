@@ -21,19 +21,29 @@ class HtmlFlyerProvider(
     override val displayName: String,
     private val offersUrl: String,
     private val http: OkHttpClient = OkHttpClient(),
+    private val renderedHtmlProvider: (() -> String?)? = null,
 ) : RetailerProvider {
     override val challengeUrl: String get() = offersUrl
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
-        val call = Request.Builder().url(offersUrl)
-            .header("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
-            .header("Accept-Language", "de-DE,de;q=0.9")
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36")
-            .build()
-        http.newCall(call).execute().use { response ->
-            check(response.isSuccessful) { "$displayName HTTP ${response.code}" }
-            parse(response.body?.string().orEmpty())
+        val rendered = renderedHtmlProvider?.invoke()?.takeIf { it.isNotBlank() }
+        val result = if (rendered != null) {
+            parse(rendered)
+        } else {
+            val call = Request.Builder().url(offersUrl)
+                .header("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "de-DE,de;q=0.9")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36")
+                .build()
+            http.newCall(call).execute().use { response ->
+                check(response.isSuccessful) { "$displayName HTTP ${response.code}" }
+                parse(response.body?.string().orEmpty())
+            }
         }
+        if (id == "mueller" && result.offers.isEmpty()) {
+            throw IllegalStateException("Müller lieferte keine lesbaren dynamischen Angebote")
+        }
+        result
     }
 
     private fun parse(html: String): ProviderResult {
@@ -47,9 +57,11 @@ class HtmlFlyerProvider(
         cards.forEachIndexed { index, card ->
             val name = card.select(
                 "[data-product-name], [data-testid*=name], .product-name, .offer-name, " +
-                    "[data-test*=product-tile__name], .product-tile__name, .title, h2, h3, h4",
+                    "[data-test*=product-tile__name], [class*=product-tile__product-name], " +
+                    ".product-tile__name, .title, h2, h3, h4",
             ).firstOrNull()?.text()?.trim().orEmpty()
             val text = card.select("[data-price], [data-testid*=price], [data-test*=product-tile__price], " +
+                "[class*=product-price__current], [class*=product-price__price], " +
                 ".base-price--product-tile, .price, .offer-price, .product-price")
                 .firstOrNull()?.text()?.replace('\u00a0', ' ') ?: card.text().removePrefix(name)
             val price = parsePrice(text)

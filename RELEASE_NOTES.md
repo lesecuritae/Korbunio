@@ -1,3 +1,15 @@
+# 0.1.31
+
+## Müller-Angebote in der nativen App
+
+- Die Müller-Seite kann in der Android-WebView vollständig laden, auch wenn
+  der Hintergrundabruf blockiert oder nur eine dynamische Seite liefert.
+- Die App übernimmt das vom Nutzer sichtbare, gerenderte Dokument ausdrücklich
+  und parst die Angebote anschließend lokal in Room.
+- Es werden keine Cookies, Zugangsdaten oder automatischen CAPTCHA-Lösungen
+  übertragen. Der Handoff ist einmalig, kurzlebig und auf den Müller-Provider
+  begrenzt.
+
 # 0.1.30
 
 ## User-mediated Müller challenge handling

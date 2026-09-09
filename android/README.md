@@ -43,10 +43,13 @@ there is no silent installation.
 When a retailer presents a CAPTCHA or anti-bot challenge, the app offers a
 manual confirmation page restricted to the retailer and known challenge hosts.
 The user completes the check; Korbuino never solves or bypasses a CAPTCHA.
-The resulting first-party session cookie is kept in the app's private cookie
-store and the provider request is retried. A self-hosted Korbuino server can
-also be configured in the same app; its token is stored in the encrypted
-Android store. KitchenOwl remains a separate, direct HTTPS integration.
+For Müller, the page can be visible in the WebView even when the background
+request cannot parse it. Tapping the handoff button transfers the rendered
+document once to the local provider, which parses and stores the offers in
+Room. Cookies stay in the private WebView store and are not sent to a server
+or backup. A self-hosted Korbuino server can also be configured in the same
+app; its token is stored in the encrypted Android store. KitchenOwl remains a
+separate, direct HTTPS integration.
 
 The existing Flutter client under `app/` and the Docker service remain the
 compatibility implementation while native providers are migrated one by one.

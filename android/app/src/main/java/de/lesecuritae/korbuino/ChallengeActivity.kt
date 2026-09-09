@@ -10,6 +10,8 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import de.lesecuritae.korbuino.security.ChallengePolicy
+import de.lesecuritae.korbuino.providers.MuellerRenderedPageStore
+import org.json.JSONTokener
 
 /** User-mediated anti-bot step; no CAPTCHA solving or bypass is automated. */
 class ChallengeActivity : Activity() {
@@ -21,6 +23,8 @@ class ChallengeActivity : Activity() {
             finish()
             return
         }
+        val isMueller = url.contains("mueller.de", ignoreCase = true)
+        var doneButton: Button? = null
         val web = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -30,18 +34,38 @@ class ChallengeActivity : Activity() {
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, pageUrl: String) {
+                    doneButton?.isEnabled = true
+                }
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
                     !ChallengePolicy.isAllowed(request.url.toString())
             }
         }
+        lateinit var webView: WebView
         val done = Button(this).apply {
-            text = "Bestätigung fertig – erneut versuchen"
-            setOnClickListener { CookieManager.getInstance().flush(); setResult(RESULT_OK); finish() }
+            doneButton = this
+            isEnabled = false
+            text = if (isMueller) "Müller-Angebote übernehmen" else "Bestätigung fertig – erneut versuchen"
+            setOnClickListener {
+                CookieManager.getInstance().flush()
+                if (isMueller) {
+                    webView.evaluateJavascript("document.documentElement.outerHTML") { encoded ->
+                        val html = runCatching { JSONTokener(encoded).nextValue() as? String }.getOrNull()
+                        if (!html.isNullOrBlank()) MuellerRenderedPageStore.publish(html)
+                        setResult(RESULT_OK)
+                        finish()
+                    }
+                } else {
+                    setResult(RESULT_OK)
+                    finish()
+                }
+            }
         }
         val note = TextView(this).apply {
-            text = "Bitte bestätige den Händler-Check manuell. Korbuino löst keine CAPTCHAs automatisch."
+            text = "Die Müller-Seite wird direkt im Browser geladen. Wenn die Angebote sichtbar sind, tippe auf „Müller-Angebote übernehmen“. Korbuino löst keine CAPTCHAs automatisch."
             setPadding(24, 18, 24, 18)
         }
+        webView = web
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(note)

@@ -8,10 +8,13 @@ und deaktiviert weder TLS noch den Schutzmechanismus.
 
 Wenn ein direkter Abruf mit `403`, `429` oder einer Challenge fehlschlägt,
 öffnet die App die offizielle Händlerseite in einem eingebetteten WebView.
-Der Nutzer bestätigt die Prüfung selbst. Danach liest der direkte OkHttp-
-Abruf die von der WebView gesetzten Händler-Cookies und versucht den Provider
-erneut. Die Cookies werden nicht in Korbuino-Backups oder der Room-Datenbank
-gespeichert.
+Der Nutzer öffnet die Seite selbst und tippt bei Müller anschließend auf
+„Müller-Angebote übernehmen“. Die App übernimmt dafür das sichtbare,
+clientseitig gerenderte HTML-Dokument einmalig und parst es lokal; dadurch
+funktioniert der Abruf auch dann, wenn die Hintergrundanfrage eine leere
+Shell oder `403` erhält. Händler-Cookies bleiben im geschützten WebView-
+Cookie-Store und werden nicht an den Server, in Korbuino-Backups oder die
+Room-Datenbank übertragen.
 
 ## Docker-Webbetrieb
 
