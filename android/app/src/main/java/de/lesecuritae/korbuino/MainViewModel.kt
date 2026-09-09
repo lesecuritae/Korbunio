@@ -11,6 +11,7 @@ import de.lesecuritae.korbuino.data.OfferEntity
 import de.lesecuritae.korbuino.data.ProductEntity
 import de.lesecuritae.korbuino.data.ShoppingListItemEntity
 import de.lesecuritae.korbuino.data.ShoppingListRow
+import de.lesecuritae.korbuino.data.ProviderCacheEntity
 import de.lesecuritae.korbuino.providers.NetworkClientFactory
 import de.lesecuritae.korbuino.providers.ProviderRegistry
 import de.lesecuritae.korbuino.providers.RetailerRequest
@@ -190,9 +191,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 val client = KitchenOwlClient(url, token)
                 withContext(Dispatchers.IO) {
+                    // KitchenOwl synchronisation is intentionally idempotent:
+                    // do not add an article that is already on the target list.
+                    val existing = client.existingItems(target.id).map { it.trim().lowercase() }.toMutableSet()
                     database.shoppingListDao().allItems().forEach { item ->
                         val product = database.productDao().find(listOf(item.productId)).firstOrNull()
-                        if (product != null) client.addItem(target.id, product.name, "Menge: ${item.quantity}")
+                        val name = product?.name?.trim().orEmpty()
+                        if (name.isNotBlank() && existing.add(name.lowercase())) {
+                            client.addItem(target.id, name, "Menge: ${item.quantity}")
+                        }
                     }
                 }
             }.onSuccess { _state.value = _state.value.copy(message = "Einkaufsliste zu ${target.label} übertragen") }
@@ -227,9 +234,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             }
                         }
                     }
+                    database.providerDao().upsert(
+                        ProviderCacheEntity(
+                            providerId = provider.id,
+                            lastSuccess = System.currentTimeMillis(),
+                            lastError = null,
+                            offerCount = result.offers.size,
+                        ),
+                    )
                     _state.value = _state.value.copy(loading = false, message = "${result.offers.size} Angebote gespeichert")
                 }
-                .onFailure { error -> _state.value = _state.value.copy(loading = false, message = "Offline/Fehler: ${error.message}") }
+                .onFailure { error ->
+                    database.providerDao().upsert(
+                        ProviderCacheEntity(
+                            providerId = provider.id,
+                            lastFailure = System.currentTimeMillis(),
+                            lastError = error.javaClass.simpleName.take(80),
+                        ),
+                    )
+                    _state.value = _state.value.copy(loading = false, message = "Offline/Fehler: ${error.message}")
+                }
         }
     }
 

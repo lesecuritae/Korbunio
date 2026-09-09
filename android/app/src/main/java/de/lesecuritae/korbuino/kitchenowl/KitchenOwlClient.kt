@@ -64,4 +64,20 @@ class KitchenOwlClient(
         }
         call("/api/shoppinglist/$listId/add-item-by-name", body)
     }
+
+    /**
+     * Returns the article names currently present on a list.  Reading the
+     * list before synchronizing makes repeated syncs idempotent and avoids
+     * creating duplicate KitchenOwl items.  KitchenOwl may return either a
+     * flat `name` field or an embedded `item.name` depending on its version.
+     */
+    fun existingItems(listId: String): Set<String> {
+        require(listId.all(Char::isDigit)) { "Ungültige KitchenOwl-Listen-ID" }
+        val values = call("/api/shoppinglist/$listId/items") as? JsonArray ?: return emptySet()
+        return values.mapNotNull { value ->
+            val item = value as? JsonObject ?: return@mapNotNull null
+            item["name"]?.toString()?.trim('"')?.trim()?.takeIf(String::isNotBlank)
+                ?: (item["item"] as? JsonObject)?.get("name")?.toString()?.trim('"')?.trim()?.takeIf(String::isNotBlank)
+        }.toSet()
+    }
 }

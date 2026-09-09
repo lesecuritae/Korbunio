@@ -65,7 +65,11 @@ class BackupService(private val context: Context) {
         val root = json.parseToJsonElement(input.bufferedReader().use { it.readText() }).jsonObject
         val database = KorbuinoDatabase.create(context)
         try {
-            val native = runCatching { json.decodeFromJsonElement<SafeBackup>(root) }.getOrNull()
+            // The old Flutter document also contains an `items` array. Do not
+            // decode it as an empty native document merely because all native
+            // fields have defaults.
+            val isNative = root.containsKey("formatVersion") || root.containsKey("productNames") || root.containsKey("listItems")
+            val native = if (isNative) runCatching { json.decodeFromJsonElement<SafeBackup>(root) }.getOrNull() else null
             val legacyItems = root["items"]?.jsonArray.orEmpty()
             val productNames = native?.productNames ?: legacyItems
                 .mapNotNull { item -> item.jsonObject["name"]?.jsonPrimitive?.content?.trim() }

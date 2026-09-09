@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import de.lesecuritae.korbuino.data.KorbuinoDatabase
+import de.lesecuritae.korbuino.data.ProviderCacheEntity
 import de.lesecuritae.korbuino.providers.NetworkClientFactory
 import de.lesecuritae.korbuino.providers.ProviderRegistry
 import de.lesecuritae.korbuino.providers.RetailerRequest
@@ -20,7 +21,30 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
             val db = KorbuinoDatabase.create(applicationContext)
             db.productDao().upsertAll(result.products)
             db.offerDao().upsertAll(result.offers)
+            db.providerDao().upsert(
+                ProviderCacheEntity(
+                    providerId = provider.id,
+                    lastSuccess = System.currentTimeMillis(),
+                    offerCount = result.offers.size,
+                ),
+            )
             db.close()
-        }.fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })
+        }.fold(
+            onSuccess = { Result.success() },
+            onFailure = { error ->
+                runCatching {
+                    val db = KorbuinoDatabase.create(applicationContext)
+                    db.providerDao().upsert(
+                        ProviderCacheEntity(
+                            providerId = providerId,
+                            lastFailure = System.currentTimeMillis(),
+                            lastError = error.javaClass.simpleName.take(80),
+                        ),
+                    )
+                    db.close()
+                }
+                Result.retry()
+            },
+        )
     }
 }
