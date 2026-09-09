@@ -20,11 +20,15 @@ class ImageCache(private val context: Context, private val http: OkHttpClient = 
         file
     }
 
-    suspend fun download(url: String): File? = withContext(Dispatchers.IO) {
+    suspend fun download(url: String, referer: String? = null): File? = withContext(Dispatchers.IO) {
         if (url.toHttpUrlOrNull()?.scheme != "https") return@withContext null
-        val request = Request.Builder().url(url).header("User-Agent", "Korbuino/0.1").build()
+        val requestBuilder = Request.Builder().url(url).header("User-Agent", "Korbuino/0.1")
+        val host = url.toHttpUrlOrNull()?.host.orEmpty()
+        val safeReferer = referer?.takeIf { it.startsWith("https://") }
+            ?: if (host.endsWith("mg2de.b-cdn.net")) "https://www.marktguru.de/" else null
+        if (safeReferer != null) requestBuilder.header("Referer", safeReferer)
         runCatching {
-            http.newCall(request).execute().use { response ->
+            http.newCall(requestBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) return@use null
                 val body = response.body ?: return@use null
                 val file = File(directory, sha256(url))

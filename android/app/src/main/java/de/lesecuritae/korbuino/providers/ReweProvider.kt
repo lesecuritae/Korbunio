@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
+import java.net.URI
 
 /**
  * Native REWE provider. It deliberately consumes the public offer pages used
@@ -116,11 +117,22 @@ class ReweProvider(
                 validFrom = from.toString(),
                 validUntil = until.toString(),
                 sourceUrl = marketUrl,
-                imageUrl = card.select("img[src],img[data-src]").firstOrNull()?.let { it.attr("abs:src").ifBlank { it.attr("abs:data-src") } },
+                imageUrl = imageUrl(card, marketUrl),
                 cachedAt = System.currentTimeMillis(),
             )
         }
         return ProviderResult(products.distinctBy { it.id }, offers)
+    }
+
+    private fun imageUrl(card: org.jsoup.nodes.Element, pageUrl: String): String? {
+        val attributes = listOf("data-lazy-src", "data-original", "data-srcset", "srcset", "data-src", "src")
+        return attributes.asSequence().mapNotNull { attribute ->
+            card.select("img[$attribute]").firstOrNull()?.attr(attribute)?.split(',')?.asSequence()
+                ?.map { it.trim().substringBefore(' ').trim() }
+                ?.filter(String::isNotBlank)
+                ?.lastOrNull()
+                ?.let { raw -> runCatching { URI(pageUrl).resolve(raw).toString() }.getOrNull() }
+        }.firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
     }
 
     private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.GERMAN), Normalizer.Form.NFKD)

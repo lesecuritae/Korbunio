@@ -26,7 +26,7 @@ class ReweProviderTest {
             <div class="cor-offer-renderer-tile">
               <div class="cor-offer-information__title">Coca-Cola Zero 1,25 l</div>
               <span class="cor-offer-price__tag-price">1,29 €</span>
-              <img src="https://img.rewe-static.de/example.jpg" />
+              <img src="/placeholder.svg" data-srcset="/small.jpg 320w, https://img.rewe-static.de/example.jpg 1200w" />
             </div>
         """))
         val provider = ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'))
@@ -34,6 +34,7 @@ class ReweProviderTest {
         assertEquals(1, result.offers.size)
         assertEquals(129, result.offers.single().priceCents)
         assertTrue(result.products.single().name.contains("Coca-Cola"))
+        assertEquals("https://img.rewe-static.de/example.jpg", result.offers.single().imageUrl)
     }
 
     @Test fun `rejects invalid postal code before network`() = runTest {

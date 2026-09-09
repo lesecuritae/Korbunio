@@ -300,11 +300,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     // Keep first-party offer images available offline. The
                     // bound prevents a large overview from exhausting storage.
                     offers.asSequence()
-                        .mapNotNull { it.imageUrl }
-                        .filter(String::isNotBlank)
-                        .distinct()
+                        .mapNotNull { offer -> offer.imageUrl?.takeIf(String::isNotBlank)?.let { it to offer.sourceUrl } }
+                        .distinctBy { it.first }
                         .take(40)
-                        .forEach { imageCache.download(it) }
+                        .forEach { (url, referer) -> imageCache.download(url, referer) }
                     val knownImages = database.imageDao().find(products.map { it.id }).map { it.productId }.toSet()
                     // Image enrichment is deliberately bounded so a large
                     // overview cannot turn one refresh into hundreds of API calls.
@@ -359,7 +358,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val display = withContext(Dispatchers.IO) {
             offers.map { offer ->
-                val imageUrl = offer.imageUrl ?: images[offer.productId]?.imageUrl
+                val imageUrl = offer.imageUrl?.takeIf { it.isNotBlank() }
+                    ?: images[offer.productId]?.imageUrl?.takeIf { it.isNotBlank() }
                 OfferDisplay(
                     offer = offer,
                     productName = products[offer.productId]?.name ?: offer.productId,

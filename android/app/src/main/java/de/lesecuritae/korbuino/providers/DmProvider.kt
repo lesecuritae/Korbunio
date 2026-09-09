@@ -54,10 +54,12 @@ class DmProvider(
             val name = item.text("title") ?: tile["title"]?.jsonObject?.text("tileHeadline") ?: return@forEach
             val priceRoot = tile["price"]?.jsonObject ?: return@forEach
             val price = priceRoot["price"]?.jsonObject?.get("current")?.jsonObject
-                ?.text("value")?.toEuro() ?: return@forEach
+                ?.text("value")?.let(ProviderParsing::price) ?: return@forEach
             val productId = item.text("id", "productId") ?: "${id}-${slug(name)}"
-            val image = tile["images"]?.jsonArray?.firstOrNull()?.let { runCatching { it.jsonObject.text("url", "src") }.getOrNull() }
-            products += ProductEntity("dm-product-$productId", name, brand = item.text("brandName").orEmpty(), normalizedKey = slug(name))
+            val image = tile["images"]?.jsonArray?.asSequence()
+                ?.mapNotNull { runCatching { it.jsonObject.text("tileSrc", "url", "src") }.getOrNull() }
+                ?.firstOrNull { !it.isNullOrBlank() }
+            products += ProductEntity("dm-product-$productId", name, brand = item.text("brandName").orEmpty(), normalizedKey = slug(name), gtin = item.text("gtin"))
             offers += OfferEntity(
                 id = "$id:$productId", retailerId = id, productId = "dm-product-$productId",
                 externalId = productId, priceCents = (price * 100).toInt(),
@@ -72,6 +74,5 @@ class DmProvider(
         .mapNotNull { key -> runCatching { this[key]?.jsonPrimitive?.content?.trim() }.getOrNull() }
         .firstOrNull { it.isNotBlank() }
 
-    private fun String.toEuro(): Double = replace(".", "").replace(',', '.').trim().toDoubleOrNull() ?: 0.0
     private fun slug(value: String): String = value.lowercase().replace("[^a-z0-9]+".toRegex(), "-").trim('-')
 }

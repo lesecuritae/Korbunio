@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
+import java.net.URI
 import java.text.Normalizer
 import java.util.Locale
 
@@ -94,13 +95,21 @@ class HtmlFlyerProvider(
     }
 
     private fun imageUrl(card: org.jsoup.nodes.Element): String? {
-        val attributes = listOf("data-src", "data-original", "data-srcset", "srcset", "src")
+        val attributes = listOf(
+            "data-lazy-src", "data-original", "data-image", "data-zoom-image",
+            "data-srcset", "srcset", "data-src", "src",
+        )
         return attributes.asSequence().mapNotNull { attribute ->
             card.select("img[$attribute]").firstOrNull()?.let { image ->
-                val raw = image.attr(attribute).substringBefore(',').substringBefore(' ').trim()
-                if (raw.isBlank()) null else image.absUrl(attribute).ifBlank { raw }
+                val raw = image.attr(attribute).split(',').asSequence()
+                    .map { it.trim().substringBefore(' ').trim() }
+                    .filter(String::isNotBlank)
+                    .lastOrNull()
+                    ?: return@let null
+                if (raw.startsWith("data:") || raw.startsWith("javascript:")) return@let null
+                runCatching { URI(offersUrl).resolve(raw).toString() }.getOrNull()
             }
-        }.firstOrNull { it.isNotBlank() }
+        }.firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
     }
 
     private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.GERMAN), Normalizer.Form.NFKD)

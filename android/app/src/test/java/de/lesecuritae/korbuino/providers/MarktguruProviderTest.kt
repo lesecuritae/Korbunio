@@ -29,6 +29,17 @@ class MarktguruProviderTest {
         assertEquals("a", server.takeRequest().getHeader("x-apikey"))
     }
 
+    @Test fun `keeps dot decimal prices and resolves image metadata`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        server.enqueue(MockResponse().setBody("""
+            {"results":[{"id":"24731503","imageType":"offer","images":{"count":1,"metadata":[{"aspectRatio":1.0}]},"product":{"name":"Apple iPhone 17 Salbei"},"price":"2.76"}]}
+        """))
+        val provider = MarktguruProvider("Netto Marken-Discount", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString())
+        val result = provider.fetch(RetailerRequest("12345"))
+        assertEquals(276, result.offers.single().priceCents)
+        assertEquals("https://mg2de.b-cdn.net/api/v1/offers/24731503/images/default/0/medium.jpg", result.offers.single().imageUrl)
+    }
+
     @Test fun `follows all result pages instead of stopping at the first hundred`() = runTest {
         server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
         val firstPage = (1..100).joinToString(",") { index ->

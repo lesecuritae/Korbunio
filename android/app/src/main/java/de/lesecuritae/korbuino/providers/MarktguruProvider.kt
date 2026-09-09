@@ -93,7 +93,7 @@ class MarktguruProvider(
                 ?: number(product, "price", "currentPrice") ?: return@forEachIndexed
             val external = text(item, "id", "offerId") ?: "$index-${slug(name)}"
             val productId = "$id-product-${slug(name)}"
-            val image = text(product, "image", "imageUrl", "image_url")
+            val image = ProviderParsing.imageUrl(item, product)
             products += ProductEntity(productId, name, normalizedKey = slug(name))
             offers += OfferEntity(
                 id = "$id:$external", retailerId = id, productId = productId,
@@ -109,8 +109,7 @@ class MarktguruProvider(
         .mapNotNull { key -> runCatching { obj[key]?.jsonPrimitive?.content?.trim() }.getOrNull() }
         .firstOrNull { it.isNotBlank() }
 
-    private fun number(obj: JsonObject, vararg keys: String): Double? = text(obj, *keys)
-        ?.replace("€", "")?.replace(".", "")?.replace(',', '.')?.trim()?.toDoubleOrNull()
+    private fun number(obj: JsonObject, vararg keys: String): Double? = ProviderParsing.price(text(obj, *keys))
 
     private fun firstKey(html: String, vararg names: String): String? = names.asSequence()
         .mapNotNull { name -> Regex("[\\\"']$name[\\\"']\\s*[:=]\\s*[\\\"']([^\\\"']+)").find(html)?.groupValues?.get(1) }

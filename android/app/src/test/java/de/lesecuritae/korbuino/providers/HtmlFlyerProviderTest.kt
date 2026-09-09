@@ -59,6 +59,16 @@ class HtmlFlyerProviderTest {
         assertEquals(server.url("/images/apple.jpg").toString(), result.offers.single().imageUrl)
     }
 
+    @Test fun `uses the highest priority direct image from srcset`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            <article class="product-tile"><img src="/placeholder.svg" data-srcset="/small.jpg 320w, /large.jpg 1200w">
+              <h3>Produkt</h3><span class="price">1,79 €</span>
+            </article>
+        """))
+        val provider = HtmlFlyerProvider("test", "Test", server.url("/angebote").toString(), OkHttpClient())
+        assertEquals(server.url("/large.jpg").toString(), provider.fetch(RetailerRequest("12345")).offers.single().imageUrl)
+    }
+
     @Test fun `uses a user rendered Müller document without a second network request`() = runTest {
         val rendered = """
             <html><body><article data-product-id="mueller-1">

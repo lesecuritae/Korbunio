@@ -1,3 +1,12 @@
+# 0.1.32
+
+## Netto-Preise und Händlerbilder in der nativen App
+
+- Marktguru-Preise mit Dezimalpunkt werden korrekt als Europreise verarbeitet; dadurch bleibt beispielsweise 2,76 € auch in der Netto-Auswahl 2,76 €.
+- Marktguru-Bilder aus `images`-Metadaten werden direkt von der App erkannt und zwischengespeichert.
+- REWE, ALDI, dm, Rossmann und Müller berücksichtigen zusätzliche Lazy-Image- und `srcset`-Varianten der offiziellen Webseiten.
+- Leere Bild-URLs blockieren keinen bereits vorhandenen Bild-Fallback mehr.
+
 # 0.1.31
 
 ## Müller-Angebote in der nativen App

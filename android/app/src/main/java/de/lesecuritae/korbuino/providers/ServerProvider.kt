@@ -10,6 +10,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -36,12 +37,13 @@ class ServerProvider(
                 response.body?.string().orEmpty()
             },
         ).jsonObject
+        val resultRoot = if (root["offers"]?.jsonArray?.isNotEmpty() == true) root else fetchResult(root)
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
-        root["offers"]?.jsonArray.orEmpty().forEachIndexed { index, element ->
+        resultRoot["offers"]?.jsonArray.orEmpty().forEachIndexed { index, element ->
             val item = element.jsonObject
-            val name = item.text("name") ?: return@forEachIndexed
-            val price = item.number("price") ?: return@forEachIndexed
+            val name = item.text("product") ?: item.text("name") ?: return@forEachIndexed
+            val price = item.number("regular_price") ?: item.number("price") ?: return@forEachIndexed
             val retailer = item.text("retailer") ?: "Unbekannt"
             val external = item.text("offer_id") ?: "$index-${name.lowercase().hashCode()}"
             val productId = "server-product-${name.lowercase().hashCode()}"
@@ -51,12 +53,32 @@ class ServerProvider(
                 externalId = external, priceCents = (price * 100).toInt(),
                 basePriceCents = item.number("base_price")?.let { (it * 100).toInt() },
                 categoryId = item.text("category"), sourceUrl = item.text("source_url").orEmpty(),
-                imageUrl = item.text("image_url"), cachedAt = System.currentTimeMillis(),
+                imageUrl = item.text("image_url")?.let { image ->
+                    val parsed = image.toHttpUrlOrNull()
+                    if (parsed != null && parsed.host.isNotBlank()) image
+                    else baseUrl.trimEnd('/') + "/" + image.trimStart('/')
+                }, cachedAt = System.currentTimeMillis(),
             )
         }
         ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
     }
 
+    private fun fetchResult(compare: JsonObject): JsonObject {
+        val resultUrl = compare.text("result_url") ?: return compare
+        val parsed = resultUrl.toHttpUrlOrNull() ?: return compare
+        val path = if (parsed.encodedPath.startsWith("/api/v1/")) parsed.encodedPath
+        else "/api/v1${parsed.encodedPath}"
+        val url = parsed.newBuilder().encodedPath(path).build()
+        val requestBuilder = Request.Builder().url(url).header("Accept", "application/json")
+        if (token.isNotBlank()) requestBuilder.header("Authorization", "Bearer $token")
+        return json.parseToJsonElement(
+            http.newCall(requestBuilder.build()).execute().use { response ->
+                check(response.isSuccessful) { "Korbuino Ergebnis HTTP ${response.code}" }
+                response.body?.string().orEmpty()
+            },
+        ).jsonObject
+    }
+
     private fun JsonObject.text(key: String): String? = runCatching { this[key]?.jsonPrimitive?.content?.trim() }.getOrNull()?.ifBlank { null }
-    private fun JsonObject.number(key: String): Double? = text(key)?.replace(',', '.')?.toDoubleOrNull()
+    private fun JsonObject.number(key: String): Double? = ProviderParsing.price(text(key))
 }
