@@ -1,3 +1,7 @@
+# 0.1.20
+
+Die native Angebotsansicht zeigt Produktnamen, Preise und lokal gecachte Händler- oder Produktbilder. Händlerbilder werden beim Abruf begrenzt lokal gespeichert und bleiben bei erneutem Offlinebetrieb verfügbar. Die Provider-Registry und die lokale Provider-Historie bleiben unverändert serverlos.
+
 # 0.1.19
 
 Die native Android-Basis wurde für den praktischen Offline-Betrieb gehärtet. Legacy-KorbKlar-Backups werden zuverlässig erkannt und ohne Zugangsdaten in Room übernommen. KitchenOwl-Synchronisationen lesen vorhandene Listeneinträge und vermeiden dadurch Duplikate bei wiederholten Übertragungen. Provider-Erfolg und -Fehler werden lokal für die Betriebsanzeige gespeichert.
