@@ -1,3 +1,13 @@
+# 0.1.25
+
+## Native visual parity with KorbKlar
+
+- Added a dedicated, card-based offers screen with retailer, category,
+  price, image and shopping-list actions.
+- Added matching green light/dark design tokens and automatic phone theme
+  selection.
+- Preserved the serverless multi-retailer data flow.
+
 # 0.1.24
 
 ## Native offers overview, location and system theme

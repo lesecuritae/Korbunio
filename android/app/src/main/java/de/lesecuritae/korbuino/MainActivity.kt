@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,6 +24,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.Image
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -30,6 +33,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
@@ -45,9 +49,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.lifecycleScope
@@ -133,7 +143,25 @@ private fun KorbuinoApp(
         if (!state.loading && state.offers.isNotEmpty()) showOverview = true
     }
     val dark = isSystemInDarkTheme()
-    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+    val lightScheme = lightColorScheme(
+        primary = Color(0xFF116149),
+        onPrimary = Color.White,
+        background = Color(0xFFF4F7F5),
+        surface = Color(0xFFF4F7F5),
+        surfaceVariant = Color.White,
+        onSurface = Color(0xFF14201B),
+        outline = Color(0xFFDCE5E0),
+    )
+    val darkScheme = darkColorScheme(
+        primary = Color(0xFF72D5A6),
+        onPrimary = Color(0xFF10231B),
+        background = Color(0xFF111318),
+        surface = Color(0xFF111318),
+        surfaceVariant = Color(0xFF191C22),
+        onSurface = Color(0xFFF1F3F5),
+        outline = Color(0xFF303641),
+    )
+    MaterialTheme(colorScheme = if (dark) darkScheme else lightScheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
             if (showOverview && state.offers.isNotEmpty()) {
                 OfferOverview(
@@ -143,7 +171,7 @@ private fun KorbuinoApp(
                     openChallenge = openChallenge,
                 )
             } else Column(
-                modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("Korbuino", style = MaterialTheme.typography.headlineMedium)
@@ -287,21 +315,38 @@ private fun OfferOverview(
         Text(state.message)
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
             items(visibleOffers, key = { it.offer.id }) { offer ->
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
                 ) {
-                    OfferThumbnail(offer.imagePath)
-                    Column {
-                        Text(offer.productName)
-                        Text(offer.offer.retailerId, style = MaterialTheme.typography.labelMedium)
-                        offer.offer.categoryId?.takeIf { it.isNotBlank() }?.let { category ->
-                            Text(category, style = MaterialTheme.typography.bodySmall)
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            OfferThumbnail(offer.imagePath)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Text(offer.productName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                offer.offer.categoryId?.takeIf { it.isNotBlank() }?.let { category ->
+                                    Text(category, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                }
+                                offer.offer.basePriceCents?.let { base ->
+                                    Text("Grundpreis ${base / 100},${(base % 100).toString().padStart(2, '0')} €", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Text(
+                                "${offer.offer.priceCents / 100},${(offer.offer.priceCents % 100).toString().padStart(2, '0')} €",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                         }
-                        Text(
-                            "${offer.offer.priceCents / 100},${(offer.offer.priceCents % 100).toString().padStart(2, '0')} €",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { viewModel.addShoppingItem(offer.productName) }) { Text("Zur Einkaufsliste") }
+                            if (state.kitchenTargets.isNotEmpty()) {
+                                TextButton(onClick = { viewModel.syncKitchenOwl(state.kitchenTargets.first()) }) { Text("Auf KitchenOwl") }
+                            }
+                        }
                     }
                 }
             }
@@ -316,12 +361,15 @@ private fun OfferThumbnail(path: String?) {
         bitmapState.value = path?.let { withContext(Dispatchers.IO) { BitmapFactory.decodeFile(it) } }
     }
     val bitmap = bitmapState.value
-    if (bitmap != null) {
-        Image(
+    Box(
+        modifier = Modifier.size(68.dp).background(MaterialTheme.colorScheme.background, RoundedCornerShape(10.dp)),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        if (bitmap != null) Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.size(56.dp).padding(top = 2.dp),
-        )
+            modifier = Modifier.size(62.dp).padding(3.dp),
+        ) else Text("🛒", style = MaterialTheme.typography.titleLarge)
     }
 }

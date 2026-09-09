@@ -38,6 +38,10 @@ and select another retailer set. A user-triggered Android location lookup can
 fill a German PLZ and starts the same overview automatically. The Compose
 theme follows the device light/dark setting.
 
+The native result cards follow the established KorbKlar visual language:
+rounded panels, green accent colors, product imagery, retailer/category
+metadata, prices and shopping-list actions.
+
 ## Background and data safety
 
 WorkManager is used only for opt-in periodic synchronization. Manual mode is

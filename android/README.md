@@ -61,3 +61,6 @@ The overview opens as its own screen after a successful load. A location
 button can resolve a German postal code with a user-approved Android location
 permission; manual PLZ entry remains supported. Compose follows the phone's
 light or dark system setting.
+
+Offer results use the KorbKlar-style card layout with product image, retailer,
+category, price, base price and direct shopping-list actions.
