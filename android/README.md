@@ -20,5 +20,10 @@ Background work is opt-in and scheduled with WorkManager. Manual mode is the
 default; daily mode can require Wi-Fi and charging. A failed sync keeps the
 last successful Room snapshot.
 
+The native settings surface can check the latest GitHub release, download an
+HTTPS APK, verify an optional SHA-256 sidecar, and hand installation to the
+Android package installer. Android signature validation remains in control;
+there is no silent installation.
+
 The existing Flutter client under `app/` and the Docker service remain the
 compatibility implementation while native providers are migrated one by one.

@@ -21,7 +21,7 @@ object BackgroundScheduler {
     private const val OFFER_SYNC = "korbuino-offer-sync"
     private const val CACHE_MAINTENANCE = "korbuino-cache-maintenance"
 
-    fun apply(context: Context, settings: BackgroundSettings, postalCode: String, citySlug: String) {
+    fun apply(context: Context, settings: BackgroundSettings, postalCode: String, citySlug: String, providerId: String = "rewe") {
         val manager = WorkManager.getInstance(context)
         val maintenance = PeriodicWorkRequestBuilder<CacheMaintenanceWorker>(1, TimeUnit.DAYS).build()
         manager.enqueueUniquePeriodicWork(CACHE_MAINTENANCE, ExistingPeriodicWorkPolicy.UPDATE, maintenance)
@@ -37,7 +37,7 @@ object BackgroundScheduler {
             .build()
         val request = PeriodicWorkRequestBuilder<OfferSyncWorker>(1, TimeUnit.DAYS)
             .setConstraints(constraints)
-            .setInputData(androidx.work.workDataOf("postal_code" to postalCode, "city_slug" to citySlug))
+            .setInputData(androidx.work.workDataOf("postal_code" to postalCode, "city_slug" to citySlug, "provider_id" to providerId))
             .build()
         manager.enqueueUniquePeriodicWork(OFFER_SYNC, ExistingPeriodicWorkPolicy.UPDATE, request)
     }

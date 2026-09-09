@@ -33,6 +33,14 @@ Provider failures never delete offers, lists, favorites, images, or settings.
 Credentials belong in the Android Keystore-backed secure store and are not
 part of JSON export or backup files.
 
+## Updates
+
+Native updates are read from the public GitHub Releases API. The app only
+accepts HTTPS APK URLs, verifies a published `.sha256` sidecar when present,
+and starts the normal Android installation dialog through a `FileProvider`.
+No background or silent installation is attempted, and a release signing key
+is never stored in the repository.
+
 ## Migration boundary
 
 The Flutter client and Docker service remain available during the provider
