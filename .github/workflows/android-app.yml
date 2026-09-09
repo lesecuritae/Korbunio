@@ -10,6 +10,7 @@ on:
       - main
     paths:
       - "app/**"
+      - "android/**"
       - ".github/workflows/android-app.yml"
   workflow_dispatch:
 
@@ -97,3 +98,26 @@ jobs:
             echo "The APK is signed with Korbunio's persistent release key and can"
             echo "be updated by future Korbunio releases without losing app data."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  native-kotlin:
+    name: Native Kotlin Android checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Build native debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+      - name: Run native unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest
+      - name: Android lint
+        working-directory: android
+        run: ./gradlew lintDebug

@@ -1,7 +1,10 @@
-# Korbunio App
+# Korbunio Flutter compatibility app
 
 Offline-first Flutter client for Android, styled after the web interface and
 optionally connected to any self-hosted [Korbunio](../README.md) server.
+
+The native Kotlin/Jetpack Compose client is under [`../android/`](../android/).
+This Flutter client remains available during the provider migration.
 
 The app is a view, not a second implementation. Retailer adapters,
 normalisation, unit prices, comparison groups and loyalty logic all stay on the

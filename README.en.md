@@ -8,6 +8,15 @@
 
 ![Korbunio](docs/readme-header.svg)
 
+## Native Android app
+
+The Kotlin/Jetpack Compose client in [`android/`](android/) is being migrated
+to a serverless, offline-first architecture. It stores normalized data in Room,
+uses WorkManager for opt-in background work, keeps credentials in the Android
+Keystore, and fetches the first direct retailer source (REWE) without a
+Korbunio server. The existing Flutter client in [`app/`](app/) remains the
+compatibility client while the remaining retailer providers are migrated.
+
 Korbunio is a self-hosted service for comparing current regional supermarket offers in Germany. In normal use, the user only enters a German postal code. Korbunio discovers matching retailers and stores, retrieves current weekly offers, normalizes product names and package sizes, keeps package size separate from unit-price reference quantities, and compares identical or meaningfully comparable products. Loyalty programs can be included optionally, and results are presented in an interactive web interface.
 
 It does more than list leaflet prices: the comparison engine cleans inconsistent source data and presents price, actual package size, and unit price separately so differences between retailers and package formats remain understandable.

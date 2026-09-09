@@ -2,6 +2,11 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.toolchain/
+.gradle/
+local.properties
+**/local.properties
+*.jks
 .env
 *.sqlite3
 *.sqlite3-wal
