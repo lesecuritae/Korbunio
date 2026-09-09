@@ -1,6 +1,7 @@
 package de.lesecuritae.korbuino
 
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.lesecuritae.korbuino.data.KorbuinoDatabase
@@ -14,6 +15,8 @@ import de.lesecuritae.korbuino.providers.RetailerRequest
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlClient
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlTarget
 import de.lesecuritae.korbuino.security.SecureStore
+import de.lesecuritae.korbuino.update.UpdateInfo
+import de.lesecuritae.korbuino.update.UpdateService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +33,7 @@ data class MainUiState(
     val shoppingItems: List<ShoppingListRow> = emptyList(),
     val kitchenOwlUrl: String = "",
     val kitchenTargets: List<KitchenOwlTarget> = emptyList(),
+    val update: UpdateInfo? = null,
     val message: String = "Noch keine Angebote geladen",
 )
 
@@ -70,6 +74,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun kitchenOwlUrl(value: String) { _state.value = _state.value.copy(kitchenOwlUrl = value.take(200)) }
+
+    fun checkUpdate() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(message = "Nach Updates wird gesucht …")
+            runCatching { withContext(Dispatchers.IO) { UpdateService(getApplication()).check() } }
+                .onSuccess { update ->
+                    _state.value = _state.value.copy(update = update, message = update?.let { "Update ${it.version} verfügbar" } ?: "Kein Update verfügbar")
+                }
+                .onFailure { error -> _state.value = _state.value.copy(message = "Updateprüfung: ${error.message}") }
+        }
+    }
+
+    fun installUpdate(info: UpdateInfo, start: (Intent) -> Unit) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(loading = true, message = "Update wird geladen …")
+            runCatching {
+                val service = UpdateService(getApplication())
+                withContext(Dispatchers.IO) { service.install(service.download(info)) }
+            }.onSuccess { intent ->
+                _state.value = _state.value.copy(loading = false, message = "Installationsdialog wird geöffnet")
+                start(intent)
+            }.onFailure { error -> _state.value = _state.value.copy(loading = false, message = "Update: ${error.message}") }
+        }
+    }
 
     fun connectKitchenOwl(url: String, token: String) {
         viewModelScope.launch {

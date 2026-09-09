@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
 private fun KorbuinoApp() {
     val viewModel: MainViewModel = viewModel()
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -82,6 +84,12 @@ private fun KorbuinoApp() {
                     else Text("Angebote laden")
                 }
                 Text(state.message)
+                Button(onClick = viewModel::checkUpdate) { Text("Nach Updates suchen") }
+                state.update?.let { update ->
+                    Button(onClick = { viewModel.installUpdate(update) { context.startActivity(it) } }, enabled = !state.loading) {
+                        Text("Update ${update.version} installieren")
+                    }
+                }
                 var itemText by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
                 Text("Einkaufsliste", style = MaterialTheme.typography.titleLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
