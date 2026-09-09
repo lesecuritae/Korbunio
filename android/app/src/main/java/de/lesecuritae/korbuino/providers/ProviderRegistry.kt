@@ -12,7 +12,10 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                 ReweProvider(http, fallback = MarktguruProvider("REWE", http)),
                 GlobusProvider(http),
                 HtmlFlyerProvider("aldi-nord", "ALDI Nord", "https://www.aldi-nord.de/angebote.html", http),
-                HtmlFlyerProvider("aldi-sued", "ALDI Süd", "https://www.aldi-sued.de/angebote", http),
+                HtmlFlyerProvider(
+                    "aldi-sued", "ALDI Süd", "https://www.aldi-sued.de/angebote", http,
+                    renderedHtmlProvider = { RenderedPageStore.consume("https://www.aldi-sued.de/angebote") },
+                ),
                 HtmlFlyerProvider("kaufland", "Kaufland", "https://filiale.kaufland.de/angebote/uebersicht.html?kloffer-week=current", http),
                 HtmlFlyerProvider("rossmann", "Rossmann", "https://www.rossmann.de/de/angebote/m/angebote/", http),
                 HtmlFlyerProvider(

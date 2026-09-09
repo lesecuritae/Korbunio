@@ -11,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import de.lesecuritae.korbuino.security.ChallengePolicy
 import de.lesecuritae.korbuino.providers.MuellerRenderedPageStore
+import de.lesecuritae.korbuino.providers.RenderedPageStore
 import org.json.JSONTokener
 
 /** User-mediated anti-bot step; no CAPTCHA solving or bypass is automated. */
@@ -24,6 +25,8 @@ class ChallengeActivity : Activity() {
             return
         }
         val isMueller = url.contains("mueller.de", ignoreCase = true)
+        val isAldiSouth = url.contains("aldi-sued.de", ignoreCase = true)
+        val supportsRenderedHandoff = isMueller || isAldiSouth
         var doneButton: Button? = null
         val web = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -45,13 +48,18 @@ class ChallengeActivity : Activity() {
         val done = Button(this).apply {
             doneButton = this
             isEnabled = false
-            text = if (isMueller) "Müller-Angebote übernehmen" else "Bestätigung fertig – erneut versuchen"
+            text = when {
+                isMueller -> "Müller-Angebote übernehmen"
+                isAldiSouth -> "ALDI Süd-Angebote übernehmen"
+                else -> "Bestätigung fertig – erneut versuchen"
+            }
             setOnClickListener {
                 CookieManager.getInstance().flush()
-                if (isMueller) {
+                if (supportsRenderedHandoff) {
                     webView.evaluateJavascript("document.documentElement.outerHTML") { encoded ->
                         val html = runCatching { JSONTokener(encoded).nextValue() as? String }.getOrNull()
-                        if (!html.isNullOrBlank()) MuellerRenderedPageStore.publish(html)
+                        if (isMueller && !html.isNullOrBlank()) MuellerRenderedPageStore.publish(html)
+                        if (!html.isNullOrBlank()) RenderedPageStore.publish(url, html)
                         setResult(RESULT_OK)
                         finish()
                     }
@@ -62,7 +70,11 @@ class ChallengeActivity : Activity() {
             }
         }
         val note = TextView(this).apply {
-            text = "Die Müller-Seite wird direkt im Browser geladen. Wenn die Angebote sichtbar sind, tippe auf „Müller-Angebote übernehmen“. Korbuino löst keine CAPTCHAs automatisch."
+            text = if (supportsRenderedHandoff) {
+                "Die Händlerseite wird direkt im Browser geladen. Wenn die Angebote sichtbar sind, tippe auf „${if (isMueller) "Müller" else "ALDI Süd"}-Angebote übernehmen“. Korbuino löst keine CAPTCHAs automatisch."
+            } else {
+                "Die Händlerseite wird direkt im Browser geladen. Wenn die Bestätigung abgeschlossen ist, tippe auf „Bestätigung fertig – erneut versuchen“. Korbuino löst keine CAPTCHAs automatisch."
+            }
             setPadding(24, 18, 24, 18)
         }
         webView = web
