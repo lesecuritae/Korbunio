@@ -26,10 +26,15 @@ RUN addgroup -S -g 10001 korbunio \
 
 FROM scratch AS final
 ARG PYTHON_BASE
-ARG APP_VERSION=0.1.8
+ARG APP_VERSION=0.1.19
+ARG VCS_REF=unknown
 COPY --from=runtime-rootfs / /
 LABEL org.opencontainers.image.source="https://github.com/lesecuritae/Korbunio" \
+      org.opencontainers.image.title="Korbunio" \
+      org.opencontainers.image.description="Self-hosted comparison of regional supermarket offers" \
       org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.licenses="BSD-3-Clause" \
       org.opencontainers.image.base.name="${PYTHON_BASE}"
 # trivy:ignore:AVD-DS-0031 -- this is a path to a runtime-generated file, not secret material.
 ENV PYTHONDONTWRITEBYTECODE=1 \

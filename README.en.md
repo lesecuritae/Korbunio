@@ -15,7 +15,8 @@ to a serverless, offline-first architecture. It stores normalized data in Room,
 uses WorkManager for opt-in background work, keeps credentials in the Android
 Keystore, and fetches retailer sources directly without a Korbunio server.
 The native registry currently covers REWE, GLOBUS, ALDI Nord, ALDI Süd,
-Kaufland, Rossmann, Müller and HOL'AB!. The existing Flutter client in
+Kaufland, Rossmann, Müller, HOL'AB!, both Netto variants and dm, plus
+regional Marktguru sources for Combi, famila Nordwest, Lidl and PENNY. The existing Flutter client in
 [`app/`](app/) remains the compatibility client while further provider flows
 are migrated.
 

@@ -15,7 +15,8 @@ serverlosen, offlinefähigen App ausgebaut. Er speichert normalisierte Daten in
 Room, verwendet WorkManager für optionale Hintergrundaufgaben, hält Zugangsdaten
 im Android-Keystore und ruft Händlerquellen direkt ohne Korbunio-Server ab.
 Das native Register deckt derzeit REWE, GLOBUS, ALDI Nord, ALDI Süd,
-Kaufland, Rossmann, Müller und HOL'AB! ab. Der bestehende Flutter-Client unter
+Kaufland, Rossmann, Müller, HOL'AB!, beide Netto-Varianten und dm sowie
+regionale Marktguru-Quellen für Combi, famila Nordwest, Lidl und PENNY ab. Der bestehende Flutter-Client unter
 [`app/`](app/) bleibt während der Migration als kompatible Version erhalten,
 während weitere Händlerintegrationen umgestellt werden.
 

@@ -1,3 +1,9 @@
+# 0.1.19
+
+Die native Android-Basis wurde für den praktischen Offline-Betrieb gehärtet. Legacy-KorbKlar-Backups werden zuverlässig erkannt und ohne Zugangsdaten in Room übernommen. KitchenOwl-Synchronisationen lesen vorhandene Listeneinträge und vermeiden dadurch Duplikate bei wiederholten Übertragungen. Provider-Erfolg und -Fehler werden lokal für die Betriebsanzeige gespeichert.
+
+Die direkte REWE-Anbindung bleibt bewusst auf öffentliche Angebotsseiten und einen regionalen Marktguru-Fallback beschränkt; Anti-Bot-Sperren werden nicht durch geheime App-Schlüssel oder TLS-Umgehungen ausgehebelt.
+
 # 0.1.18
 
 Die native Android-App erweitert die direkte Händlerabdeckung um Netto
