@@ -1,3 +1,12 @@
+# 0.1.18
+
+Die native Android-App erweitert die direkte Händlerabdeckung um Netto
+Marken-Discount, Netto mit Hund, dm sowie regionale Combi-, famila-, Lidl- und
+PENNY-Abfragen. Ein nativer GitHub-Release-Updater lädt ausschließlich HTTPS-
+APKs, prüft optionale SHA-256-Beipackdateien und übergibt die Installation an
+Android. WorkManager aktualisiert nun den ausgewählten Händler statt fest nur
+REWE zu synchronisieren.
+
 # 0.1.17
 
 Die native Korbuino-App erhält eine eigenständige Kotlin-/Compose-Grundlage

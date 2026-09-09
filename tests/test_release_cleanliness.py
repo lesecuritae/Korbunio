@@ -115,7 +115,7 @@ def test_runtime_version_matches_package_metadata():
     metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert metadata["project"]["version"] == __version__
     assert USER_AGENT == f"korbunio/{__version__}"
-    assert __version__ == "0.1.17"
+    assert __version__ == "0.1.18"
 
 
 def test_default_host_port_is_configurable_without_changing_container_port():
