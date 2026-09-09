@@ -64,3 +64,7 @@ light or dark system setting.
 
 Offer results use the KorbKlar-style card layout with product image, retailer,
 category, price, base price and direct shopping-list actions.
+The overview also provides an `Alle Händler` selector, individual retailer
+filters and retailer/product sorting like the Docker client.
+Connection settings for an optional self-hosted server and KitchenOwl are
+available from the gear icon in the home and offers screens.

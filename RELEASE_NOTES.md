@@ -1,3 +1,15 @@
+# 0.1.26
+
+## Retailer filtering and sorting
+
+- Added a retailer selector directly to the native offers overview.
+- Added `Alle Händler` and individual retailer filters like the Docker client.
+- The combined overview is now sorted by retailer and product name.
+- Moved the self-hosted server and KitchenOwl connections into a dedicated
+  settings screen reachable from the gear icon in the home and offers views.
+- Saved KitchenOwl endpoints are restored when the app starts; credentials
+  remain in the encrypted secure store.
+
 # 0.1.25
 
 ## Native visual parity with KorbKlar

@@ -76,7 +76,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val saved = withContext(Dispatchers.IO) {
             Triple(secureStore.get("postal_code").orEmpty(), secureStore.get("city").orEmpty(), secureStore.get("retailer_id") ?: "all")
             }
-            _state.value = _state.value.copy(postalCode = saved.first, city = saved.second, retailerId = saved.third, dailySync = secureStore.get("daily_sync") == "true", serverUrl = secureStore.get("server_url").orEmpty(), serverToken = secureStore.get("server_token").orEmpty(), serverMode = secureStore.get("server_mode") == "true")
+            _state.value = _state.value.copy(postalCode = saved.first, city = saved.second, retailerId = saved.third, dailySync = secureStore.get("daily_sync") == "true", serverUrl = secureStore.get("server_url").orEmpty(), serverToken = secureStore.get("server_token").orEmpty(), serverMode = secureStore.get("server_mode") == "true", kitchenOwlUrl = secureStore.get("kitchenowl_url").orEmpty())
             // Match the established KorbKlar flow: with a stored location,
             // the complete offer overview starts loading as soon as the app
             // opens. The user can still start it manually after changing the

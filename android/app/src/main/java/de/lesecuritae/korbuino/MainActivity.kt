@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
@@ -139,6 +141,7 @@ private fun KorbuinoApp(
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(viewModel::exportBackup) }
     val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importBackup) }
     var showOverview by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.offers.size, state.loading) {
         if (!state.loading && state.offers.isNotEmpty()) showOverview = true
     }
@@ -168,14 +171,24 @@ private fun KorbuinoApp(
                     state = state,
                     viewModel = viewModel,
                     onBack = { showOverview = false },
+                    openSettings = { showOverview = false; showSettings = true },
                     openChallenge = openChallenge,
                 )
+            } else if (showSettings) {
+                AppSettings(state = state, viewModel = viewModel, onBack = { showSettings = false })
             } else Column(
                 modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Korbuino", style = MaterialTheme.typography.headlineMedium)
-                Text("Serverlose native Android-App", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Korbuino", style = MaterialTheme.typography.headlineMedium)
+                        Text("Serverlose native Android-App", style = MaterialTheme.typography.titleMedium)
+                    }
+                    IconButton(onClick = { showSettings = true }) {
+                        Text("⚙", style = MaterialTheme.typography.headlineSmall)
+                    }
+                }
                 Text("Angebote werden direkt abgerufen und lokal gespeichert.")
                 var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                 androidx.compose.foundation.layout.Box {
@@ -210,11 +223,6 @@ private fun KorbuinoApp(
                     else Text("Angebote laden")
                 }
                 Text(state.message)
-                OutlinedTextField(value = state.serverUrl, onValueChange = viewModel::serverUrl, label = { Text("Eigener Korbuino-Server (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = state.serverToken, onValueChange = viewModel::serverToken, label = { Text("Server-Token (optional im LAN)") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
-                Button(onClick = { viewModel.setServerMode(!state.serverMode) }) {
-                    Text(if (state.serverMode) "Servermodus deaktivieren" else "Eigenen Server verwenden")
-                }
                 state.challengeUrl?.let { url ->
                     Button(onClick = { openChallenge(url) }) { Text("Händler-Bestätigung öffnen") }
                 }
@@ -244,31 +252,69 @@ private fun KorbuinoApp(
                     Button(onClick = { viewModel.addShoppingItem(itemText); itemText = "" }) { Text("+") }
                 }
                 state.shoppingItems.forEach { item -> Text("${item.quantity}× ${item.name}") }
-                var kitchenToken by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-                Text("KitchenOwl (optional)", style = MaterialTheme.typography.titleLarge)
-                OutlinedTextField(
-                    value = state.kitchenOwlUrl,
-                    onValueChange = viewModel::kitchenOwlUrl,
-                    label = { Text("KitchenOwl HTTPS-Adresse") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = kitchenToken,
-                        onValueChange = { kitchenToken = it },
-                        label = { Text("Token") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Button(onClick = { viewModel.connectKitchenOwl(state.kitchenOwlUrl, kitchenToken) }) { Text("Verbinden") }
-                }
-                state.kitchenTargets.forEach { target ->
-                    Button(onClick = { viewModel.syncKitchenOwl(target) }) { Text("Zu ${target.label} übertragen") }
-                }
             }
         }
+    }
+}
+
+@Composable
+private fun AppSettings(
+    state: MainUiState,
+    viewModel: MainViewModel,
+    onBack: () -> Unit,
+) {
+    var kitchenToken by rememberSaveable { mutableStateOf("") }
+    Column(
+        modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = onBack) { Text("Zurück") }
+            Text("Einstellungen", style = MaterialTheme.typography.headlineMedium)
+        }
+        Text("Verbindungen", style = MaterialTheme.typography.titleLarge)
+        Text("Eigener Korbuino-Server", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = state.serverUrl,
+            onValueChange = viewModel::serverUrl,
+            label = { Text("Server-Adresse (optional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = state.serverToken,
+            onValueChange = viewModel::serverToken,
+            label = { Text("Server-Token") },
+            visualTransformation = PasswordVisualTransformation(),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(onClick = { viewModel.setServerMode(!state.serverMode) }) {
+            Text(if (state.serverMode) "Servermodus deaktivieren" else "Eigenen Server verwenden")
+        }
+        Text("KitchenOwl", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = state.kitchenOwlUrl,
+            onValueChange = viewModel::kitchenOwlUrl,
+            label = { Text("KitchenOwl HTTPS-Adresse") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = kitchenToken,
+                onValueChange = { kitchenToken = it },
+                label = { Text("Token") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Button(onClick = { viewModel.connectKitchenOwl(state.kitchenOwlUrl, kitchenToken) }) { Text("Verbinden") }
+        }
+        state.kitchenTargets.forEach { target ->
+            Button(onClick = { viewModel.syncKitchenOwl(target) }) { Text("Zu ${target.label} übertragen") }
+        }
+        Text(state.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -277,14 +323,23 @@ private fun OfferOverview(
     state: MainUiState,
     viewModel: MainViewModel,
     onBack: () -> Unit,
+    openSettings: () -> Unit,
     openChallenge: (String) -> Unit,
 ) {
     var offerFilter by rememberSaveable { mutableStateOf("") }
-    val visibleOffers = state.offers.filter { display ->
-        offerFilter.isBlank() || display.productName.contains(offerFilter, ignoreCase = true) ||
-            display.offer.retailerId.contains(offerFilter, ignoreCase = true) ||
-            display.offer.categoryId.orEmpty().contains(offerFilter, ignoreCase = true)
-    }
+    var retailerFilter by rememberSaveable { mutableStateOf("all") }
+    var retailerMenuOpen by remember { mutableStateOf(false) }
+    val retailerNames = viewModel.retailers.toMap()
+    val retailerIds = state.offers.map { it.offer.retailerId }.distinct().sorted()
+    val retailerOptions = listOf("all" to "Alle Händler") + retailerIds.map { it to (retailerNames[it] ?: it) }
+    val visibleOffers = state.offers
+        .filter { display -> retailerFilter == "all" || display.offer.retailerId == retailerFilter }
+        .filter { display ->
+            offerFilter.isBlank() || display.productName.contains(offerFilter, ignoreCase = true) ||
+                display.offer.retailerId.contains(offerFilter, ignoreCase = true) ||
+                display.offer.categoryId.orEmpty().contains(offerFilter, ignoreCase = true)
+        }
+        .sortedWith(compareBy({ retailerNames[it.offer.retailerId] ?: it.offer.retailerId }, { it.productName }))
     Column(
         modifier = Modifier.padding(24.dp).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -292,6 +347,10 @@ private fun OfferOverview(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = onBack) { Text("Zurück") }
             Text("Angebote", style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = openSettings) {
+                Text("⚙", style = MaterialTheme.typography.headlineSmall)
+            }
         }
         Text(
             "${state.offers.size} Angebote · ${state.offers.map { it.offer.retailerId }.distinct().size} Händler",
@@ -303,6 +362,24 @@ private fun OfferOverview(
             label = { Text("Angebote durchsuchen") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+        )
+        Box {
+            Button(onClick = { retailerMenuOpen = true }) {
+                Text("Händler: ${retailerOptions.firstOrNull { it.first == retailerFilter }?.second ?: "Alle Händler"}")
+            }
+            DropdownMenu(expanded = retailerMenuOpen, onDismissRequest = { retailerMenuOpen = false }) {
+                retailerOptions.forEach { (id, name) ->
+                    DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = { retailerFilter = id; retailerMenuOpen = false },
+                    )
+                }
+            }
+        }
+        Text(
+            "${visibleOffers.size} Treffer · nach Händler sortiert",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = viewModel::refresh, enabled = !state.loading) {

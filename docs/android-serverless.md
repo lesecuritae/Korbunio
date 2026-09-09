@@ -41,6 +41,10 @@ theme follows the device light/dark setting.
 The native result cards follow the established KorbKlar visual language:
 rounded panels, green accent colors, product imagery, retailer/category
 metadata, prices and shopping-list actions.
+The overview includes an `Alle Händler` selector, individual retailer filters
+and stable retailer/product sorting to match the Docker result flow.
+The optional self-hosted server and KitchenOwl connections are managed from
+the gear icon in the home and offers screens.
 
 ## Background and data safety
 
