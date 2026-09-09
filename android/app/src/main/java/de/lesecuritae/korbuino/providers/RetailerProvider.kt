@@ -15,5 +15,7 @@ data class ProviderResult(val products: List<ProductEntity>, val offers: List<Of
 interface RetailerProvider {
     val id: String
     val displayName: String
+    /** Optional first-party page used for a user-mediated anti-bot challenge. */
+    val challengeUrl: String? get() = null
     suspend fun fetch(request: RetailerRequest): ProviderResult
 }

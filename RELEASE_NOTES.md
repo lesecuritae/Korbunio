@@ -1,3 +1,13 @@
+# 0.1.23
+
+## Manual anti-bot challenges and dual connection mode
+
+- Added a restricted manual CAPTCHA/anti-bot challenge flow for direct native
+  retailer providers. The user confirms the challenge; no bypass is automated.
+- Added optional self-hosted Korbuino server mode to the native app. Direct
+  serverless retailer mode remains available.
+- Kept KitchenOwl as a direct HTTPS integration with encrypted credentials.
+
 # 0.1.22
 
 ## Serverless native Android release

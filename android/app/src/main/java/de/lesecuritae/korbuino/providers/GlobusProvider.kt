@@ -20,6 +20,7 @@ class GlobusProvider(
 ) : RetailerProvider {
     override val id = "globus"
     override val displayName = "GLOBUS"
+    override val challengeUrl: String get() = baseUrl
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {

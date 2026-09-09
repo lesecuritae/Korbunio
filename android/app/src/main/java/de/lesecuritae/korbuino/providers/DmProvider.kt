@@ -20,6 +20,7 @@ class DmProvider(
 ) : RetailerProvider {
     override val id = "dm"
     override val displayName = "dm"
+    override val challengeUrl: String = "https://www.dm.de/ausverkauf"
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {

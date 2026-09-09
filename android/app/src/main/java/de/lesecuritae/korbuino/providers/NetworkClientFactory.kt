@@ -1,6 +1,7 @@
 package de.lesecuritae.korbuino.providers
 
 import android.content.Context
+import android.webkit.CookieManager
 import com.google.net.cronet.okhttptransport.CronetInterceptor
 import okhttp3.OkHttpClient
 import org.chromium.net.CronetEngine
@@ -18,6 +19,12 @@ object NetworkClientFactory {
             .readTimeout(30, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val cookies = runCatching { CookieManager.getInstance().getCookie(request.url.toString()) }.getOrNull()
+                val enriched = if (cookies.isNullOrBlank()) request else request.newBuilder().header("Cookie", cookies).build()
+                chain.proceed(enriched)
+            }
         return runCatching {
             val engine = CronetEngine.Builder(context.applicationContext)
                 .enableHttp2(true)

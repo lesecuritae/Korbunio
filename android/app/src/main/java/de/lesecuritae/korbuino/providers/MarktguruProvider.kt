@@ -27,6 +27,7 @@ class MarktguruProvider(
 ) : RetailerProvider {
     override val id: String = "marktguru-${slug(retailerName)}"
     override val displayName: String = "$retailerName (regional)"
+    override val challengeUrl: String get() = homeUrl
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {

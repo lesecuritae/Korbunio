@@ -22,6 +22,7 @@ class HtmlFlyerProvider(
     private val offersUrl: String,
     private val http: OkHttpClient = OkHttpClient(),
 ) : RetailerProvider {
+    override val challengeUrl: String get() = offersUrl
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
         val call = Request.Builder().url(offersUrl)

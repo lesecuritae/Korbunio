@@ -40,5 +40,19 @@ HTTPS APK, verify an optional SHA-256 sidecar, and hand installation to the
 Android package installer. Android signature validation remains in control;
 there is no silent installation.
 
+When a retailer presents a CAPTCHA or anti-bot challenge, the app offers a
+manual confirmation page restricted to the retailer and known challenge hosts.
+The user completes the check; Korbuino never solves or bypasses a CAPTCHA.
+The resulting first-party session cookie is kept in the app's private cookie
+store and the provider request is retried. A self-hosted Korbuino server can
+also be configured in the same app; its token is stored in the encrypted
+Android store. KitchenOwl remains a separate, direct HTTPS integration.
+
 The existing Flutter client under `app/` and the Docker service remain the
 compatibility implementation while native providers are migrated one by one.
+
+With a saved five-digit postal code, the native app automatically loads the
+`Alle Händler` overview on startup. Results from reachable providers are
+merged into one searchable local list; a failed provider does not hide offers
+from the others. The retailer selector can still be used for a focused
+refresh, and an optional self-hosted server can provide the same overview.

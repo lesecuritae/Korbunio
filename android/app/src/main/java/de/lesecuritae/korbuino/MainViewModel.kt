@@ -15,6 +15,7 @@ import de.lesecuritae.korbuino.data.ProviderCacheEntity
 import de.lesecuritae.korbuino.providers.NetworkClientFactory
 import de.lesecuritae.korbuino.providers.ProviderRegistry
 import de.lesecuritae.korbuino.providers.RetailerRequest
+import de.lesecuritae.korbuino.providers.ServerProvider
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlClient
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlTarget
 import de.lesecuritae.korbuino.security.SecureStore
@@ -26,6 +27,9 @@ import de.lesecuritae.korbuino.work.BackgroundMode
 import de.lesecuritae.korbuino.work.BackgroundScheduler
 import de.lesecuritae.korbuino.work.BackgroundSettings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +39,7 @@ import kotlinx.coroutines.launch
 data class MainUiState(
     val postalCode: String = "",
     val city: String = "",
-    val retailerId: String = "rewe",
+    val retailerId: String = "all",
     val loading: Boolean = false,
     val offers: List<OfferDisplay> = emptyList(),
     val shoppingItems: List<ShoppingListRow> = emptyList(),
@@ -44,6 +48,10 @@ data class MainUiState(
     val update: UpdateInfo? = null,
     val dailySync: Boolean = false,
     val message: String = "Noch keine Angebote geladen",
+    val challengeUrl: String? = null,
+    val serverUrl: String = "",
+    val serverToken: String = "",
+    val serverMode: Boolean = false,
 )
 
 data class OfferDisplay(
@@ -61,14 +69,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val imageCache = ImageCache(application, NetworkClientFactory.create(application))
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
-    val retailers = registry.all().map { it.id to it.displayName }
+    val retailers = listOf("all" to "Alle Händler") + registry.all().map { it.id to it.displayName }
 
     init {
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) {
-                Triple(secureStore.get("postal_code").orEmpty(), secureStore.get("city").orEmpty(), secureStore.get("retailer_id") ?: "rewe")
+            Triple(secureStore.get("postal_code").orEmpty(), secureStore.get("city").orEmpty(), secureStore.get("retailer_id") ?: "all")
             }
-            _state.value = _state.value.copy(postalCode = saved.first, city = saved.second, retailerId = saved.third, dailySync = secureStore.get("daily_sync") == "true")
+            _state.value = _state.value.copy(postalCode = saved.first, city = saved.second, retailerId = saved.third, dailySync = secureStore.get("daily_sync") == "true", serverUrl = secureStore.get("server_url").orEmpty(), serverToken = secureStore.get("server_token").orEmpty(), serverMode = secureStore.get("server_mode") == "true")
+            // Match the established KorbKlar flow: with a stored location,
+            // the complete offer overview starts loading as soon as the app
+            // opens. The user can still start it manually after changing the
+            // location.
+            if (saved.first.length == 5) refresh()
             if (_state.value.dailySync) {
                 BackgroundScheduler.apply(
                     getApplication(), BackgroundSettings(mode = BackgroundMode.DAILY),
@@ -114,6 +127,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.value = _state.value.copy(city = clean)
         secureStore.put("city", clean)
     }
+
+    fun serverUrl(value: String) { val clean = value.trim().take(240); _state.value = _state.value.copy(serverUrl = clean); secureStore.put("server_url", clean) }
+    fun serverToken(value: String) { val clean = value.trim().take(500); _state.value = _state.value.copy(serverToken = clean); secureStore.put("server_token", clean) }
+    fun setServerMode(enabled: Boolean) { _state.value = _state.value.copy(serverMode = enabled); secureStore.put("server_mode", enabled.toString()) }
     fun retailer(value: String) {
         if (retailers.any { it.first == value }) {
             _state.value = _state.value.copy(retailerId = value)
@@ -231,50 +248,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refresh() {
         val current = _state.value
-        if (current.postalCode.length != 5 || current.city.isBlank()) {
-            _state.value = current.copy(message = "PLZ und Stadt eingeben")
+        if (current.postalCode.length != 5) {
+            _state.value = current.copy(message = "Eine gültige fünfstellige PLZ eingeben")
             return
         }
         viewModelScope.launch {
-            val provider = registry.byId(current.retailerId)
-                ?: error("Unbekannter Händler")
-            _state.value = _state.value.copy(loading = true, message = "${provider.displayName}-Angebote werden direkt geladen …")
-            runCatching { provider.fetch(RetailerRequest(current.postalCode, citySlug = current.city)) }
-                .onSuccess { result ->
-                    database.productDao().upsertAll(result.products)
-                    database.offerDao().upsertAll(result.offers)
-                    withContext(Dispatchers.IO) {
-                        // Keep first-party offer images available offline. The
-                        // bound prevents a large flyer from exhausting storage.
-                        result.offers.asSequence()
-                            .mapNotNull { it.imageUrl }
-                            .filter(String::isNotBlank)
-                            .distinct()
-                            .take(20)
-                            .forEach { imageCache.download(it) }
-                        val knownImages = database.imageDao().find(result.products.map { it.id }).map { it.productId }.toSet()
-                        // Image enrichment is deliberately bounded so a large
-                        // flyer cannot turn one refresh into hundreds of API calls.
-                        result.products.filter { !it.gtin.isNullOrBlank() && it.id !in knownImages }.take(20).forEach { product ->
-                            runCatching {
-                                imageProvider.find(product.id, product.gtin, product.name, product.brand, "", provider.id)
-                            }.getOrNull()?.let { image ->
-                                database.imageDao().upsert(image)
-                                imageCache.download(image.imageUrl)
-                            }
-                        }
-                    }
+            val serverToken = secureStore.get("server_token").orEmpty()
+            val http = NetworkClientFactory.create(getApplication())
+            val providers = if (current.serverMode && current.serverUrl.isNotBlank()) {
+                listOf(ServerProvider(current.serverUrl, serverToken, http))
+            } else if (current.retailerId == "all") {
+                registry.all()
+            } else {
+                listOfNotNull(registry.byId(current.retailerId))
+            }
+            if (providers.isEmpty()) {
+                _state.value = _state.value.copy(loading = false, message = "Kein Händler ausgewählt")
+                return@launch
+            }
+            val label = if (providers.size == 1) providers.single().displayName else "${providers.size} Händler"
+            _state.value = _state.value.copy(loading = true, challengeUrl = null, message = "$label-Angebote werden direkt geladen …")
+            val fetched = coroutineScope {
+                providers.map { provider ->
+                    async(Dispatchers.IO) { provider to runCatching { provider.fetch(RetailerRequest(current.postalCode, citySlug = current.city)) } }
+                }.awaitAll()
+            }
+            val successes = fetched.mapNotNull { (provider, result) ->
+                result.onSuccess { value ->
                     database.providerDao().upsert(
                         ProviderCacheEntity(
                             providerId = provider.id,
                             lastSuccess = System.currentTimeMillis(),
+                            lastFailure = null,
                             lastError = null,
-                            offerCount = result.offers.size,
+                            offerCount = value.offers.size,
                         ),
                     )
-                    _state.value = _state.value.copy(loading = false, message = "${result.offers.size} Angebote gespeichert")
-                }
-                .onFailure { error ->
+                }.onFailure { error ->
                     database.providerDao().upsert(
                         ProviderCacheEntity(
                             providerId = provider.id,
@@ -282,9 +292,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             lastError = error.javaClass.simpleName.take(80),
                         ),
                     )
-                    _state.value = _state.value.copy(loading = false, message = "Offline/Fehler: ${error.message}")
+                }.getOrNull()?.let { value -> provider to value }
+            }
+            val failures = fetched.filter { (_, result) -> result.isFailure }
+            if (successes.isNotEmpty()) {
+                // Products are shared across retailers. Canonicalising by the
+                // Room normalized key prevents a multi-retailer refresh from
+                // violating the unique product index while retaining every
+                // retailer offer through a stable product reference.
+                val rawProducts = successes.flatMap { it.second.products }
+                val canonicalProducts = LinkedHashMap<String, ProductEntity>()
+                rawProducts.forEach { product -> canonicalProducts.putIfAbsent(product.normalizedKey, product) }
+                val productIds = rawProducts.associate { it.id to canonicalProducts.getValue(it.normalizedKey).id }
+                val products = canonicalProducts.values.toList()
+                val offers = successes.flatMap { it.second.offers }.map { offer ->
+                    productIds[offer.productId]?.let { canonicalId -> offer.copy(productId = canonicalId) } ?: offer
+                }.distinctBy { it.id }
+                database.productDao().upsertAll(products)
+                database.offerDao().upsertAll(offers)
+                withContext(Dispatchers.IO) {
+                    // Keep first-party offer images available offline. The
+                    // bound prevents a large overview from exhausting storage.
+                    offers.asSequence()
+                        .mapNotNull { it.imageUrl }
+                        .filter(String::isNotBlank)
+                        .distinct()
+                        .take(40)
+                        .forEach { imageCache.download(it) }
+                    val knownImages = database.imageDao().find(products.map { it.id }).map { it.productId }.toSet()
+                    // Image enrichment is deliberately bounded so a large
+                    // overview cannot turn one refresh into hundreds of API calls.
+                    products.filter { !it.gtin.isNullOrBlank() && it.id !in knownImages }.take(40).forEach { product ->
+                        runCatching {
+                            imageProvider.find(product.id, product.gtin, product.name, product.brand, "", "multi")
+                        }.getOrNull()?.let { image ->
+                            database.imageDao().upsert(image)
+                            imageCache.download(image.imageUrl)
+                        }
+                    }
                 }
+                val challenge = fetched.firstNotNullOfOrNull { (provider, result) ->
+                    result.exceptionOrNull()?.let { error -> provider.challengeUrl?.takeIf { isChallengeError(error) } }
+                }
+                _state.value = _state.value.copy(
+                    loading = false,
+                    challengeUrl = challenge,
+                    message = if (failures.isEmpty()) "${offers.size} Angebote von ${successes.size} Händlern gespeichert"
+                    else "${offers.size} Angebote gespeichert (${failures.size} Händler nicht erreichbar)",
+                )
+            } else {
+                val challenge = fetched.firstNotNullOfOrNull { (provider, result) ->
+                    result.exceptionOrNull()?.let { error -> provider.challengeUrl?.takeIf { isChallengeError(error) } }
+                }
+                val error = failures.firstOrNull()?.second?.exceptionOrNull()
+                _state.value = _state.value.copy(
+                    loading = false,
+                    challengeUrl = challenge,
+                    message = if (challenge != null) "Händler-Bestätigung erforderlich" else "Offline/Fehler: ${error?.message ?: "Keine Angebote verfügbar"}",
+                )
+            }
         }
+    }
+
+    private fun isChallengeError(error: Throwable): Boolean {
+        val text = generateSequence(error) { it.cause }.joinToString(" ") { it.message.orEmpty() }.lowercase()
+        return listOf("403", "429", "captcha", "challenge", "forbidden", "anti-bot", "bot protection").any(text::contains)
     }
 
     override fun onCleared() { database.close(); super.onCleared() }

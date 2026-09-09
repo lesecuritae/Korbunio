@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -44,15 +45,20 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val challengeLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (it.resultCode == RESULT_OK) (lastViewModel)?.refresh()
+    }
+    internal var lastViewModel: MainViewModel? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { KorbuinoApp() }
+        setContent { KorbuinoApp({ url -> challengeLauncher.launch(ChallengeActivity.intent(this, url)) }) { lastViewModel = it } }
     }
 }
 
 @Composable
-private fun KorbuinoApp() {
+private fun KorbuinoApp(openChallenge: (String) -> Unit, registerViewModel: (MainViewModel) -> Unit) {
     val viewModel: MainViewModel = viewModel()
+    registerViewModel(viewModel)
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(viewModel::exportBackup) }
@@ -98,6 +104,14 @@ private fun KorbuinoApp() {
                     else Text("Angebote laden")
                 }
                 Text(state.message)
+                OutlinedTextField(value = state.serverUrl, onValueChange = viewModel::serverUrl, label = { Text("Eigener Korbuino-Server (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = state.serverToken, onValueChange = viewModel::serverToken, label = { Text("Server-Token (optional im LAN)") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                Button(onClick = { viewModel.setServerMode(!state.serverMode) }) {
+                    Text(if (state.serverMode) "Servermodus deaktivieren" else "Eigenen Server verwenden")
+                }
+                state.challengeUrl?.let { url ->
+                    Button(onClick = { openChallenge(url) }) { Text("Händler-Bestätigung öffnen") }
+                }
                 Button(onClick = viewModel::checkUpdate) { Text("Nach Updates suchen") }
                 Button(onClick = { viewModel.setDailySync(!state.dailySync) }) {
                     Text(if (state.dailySync) "Tägliche Aktualisierung deaktivieren" else "Tägliche Aktualisierung aktivieren")
@@ -148,8 +162,25 @@ private fun KorbuinoApp() {
                     Button(onClick = { viewModel.syncKitchenOwl(target) }) { Text("Zu ${target.label} übertragen") }
                 }
                 Text("Angebote", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "${state.offers.size} Angebote · ${state.offers.map { it.offer.retailerId }.distinct().size} Händler",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                var offerFilter by rememberSaveable { mutableStateOf("") }
+                OutlinedTextField(
+                    value = offerFilter,
+                    onValueChange = { offerFilter = it.take(80) },
+                    label = { Text("Angebote durchsuchen") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val visibleOffers = state.offers.filter { display ->
+                    offerFilter.isBlank() || display.productName.contains(offerFilter, ignoreCase = true) ||
+                        display.offer.retailerId.contains(offerFilter, ignoreCase = true) ||
+                        display.offer.categoryId.orEmpty().contains(offerFilter, ignoreCase = true)
+                }
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    items(state.offers, key = { it.offer.id }) { offer ->
+                    items(visibleOffers, key = { it.offer.id }) { offer ->
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -157,6 +188,10 @@ private fun KorbuinoApp() {
                             OfferThumbnail(offer.imagePath)
                             Column {
                                 Text(offer.productName)
+                                Text(offer.offer.retailerId, style = MaterialTheme.typography.labelMedium)
+                                offer.offer.categoryId?.takeIf { it.isNotBlank() }?.let { category ->
+                                    Text(category, style = MaterialTheme.typography.bodySmall)
+                                }
                                 Text(
                                     "${offer.offer.priceCents / 100},${(offer.offer.priceCents % 100).toString().padStart(2, '0')} €",
                                     style = MaterialTheme.typography.bodyMedium,

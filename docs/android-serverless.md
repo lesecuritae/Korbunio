@@ -25,6 +25,13 @@ conservative HTML parser. A provider returns an error or an empty result when
 the public page changes, so stale Room data remains visible instead of being
 silently deleted.
 
+When a location is already saved, the native app starts the complete
+multi-retailer overview automatically at launch. The default selection is
+`Alle Händler`; successful providers are merged into one Room-backed offer
+list and a failed retailer is reported without hiding offers from the others.
+The overview can be searched by product, retailer or category, while the
+retailer selector remains available for a focused refresh.
+
 ## Background and data safety
 
 WorkManager is used only for opt-in periodic synchronization. Manual mode is
@@ -40,6 +47,15 @@ accepts HTTPS APK URLs, verifies a published `.sha256` sidecar when present,
 and starts the normal Android installation dialog through a `FileProvider`.
 No background or silent installation is attempted, and a release signing key
 is never stored in the repository.
+
+## Manual anti-bot challenges and server mode
+
+Direct retailer providers may receive a CAPTCHA or a rate-limit challenge.
+The app opens a restricted, user-mediated challenge page only for an allowlisted
+retailer host. Cookies are retained privately and the direct request is retried;
+there is no CAPTCHA automation or bypass. The same native app can optionally
+use a user-configured self-hosted Korbuino API, while KitchenOwl is always
+connected directly over HTTPS.
 
 ## Migration boundary
 

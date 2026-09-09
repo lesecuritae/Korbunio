@@ -25,6 +25,7 @@ class ReweProvider(
 ) : RetailerProvider {
     override val id = "rewe"
     override val displayName = "REWE"
+    override val challengeUrl: String get() = baseUrl
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
