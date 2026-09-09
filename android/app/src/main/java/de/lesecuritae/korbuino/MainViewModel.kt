@@ -37,13 +37,19 @@ data class MainUiState(
     val city: String = "",
     val retailerId: String = "rewe",
     val loading: Boolean = false,
-    val offers: List<OfferEntity> = emptyList(),
+    val offers: List<OfferDisplay> = emptyList(),
     val shoppingItems: List<ShoppingListRow> = emptyList(),
     val kitchenOwlUrl: String = "",
     val kitchenTargets: List<KitchenOwlTarget> = emptyList(),
     val update: UpdateInfo? = null,
     val dailySync: Boolean = false,
     val message: String = "Noch keine Angebote geladen",
+)
+
+data class OfferDisplay(
+    val offer: OfferEntity,
+    val productName: String,
+    val imagePath: String? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -72,7 +78,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             database.offerDao().observeAll().collect { offers ->
-                _state.value = _state.value.copy(offers = offers)
+                val products = withContext(Dispatchers.IO) {
+                    database.productDao().find(offers.map { it.productId }).associateBy { it.id }
+                }
+                val images = withContext(Dispatchers.IO) {
+                    database.imageDao().find(offers.map { it.productId }).associateBy { it.productId }
+                }
+                val display = withContext(Dispatchers.IO) {
+                    offers.map { offer ->
+                        val imageUrl = offer.imageUrl ?: images[offer.productId]?.imageUrl
+                        OfferDisplay(
+                            offer = offer,
+                            productName = products[offer.productId]?.name ?: offer.productId,
+                            imagePath = imageUrl?.let { imageCache.get(it, Long.MAX_VALUE)?.path },
+                        )
+                    }
+                }
+                _state.value = _state.value.copy(offers = display)
             }
         }
         viewModelScope.launch {
@@ -222,6 +244,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     database.productDao().upsertAll(result.products)
                     database.offerDao().upsertAll(result.offers)
                     withContext(Dispatchers.IO) {
+                        // Keep first-party offer images available offline. The
+                        // bound prevents a large flyer from exhausting storage.
+                        result.offers.asSequence()
+                            .mapNotNull { it.imageUrl }
+                            .filter(String::isNotBlank)
+                            .distinct()
+                            .take(20)
+                            .forEach { imageCache.download(it) }
                         val knownImages = database.imageDao().find(result.products.map { it.id }).map { it.productId }.toSet()
                         // Image enrichment is deliberately bounded so a large
                         // flyer cannot turn one refresh into hundreds of API calls.

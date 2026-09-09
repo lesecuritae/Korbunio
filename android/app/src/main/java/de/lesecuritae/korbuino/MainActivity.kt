@@ -1,6 +1,7 @@
 package de.lesecuritae.korbuino
 
 import android.os.Bundle
+import android.graphics.BitmapFactory
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -24,12 +26,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -139,14 +149,40 @@ private fun KorbuinoApp() {
                 }
                 Text("Angebote", style = MaterialTheme.typography.titleLarge)
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    items(state.offers, key = { it.id }) { offer ->
-                        Text(
-                            "${offer.productId.removePrefix("rewe-product-")} · ${offer.priceCents / 100},${(offer.priceCents % 100).toString().padStart(2, '0')} €",
-                            modifier = Modifier.padding(vertical = 6.dp),
-                        )
+                    items(state.offers, key = { it.offer.id }) { offer ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        ) {
+                            OfferThumbnail(offer.imagePath)
+                            Column {
+                                Text(offer.productName)
+                                Text(
+                                    "${offer.offer.priceCents / 100},${(offer.offer.priceCents % 100).toString().padStart(2, '0')} €",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OfferThumbnail(path: String?) {
+    val bitmapState = remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(path) {
+        bitmapState.value = path?.let { withContext(Dispatchers.IO) { BitmapFactory.decodeFile(it) } }
+    }
+    val bitmap = bitmapState.value
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(56.dp).padding(top = 2.dp),
+        )
     }
 }
