@@ -1,0 +1,31 @@
+package de.lesecuritae.korbuino.providers
+
+import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.Test
+
+class GlobusProviderTest {
+    private lateinit var server: MockWebServer
+
+    @Before fun setUp() { server = MockWebServer().also { it.start() } }
+    @After fun tearDown() { server.shutdown() }
+
+    @Test fun `parses exact postal market and article`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            {"data":{"1":{"betriebsstaette":"SBW","marktNummer":"10","marktNameKurz":"Test-Markt","plz":"12345"}}}
+        """))
+        server.enqueue(MockResponse().setBody("""
+            {"pages":[{"page":"1","articles":[{"article_id":"a1","title":"Coca-Cola Zero 1,25 l","price":"1,29","product_image":"https://example.invalid/coke.jpg"}]}]}
+        """))
+        val base = server.url("/").toString().trimEnd('/')
+        val result = GlobusProvider(OkHttpClient(), base).fetch(RetailerRequest("12345"))
+        assertEquals(1, result.offers.size)
+        assertEquals(129, result.offers.single().priceCents)
+        assertEquals("a1", result.offers.single().externalId)
+    }
+}
