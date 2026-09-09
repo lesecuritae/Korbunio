@@ -32,12 +32,18 @@ class UpdateService(
             if (!response.isSuccessful) return null
             val root = json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
             val tag = root["tag_name"]?.jsonPrimitive?.contentOrNull ?: return null
+            val version = tag.removePrefix("v")
+            val installed = context.packageManager
+                .getPackageInfo(context.packageName, 0)
+                .versionName
+                .orEmpty()
+            if (!isNewerVersion(version, installed)) return null
             val apk = root["assets"]?.jsonArray.orEmpty().firstOrNull { asset ->
                 asset.jsonObject["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk") == true
             }?.jsonObject ?: return null
             return UpdateInfo(
                 tag = tag,
-                version = tag.removePrefix("v"),
+                version = version,
                 apkUrl = apk["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return null,
                 sha256 = findDigest(root, apk["name"]?.jsonPrimitive?.contentOrNull.orEmpty()),
                 releaseUrl = root["html_url"]?.jsonPrimitive?.contentOrNull,
@@ -92,5 +98,18 @@ class UpdateService(
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    companion object {
+        /** Compare dotted numeric release versions without treating 0.1.10 as 0.1.2. */
+        fun isNewerVersion(remote: String, installed: String): Boolean {
+            fun parts(value: String): List<Int> = value.removePrefix("v")
+                .split('.', '-', '+')
+                .map { it.toIntOrNull() ?: 0 }
+                .take(4)
+                .let { values -> values + List(4 - values.size) { 0 } }
+            return parts(remote).zip(parts(installed)).firstOrNull { (r, i) -> r != i }
+                ?.let { (r, i) -> r > i } ?: false
+        }
     }
 }

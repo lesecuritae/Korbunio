@@ -1,5 +1,9 @@
 # 0.1.20
 
+Die In-App-Updateprüfung bietet jetzt nur Releases an, die tatsächlich neuer
+als die installierte Version sind; gleiche oder ältere Releases werden nicht
+mehr als Update gemeldet.
+
 Die native Angebotsansicht zeigt Produktnamen, Preise und lokal gecachte Händler- oder Produktbilder. Händlerbilder werden beim Abruf begrenzt lokal gespeichert und bleiben bei erneutem Offlinebetrieb verfügbar. Die Provider-Registry und die lokale Provider-Historie bleiben unverändert serverlos.
 
 # 0.1.19
