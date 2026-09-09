@@ -48,6 +48,24 @@ jobs:
           KORBUNIO_REQUIRE_SIGNED_RELEASE: "true"
         run: ./gradlew assembleRelease
 
+      - name: Sign native release APK
+        env:
+          KORBUNIO_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KORBUNIO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KORBUNIO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          APK_DIR=android/app/build/outputs/apk/release
+          INPUT="$APK_DIR/app-release-unsigned.apk"
+          test -f "$INPUT" || INPUT="$APK_DIR/app-release.apk"
+          test -f "$INPUT"
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" sign \
+            --ks /tmp/korbunio-release.jks \
+            --ks-pass env:KORBUNIO_STORE_PASSWORD \
+            --ks-key-alias "$KORBUNIO_KEY_ALIAS" \
+            --key-pass env:KORBUNIO_KEY_PASSWORD \
+            --out "$APK_DIR/app-release-signed.apk" "$INPUT"
+          mv "$APK_DIR/app-release-signed.apk" "$APK_DIR/app-release.apk"
+
       - name: Verify release signature
         run: |
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" \
