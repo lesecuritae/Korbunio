@@ -47,20 +47,18 @@ class HtmlFlyerProvider(
         cards.forEachIndexed { index, card ->
             val name = card.select(
                 "[data-product-name], [data-testid*=name], .product-name, .offer-name, " +
-                    ".title, h2, h3, h4",
+                    "[data-test*=product-tile__name], .product-tile__name, .title, h2, h3, h4",
             ).firstOrNull()?.text()?.trim().orEmpty()
-            val text = card.select("[data-price], [data-testid*=price], .price, .offer-price, .product-price")
+            val text = card.select("[data-price], [data-testid*=price], [data-test*=product-tile__price], " +
+                ".base-price--product-tile, .price, .offer-price, .product-price")
                 .firstOrNull()?.text()?.replace('\u00a0', ' ') ?: card.text().removePrefix(name)
-            val price = Regex("(?<!\\d)(\\d{1,4}[,.]\\d{2})\\s*€?").find(text)
-                ?.groupValues?.get(1)?.replace(".", "")?.replace(',', '.')?.toDoubleOrNull()
+            val price = parsePrice(text)
                 ?: return@forEachIndexed
             if (name.isBlank() || name.length > 240) return@forEachIndexed
             val external = card.attr("data-product-id").ifBlank { card.attr("data-id") }
                 .ifBlank { "$index-${normalize(name)}" }
             val productId = "$id-product-${normalize(name)}"
-            val image = card.select("img[src], img[data-src]").firstOrNull()?.let {
-                it.attr("abs:src").ifBlank { it.attr("abs:data-src") }
-            }
+            val image = imageUrl(card)
             products += ProductEntity(productId, name, normalizedKey = normalize(name))
             offers += OfferEntity(
                 id = "$id:$external", retailerId = id, productId = productId,
@@ -69,6 +67,28 @@ class HtmlFlyerProvider(
             )
         }
         return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
+    }
+
+    private fun parsePrice(text: String): Double? {
+        val token = Regex("(?<!\\d)(\\d{1,4}[,.]\\d{2})(?!\\d)").find(text)?.groupValues?.get(1) ?: return null
+        // German pages use comma decimals; some ALDI pages expose the same
+        // value with a dot. A dot-only token is therefore a decimal, while a
+        // comma token may also contain dots as thousands separators.
+        return if (token.contains(',')) {
+            token.replace(".", "").replace(',', '.').toDoubleOrNull()
+        } else {
+            token.toDoubleOrNull()
+        }
+    }
+
+    private fun imageUrl(card: org.jsoup.nodes.Element): String? {
+        val attributes = listOf("data-src", "data-original", "data-srcset", "srcset", "src")
+        return attributes.asSequence().mapNotNull { attribute ->
+            card.select("img[$attribute]").firstOrNull()?.let { image ->
+                val raw = image.attr(attribute).substringBefore(',').substringBefore(' ').trim()
+                if (raw.isBlank()) null else image.absUrl(attribute).ifBlank { raw }
+            }
+        }.firstOrNull { it.isNotBlank() }
     }
 
     private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.GERMAN), Normalizer.Form.NFKD)

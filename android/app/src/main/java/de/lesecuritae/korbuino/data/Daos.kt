@@ -11,6 +11,9 @@ interface OfferDao {
     @Query("SELECT * FROM offers ORDER BY validUntil DESC, id")
     fun observeAll(): Flow<List<OfferEntity>>
 
+    @Query("SELECT * FROM offers ORDER BY validUntil DESC, id")
+    suspend fun all(): List<OfferEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(offers: List<OfferEntity>)
 

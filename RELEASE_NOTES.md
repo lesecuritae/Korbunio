@@ -1,3 +1,17 @@
+# 0.1.29
+
+## Correct Aldi prices and product images
+
+- Parse both comma and dot decimal prices from Aldi product tiles.
+- Prefer lazy-loaded product images over placeholders and support Aldi's
+  product tile markup.
+- Refresh the native offer display after image downloads so cached images are
+  visible immediately.
+- Docker diagnostics now distinguish an unavailable optional ALDI prospect
+  host from the successfully loaded official web catalogue and clarify that
+  Netto branch selection is location context, not branch stock data.
+- Added regression coverage for Aldi price and image parsing.
+
 # 0.1.28
 
 ## Complete REWE result pagination

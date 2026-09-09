@@ -91,23 +91,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             database.offerDao().observeAll().collect { offers ->
-                val products = withContext(Dispatchers.IO) {
-                    database.productDao().find(offers.map { it.productId }).associateBy { it.id }
-                }
-                val images = withContext(Dispatchers.IO) {
-                    database.imageDao().find(offers.map { it.productId }).associateBy { it.productId }
-                }
-                val display = withContext(Dispatchers.IO) {
-                    offers.map { offer ->
-                        val imageUrl = offer.imageUrl ?: images[offer.productId]?.imageUrl
-                        OfferDisplay(
-                            offer = offer,
-                            productName = products[offer.productId]?.name ?: offer.productId,
-                            imagePath = imageUrl?.let { imageCache.get(it, Long.MAX_VALUE)?.path },
-                        )
-                    }
-                }
-                _state.value = _state.value.copy(offers = display)
+                rebuildOfferDisplay(offers)
             }
         }
         viewModelScope.launch {
@@ -332,6 +316,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             imageCache.download(image.imageUrl)
                         }
                     }
+                    // Downloads happen after the Room upsert that triggered
+                    // the observer. Rebuild once so newly cached images are
+                    // visible immediately instead of waiting for the next
+                    // refresh.
+                    rebuildOfferDisplay(database.offerDao().all())
                 }
                 val challenge = fetched.firstNotNullOfOrNull { (provider, result) ->
                     result.exceptionOrNull()?.let { error -> provider.challengeUrl?.takeIf { isChallengeError(error) } }
@@ -359,6 +348,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun isChallengeError(error: Throwable): Boolean {
         val text = generateSequence(error) { it.cause }.joinToString(" ") { it.message.orEmpty() }.lowercase()
         return listOf("403", "429", "captcha", "challenge", "forbidden", "anti-bot", "bot protection").any(text::contains)
+    }
+
+    private suspend fun rebuildOfferDisplay(offers: List<OfferEntity>) {
+        val products = withContext(Dispatchers.IO) {
+            database.productDao().find(offers.map { it.productId }).associateBy { it.id }
+        }
+        val images = withContext(Dispatchers.IO) {
+            database.imageDao().find(offers.map { it.productId }).associateBy { it.productId }
+        }
+        val display = withContext(Dispatchers.IO) {
+            offers.map { offer ->
+                val imageUrl = offer.imageUrl ?: images[offer.productId]?.imageUrl
+                OfferDisplay(
+                    offer = offer,
+                    productName = products[offer.productId]?.name ?: offer.productId,
+                    imagePath = imageUrl?.let { imageCache.get(it, Long.MAX_VALUE)?.path },
+                )
+            }
+        }
+        _state.value = _state.value.copy(offers = display)
     }
 
     override fun onCleared() { database.close(); super.onCleared() }

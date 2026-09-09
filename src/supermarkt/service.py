@@ -181,7 +181,10 @@ class SourceLoader:
                 if selected_netto:
                     option = self.netto_marken_markets._option(selected_netto, "exact" if clean_text(selected_netto.get("post_code")) == postal_code else "nearby")
                     active_contexts["Netto Marken-Discount"] = self._context_with_market(active_contexts["Netto Marken-Discount"], option["label"], option["market_url"])
-                    store_warnings.append("Netto Marken-Discount: Filiale ausgewählt; der aktuelle Angebotskatalog ist regional und nicht filialgenau.")
+                    store_warnings.append(
+                        "Netto Marken-Discount: Filiale ausgewählt; der aktuelle Angebotskatalog ist regional und nicht filialgenau. "
+                        "Die Filiale dient hier als Standortkontext, nicht als Bestandsnachweis."
+                    )
             except Exception as exc:
                 if netto_market_id:
                     raise

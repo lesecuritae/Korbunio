@@ -835,7 +835,18 @@ class OfficialAldiSource:
                 brochure_collected.extend(brochure_offers)
                 pages.append({"url": publication_url, "offers": len(brochure_offers), "bytes": 0})
         if not brochure_collected:
-            errors.extend(brochure_errors)
+            if collected:
+                # The official www.aldi-sued.de catalogue is usable even
+                # when the separate prospect host is blocked by an external
+                # certificate/DNS policy. Keep the diagnostic visible, but
+                # make clear that the displayed offers came from the
+                # successful first-party web catalogue.
+                errors.extend(
+                    error.replace(": ToolError", ": optionaler Prospekt nicht erreichbar; Web-Katalog verwendet (ToolError)", 1)
+                    for error in brochure_errors
+                )
+            else:
+                errors.extend(brochure_errors)
         self.last_south_pages = pages
         self.last_south_errors = errors
         # A current structured brochure is ALDI Süd's complete weekly source.
