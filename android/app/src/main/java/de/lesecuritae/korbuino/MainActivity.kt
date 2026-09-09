@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.Image
 import androidx.compose.material3.Button
@@ -36,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
@@ -328,9 +331,12 @@ private fun OfferOverview(
 ) {
     var offerFilter by rememberSaveable { mutableStateOf("") }
     var retailerFilter by rememberSaveable { mutableStateOf("all") }
-    var retailerMenuOpen by remember { mutableStateOf(false) }
+    var sortMode by rememberSaveable { mutableStateOf("price") }
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     val retailerNames = viewModel.retailers.toMap()
     val retailerIds = state.offers.map { it.offer.retailerId }.distinct().sorted()
+    val retailerCounts = state.offers.groupingBy { it.offer.retailerId }.eachCount()
     val retailerOptions = listOf("all" to "Alle Händler") + retailerIds.map { it to (retailerNames[it] ?: it) }
     val visibleOffers = state.offers
         .filter { display -> retailerFilter == "all" || display.offer.retailerId == retailerFilter }
@@ -339,7 +345,13 @@ private fun OfferOverview(
                 display.offer.retailerId.contains(offerFilter, ignoreCase = true) ||
                 display.offer.categoryId.orEmpty().contains(offerFilter, ignoreCase = true)
         }
-        .sortedWith(compareBy({ retailerNames[it.offer.retailerId] ?: it.offer.retailerId }, { it.productName }))
+        .let { offers ->
+            when (sortMode) {
+                "product" -> offers.sortedWith(compareBy({ it.productName.lowercase() }, { retailerNames[it.offer.retailerId] ?: it.offer.retailerId }))
+                "retailer" -> offers.sortedWith(compareBy({ retailerNames[it.offer.retailerId] ?: it.offer.retailerId }, { it.productName.lowercase() }))
+                else -> offers.sortedWith(compareBy({ it.offer.priceCents }, { it.productName.lowercase() }))
+            }
+        }
     Column(
         modifier = Modifier.padding(24.dp).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -356,6 +368,14 @@ private fun OfferOverview(
             "${state.offers.size} Angebote · ${state.offers.map { it.offer.retailerId }.distinct().size} Händler",
             style = MaterialTheme.typography.bodyMedium,
         )
+        androidx.compose.material3.TabRow(selectedTabIndex = selectedTab) {
+            androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Ergebnisse") })
+            androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Einkauf") })
+        }
+        if (selectedTab == 1) {
+            ShoppingListOverview(state = state, viewModel = viewModel)
+            return@Column
+        }
         OutlinedTextField(
             value = offerFilter,
             onValueChange = { offerFilter = it.take(80) },
@@ -363,16 +383,23 @@ private fun OfferOverview(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        Box {
-            Button(onClick = { retailerMenuOpen = true }) {
-                Text("Händler: ${retailerOptions.firstOrNull { it.first == retailerFilter }?.second ?: "Alle Händler"}")
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            items(retailerOptions) { (id, name) ->
+                val count = if (id == "all") state.offers.size else retailerCounts[id] ?: 0
+                FilterChip(
+                    selected = retailerFilter == id,
+                    onClick = { retailerFilter = id },
+                    label = { Text("$name · $count") },
+                )
             }
-            DropdownMenu(expanded = retailerMenuOpen, onDismissRequest = { retailerMenuOpen = false }) {
-                retailerOptions.forEach { (id, name) ->
-                    DropdownMenuItem(
-                        text = { Text(name) },
-                        onClick = { retailerFilter = id; retailerMenuOpen = false },
-                    )
+        }
+        Box {
+            Button(onClick = { sortMenuOpen = true }) {
+                Text("Sortierung: ${when (sortMode) { "product" -> "Produktname"; "retailer" -> "Händler"; else -> "Preis" }}")
+            }
+            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                listOf("price" to "Preis", "retailer" to "Händler", "product" to "Produktname").forEach { (id, label) ->
+                    DropdownMenuItem(text = { Text(label) }, onClick = { sortMode = id; sortMenuOpen = false })
                 }
             }
         }
@@ -402,7 +429,9 @@ private fun OfferOverview(
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                             OfferThumbnail(offer.imagePath)
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                if (retailerFilter == "all") {
+                                    Text(retailerNames[offer.offer.retailerId] ?: offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                }
                                 Text(offer.productName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                                 offer.offer.categoryId?.takeIf { it.isNotBlank() }?.let { category ->
                                     Text(category, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -427,6 +456,35 @@ private fun OfferOverview(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ShoppingListOverview(state: MainUiState, viewModel: MainViewModel) {
+    var itemText by rememberSaveable { mutableStateOf("") }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Einkaufsliste", style = MaterialTheme.typography.titleLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = itemText,
+                onValueChange = { itemText = it.take(120) },
+                label = { Text("Artikel hinzufügen") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Button(onClick = { viewModel.addShoppingItem(itemText); itemText = "" }) { Text("+") }
+        }
+        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 360.dp)) {
+            items(state.shoppingItems) { item ->
+                Text("${item.quantity}× ${item.name}", modifier = Modifier.padding(vertical = 6.dp))
+            }
+        }
+        if (state.shoppingItems.isEmpty()) {
+            Text("Noch keine Artikel in der Einkaufsliste.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

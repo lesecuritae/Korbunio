@@ -1,3 +1,13 @@
+# 0.1.27
+
+## Native results navigation parity
+
+- Added the `Ergebnisse` / `Einkauf` tabs to the native offers screen.
+- Added horizontal retailer tabs with counts, matching the Docker and Flutter
+  result navigation (`Alle Händler · …`, followed by each retailer).
+- Added price, retailer and product sorting while preserving the retailer
+  filter and the existing offer cards.
+
 # 0.1.26
 
 ## Retailer filtering and sorting

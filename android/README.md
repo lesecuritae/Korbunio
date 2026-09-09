@@ -64,6 +64,8 @@ light or dark system setting.
 
 Offer results use the KorbKlar-style card layout with product image, retailer,
 category, price, base price and direct shopping-list actions.
+The result screen mirrors the Docker/Flutter navigation with `Ergebnisse` and
+`Einkauf` tabs, horizontal retailer tabs with counts, and sorting controls.
 The overview also provides an `Alle Händler` selector, individual retailer
 filters and retailer/product sorting like the Docker client.
 Connection settings for an optional self-hosted server and KitchenOwl are
