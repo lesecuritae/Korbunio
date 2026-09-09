@@ -32,6 +32,12 @@ list and a failed retailer is reported without hiding offers from the others.
 The overview can be searched by product, retailer or category, while the
 retailer selector remains available for a focused refresh.
 
+After a successful refresh the app opens the offer overview as a separate
+screen, matching the previous KorbKlar flow; the user can return to settings
+and select another retailer set. A user-triggered Android location lookup can
+fill a German PLZ and starts the same overview automatically. The Compose
+theme follows the device light/dark setting.
+
 ## Background and data safety
 
 WorkManager is used only for opt-in periodic synchronization. Manual mode is

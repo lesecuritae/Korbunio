@@ -128,6 +128,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         secureStore.put("city", clean)
     }
 
+    fun message(value: String) { _state.value = _state.value.copy(message = value) }
+
     fun serverUrl(value: String) { val clean = value.trim().take(240); _state.value = _state.value.copy(serverUrl = clean); secureStore.put("server_url", clean) }
     fun serverToken(value: String) { val clean = value.trim().take(500); _state.value = _state.value.copy(serverToken = clean); secureStore.put("server_token", clean) }
     fun setServerMode(enabled: Boolean) { _state.value = _state.value.copy(serverMode = enabled); secureStore.put("server_mode", enabled.toString()) }

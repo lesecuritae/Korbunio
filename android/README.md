@@ -56,3 +56,8 @@ With a saved five-digit postal code, the native app automatically loads the
 merged into one searchable local list; a failed provider does not hide offers
 from the others. The retailer selector can still be used for a focused
 refresh, and an optional self-hosted server can provide the same overview.
+
+The overview opens as its own screen after a successful load. A location
+button can resolve a German postal code with a user-approved Android location
+permission; manual PLZ entry remains supported. Compose follows the phone's
+light or dark system setting.

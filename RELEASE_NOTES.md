@@ -1,3 +1,15 @@
+# 0.1.24
+
+## Native offers overview, location and system theme
+
+- Added a separate offers overview screen after loading, with back navigation
+  to retailer and location settings.
+- Loading now starts automatically after a saved location or a successful
+  location lookup, and all selected retailer offers are shown together.
+- Added optional location based German postal-code lookup with runtime
+  permission; manual PLZ entry remains available.
+- Native Compose colors follow the phone's light/dark system setting.
+
 # 0.1.23
 
 ## Manual anti-bot challenges and dual connection mode
