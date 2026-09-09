@@ -6,6 +6,7 @@
 - Marktguru-Bilder aus `images`-Metadaten werden direkt von der App erkannt und zwischengespeichert.
 - REWE, ALDI, dm, Rossmann und Müller berücksichtigen zusätzliche Lazy-Image- und `srcset`-Varianten der offiziellen Webseiten.
 - Leere Bild-URLs blockieren keinen bereits vorhandenen Bild-Fallback mehr.
+- Wenn ALDI Süd den direkten Abruf blockiert, kann der Nutzer die offizielle Angebotsseite in der App bestätigen; das gerenderte Dokument wird anschließend einmalig lokal ausgewertet.
 
 # 0.1.31
 
