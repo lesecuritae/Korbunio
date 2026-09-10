@@ -131,9 +131,15 @@ def test_release_contains_no_runtime_state_or_patch_residue():
     forbidden_suffixes = {".rej", ".orig", ".bak", ".log", ".sqlite3", ".sqlite3-wal", ".sqlite3-shm"}
     for path in _release_paths():
         relative = path.relative_to(ROOT)
-        # `android/.../data` is a Kotlin source package; only runtime data
-        # directories are forbidden in a release checkout.
-        source_data_package = relative.as_posix().startswith("android/app/src/main/java/") and "data" in relative.parts
+        # `android/app/src/<source-set>/java/.../data` is a Kotlin package;
+        # only runtime data directories are forbidden in a release checkout.
+        parts = relative.parts
+        source_data_package = (
+            len(parts) > 5
+            and parts[:3] == ("android", "app", "src")
+            and parts[4] == "java"
+            and "data" in parts[5:]
+        )
         assert source_data_package or not any(part in forbidden_dirs for part in relative.parts), relative
         if path.is_file():
             assert path.name != ".env", relative

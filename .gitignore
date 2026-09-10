@@ -30,7 +30,7 @@ build/
 *.egg-info/
 
 # Laufzeitdaten
-data/
+/data/
 # Android source package named `data` is code, not runtime data.
 !android/app/src/main/java/de/lesecuritae/korbuino/data/
 !android/app/src/main/java/de/lesecuritae/korbuino/data/**
