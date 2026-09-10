@@ -10,24 +10,44 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
         fun default(http: okhttp3.OkHttpClient): ProviderRegistry = ProviderRegistry(
             listOf(
                 ReweProvider(http, fallback = MarktguruProvider("REWE", http)),
-                GlobusProvider(http),
-                HtmlFlyerProvider("aldi-nord", "ALDI Nord", "https://www.aldi-nord.de/angebote.html", http),
+                FallbackRetailerProvider(GlobusProvider(http), MarktguruProvider("Globus", http)),
+                FallbackRetailerProvider(
+                    HtmlFlyerProvider("aldi-nord", "ALDI Nord", "https://www.aldi-nord.de/angebote.html", http),
+                    MarktguruProvider("ALDI Nord", http),
+                ),
                 HtmlFlyerProvider(
                     "aldi-sued", "ALDI Süd", "https://www.aldi-sued.de/angebote", http,
                     renderedHtmlProvider = { RenderedPageStore.consume("https://www.aldi-sued.de/angebote") },
                 ),
-                HtmlFlyerProvider("kaufland", "Kaufland", "https://filiale.kaufland.de/angebote/uebersicht.html?kloffer-week=current", http),
-                HtmlFlyerProvider("rossmann", "Rossmann", "https://www.rossmann.de/de/angebote/m/angebote/", http),
-                HtmlFlyerProvider(
-                    "mueller",
-                    "Müller",
-                    "https://www.mueller.de/c/online-angebote/",
-                    http,
-                    renderedHtmlProvider = MuellerRenderedPageStore::consume,
+                FallbackRetailerProvider(
+                    HtmlFlyerProvider("kaufland", "Kaufland", "https://filiale.kaufland.de/angebote/uebersicht.html?kloffer-week=current", http),
+                    MarktguruProvider("Kaufland", http),
+                ),
+                FallbackRetailerProvider(
+                    HtmlFlyerProvider("rossmann", "Rossmann", "https://www.rossmann.de/de/angebote/m/angebote/", http),
+                    MarktguruProvider("Rossmann", http),
+                ),
+                FallbackRetailerProvider(
+                    HtmlFlyerProvider(
+                        "mueller",
+                        "Müller",
+                        "https://www.mueller.de/c/online-angebote/",
+                        http,
+                        renderedHtmlProvider = MuellerRenderedPageStore::consume,
+                    ),
+                    MarktguruProvider("Müller", http),
                 ),
                 HtmlFlyerProvider("holab", "HOL'AB!", "https://holab.de/angebote", http),
-                HtmlFlyerProvider("netto-schwarz", "Netto mit Hund", "https://netto.de/angebote/", http),
-                HtmlFlyerProvider("netto-marken", "Netto Marken-Discount", "https://www.netto-online.de/angebote/", http),
+                FallbackRetailerProvider(
+                    HtmlFlyerProvider("netto-schwarz", "Netto mit Hund", "https://netto.de/angebote/", http),
+                    MarktguruProvider("Netto mit dem Scottie", http),
+                ),
+                MarktguruProvider(
+                    "Netto Marken-Discount",
+                    http,
+                    providerId = "netto-marken",
+                    providerDisplayName = "Netto Marken-Discount",
+                ),
                 DmProvider(http),
                 MarktguruProvider("Combi", http),
                 MarktguruProvider("famila Nordwest", http),

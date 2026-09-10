@@ -44,6 +44,9 @@ data class OfferEntity(
     val validUntil: String? = null,
     val sourceUrl: String,
     val imageUrl: String? = null,
+    val loyaltyProgram: String? = null,
+    val loyaltyLabel: String? = null,
+    val loyaltyPriceCents: Int? = null,
     val cachedAt: Long,
 )
 

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -17,8 +18,17 @@ interface OfferDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(offers: List<OfferEntity>)
 
-    @Query("DELETE FROM offers WHERE retailerId = :retailerId AND cachedAt < :before")
-    suspend fun deleteOlderThan(retailerId: String, before: Long)
+    @Transaction
+    suspend fun storeRefresh(offers: List<OfferEntity>) {
+        offers.map { it.retailerId }.distinct().forEach { deleteProvider(it) }
+        upsertAll(offers)
+    }
+
+    @Query("DELETE FROM offers WHERE retailerId = :retailerId")
+    suspend fun deleteProvider(retailerId: String)
+
+    @Query("DELETE FROM offers")
+    suspend fun deleteAll()
 }
 
 @Dao

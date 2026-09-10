@@ -8,7 +8,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
-import android.graphics.BitmapFactory
+import de.lesecuritae.korbuino.data.OfferEntity
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -331,11 +331,13 @@ private fun OfferOverview(
 ) {
     var offerFilter by rememberSaveable { mutableStateOf("") }
     var retailerFilter by rememberSaveable { mutableStateOf("all") }
-    var sortMode by rememberSaveable { mutableStateOf("price") }
+    var sortMode by rememberSaveable { mutableStateOf("retailer") }
     var sortMenuOpen by remember { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     val retailerNames = viewModel.retailers.toMap()
-    val retailerIds = state.offers.map { it.offer.retailerId }.distinct().sorted()
+    val presentRetailerIds = state.offers.map { it.offer.retailerId }.toSet()
+    val retailerIds = viewModel.retailers.map { it.first }.filter { it != "all" && it in presentRetailerIds } +
+        presentRetailerIds.filter { it !in retailerNames }.sorted()
     val retailerCounts = state.offers.groupingBy { it.offer.retailerId }.eachCount()
     val retailerOptions = listOf("all" to "Alle Händler") + retailerIds.map { it to (retailerNames[it] ?: it) }
     val visibleOffers = state.offers
@@ -348,10 +350,18 @@ private fun OfferOverview(
         .let { offers ->
             when (sortMode) {
                 "product" -> offers.sortedWith(compareBy({ it.productName.lowercase() }, { retailerNames[it.offer.retailerId] ?: it.offer.retailerId }))
-                "retailer" -> offers.sortedWith(compareBy({ retailerNames[it.offer.retailerId] ?: it.offer.retailerId }, { it.productName.lowercase() }))
-                else -> offers.sortedWith(compareBy({ it.offer.priceCents }, { it.productName.lowercase() }))
+                "retailer" -> offers.sortedWith(compareBy(
+                    { retailerIds.indexOf(it.offer.retailerId).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE },
+                    { effectivePriceCents(it.offer, state.selectedLoyaltyPrograms) },
+                    { it.productName.lowercase() },
+                ))
+                else -> offers.sortedWith(compareBy({ effectivePriceCents(it.offer, state.selectedLoyaltyPrograms) }, { it.productName.lowercase() }))
             }
         }
+    val availableLoyaltyPrograms = state.offers.mapNotNull { display ->
+        val id = display.offer.loyaltyProgram ?: return@mapNotNull null
+        id to (display.offer.loyaltyLabel ?: id)
+    }.distinctBy { it.first }.sortedBy { it.second }
     Column(
         modifier = Modifier.padding(24.dp).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -393,6 +403,18 @@ private fun OfferOverview(
                 )
             }
         }
+        if (availableLoyaltyPrograms.isNotEmpty()) {
+            Text("Bonusprogramme", style = MaterialTheme.typography.labelLarge)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                items(availableLoyaltyPrograms) { (id, label) ->
+                    FilterChip(
+                        selected = id in state.selectedLoyaltyPrograms,
+                        onClick = { viewModel.toggleLoyaltyProgram(id) },
+                        label = { Text(label) },
+                    )
+                }
+            }
+        }
         Box {
             Button(onClick = { sortMenuOpen = true }) {
                 Text("Sortierung: ${when (sortMode) { "product" -> "Produktname"; "retailer" -> "Händler"; else -> "Preis" }}")
@@ -404,7 +426,11 @@ private fun OfferOverview(
             }
         }
         Text(
-            "${visibleOffers.size} Treffer · nach Händler sortiert",
+            "${visibleOffers.size} Treffer · " + when (sortMode) {
+                "product" -> "nach Produktname sortiert"
+                "retailer" -> "nach Händler gruppiert"
+                else -> "nach Preis sortiert"
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -427,7 +453,7 @@ private fun OfferOverview(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                            OfferThumbnail(offer.imagePath)
+                            OfferThumbnail(offer.imagePath, offer.imageUrl, offer.offer.sourceUrl)
                             Column(modifier = Modifier.weight(1f)) {
                                 if (retailerFilter == "all") {
                                     Text(retailerNames[offer.offer.retailerId] ?: offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -438,6 +464,17 @@ private fun OfferOverview(
                                 }
                                 offer.offer.basePriceCents?.let { base ->
                                     Text("Grundpreis ${base / 100},${(base % 100).toString().padStart(2, '0')} €", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                }
+                                offer.offer.loyaltyPriceCents?.takeIf {
+                                    offer.offer.loyaltyProgram in state.selectedLoyaltyPrograms
+                                }?.let { loyaltyPrice ->
+                                    Text(
+                                        "Mit ${offer.offer.loyaltyLabel ?: "Kundenprogramm"}: " +
+                                            "${loyaltyPrice / 100},${(loyaltyPrice % 100).toString().padStart(2, '0')} €",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                    )
                                 }
                             }
                             Text(
@@ -457,6 +494,15 @@ private fun OfferOverview(
                 }
             }
         }
+    }
+}
+
+internal fun effectivePriceCents(offer: OfferEntity, selectedPrograms: Set<String>): Int {
+    val loyaltyPrice = offer.loyaltyPriceCents
+    return if (offer.loyaltyProgram in selectedPrograms && loyaltyPrice != null) {
+        minOf(offer.priceCents, loyaltyPrice)
+    } else {
+        offer.priceCents
     }
 }
 
@@ -490,10 +536,13 @@ private fun ShoppingListOverview(state: MainUiState, viewModel: MainViewModel) {
 }
 
 @Composable
-private fun OfferThumbnail(path: String?) {
+private fun OfferThumbnail(path: String?, url: String?, referer: String) {
+    val context = LocalContext.current.applicationContext
+    val cache = remember(context) { de.lesecuritae.korbuino.images.ImageCache.shared(context) }
     val bitmapState = remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    LaunchedEffect(path) {
-        bitmapState.value = path?.let { withContext(Dispatchers.IO) { BitmapFactory.decodeFile(it) } }
+    LaunchedEffect(path, url, referer) {
+        bitmapState.value = null
+        bitmapState.value = cache.thumbnail(path, url, referer)
     }
     val bitmap = bitmapState.value
     Box(

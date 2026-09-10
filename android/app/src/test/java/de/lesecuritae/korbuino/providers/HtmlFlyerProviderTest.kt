@@ -31,6 +31,58 @@ class HtmlFlyerProviderTest {
         assertTrue(result.offers.single().sourceUrl.endsWith("/offers"))
     }
 
+    @Test fun `Netto selects sale price not rating UVP unit price or pack size`() = runTest {
+        for ((raw, cents) in listOf("0,99" to 99, "1,49" to 149, "12,99" to 1299, "839.–" to 83900, "4.689.–" to 468900, "89.<sup>99</sup>" to 8999)) {
+            server.enqueue(MockResponse().setBody("""
+                <article><h4>Apple iPhone 17 Salbei 256 GB 6er Pack</h4>
+                  <div class="rating">Kundenbewertung: 2,76 von 5 Sternen</div>
+                  <s>949,00 €</s><div class="base-price">0,12 €/kg</div>
+                  <div class="product__current-price"><strong>$raw<span class="product__current-price--asterisk">*</span></strong></div>
+                  <img data-src="https://media.netto-online.de/item?im=Resize=(310,310),type=downsize;" />
+                </article>
+            """))
+            val result = HtmlFlyerProvider("netto-marken", "Netto", server.url("/").toString(), OkHttpClient()).fetch(RetailerRequest("12345"))
+            assertEquals(cents, result.offers.single().priceCents)
+            assertEquals("https://media.netto-online.de/item?im=Resize=(310,310),type=downsize;", result.offers.single().imageUrl)
+        }
+    }
+
+    @Test fun `Netto nested cards use stable article numbers without duplicate offers`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            <li class="product"><article><a data-sku="12345"><h4>Kofferset 3 teilig</h4>
+              <div class="product__current-price"><strong>89.<sup>99</sup></strong></div>
+            </a></article></li>
+        """))
+        val result = HtmlFlyerProvider("netto-marken", "Netto", server.url("/").toString(), OkHttpClient())
+            .fetch(RetailerRequest("12345"))
+        assertEquals(1, result.offers.size)
+        assertEquals("12345", result.offers.single().externalId)
+        assertEquals(8999, result.offers.single().priceCents)
+    }
+
+    @Test fun `Netto without sale price rejects rating and UVP`() = runTest {
+        server.enqueue(MockResponse().setBody("<article><h4>iPhone</h4><div>Bewertung 2,76 UVP 949,00</div></article>"))
+        assertTrue(HtmlFlyerProvider("netto-marken", "Netto", server.url("/").toString(), OkHttpClient()).fetch(RetailerRequest("12345")).offers.isEmpty())
+    }
+
+    @Test fun `retains transformed image URLs and resolves relative URLs across HTML retailers`() = runTest {
+        val transformed = "https://cdn.example.test/product?im=Resize=(310,310),type=downsize;"
+        for (retailer in listOf("aldi-nord", "aldi-sued", "rossmann", "mueller", "kaufland", "netto-schwarz", "holab")) {
+            for ((attribute, expected) in listOf(
+                "src=\"$transformed\"" to transformed,
+                "data-src=\"/real.webp\" src=\"/placeholder.png\"" to server.url("/real.webp").toString(),
+                "srcset=\"/small.png 320w, $transformed 1200w\"" to transformed,
+                "src=\"javascript:alert(1)\"" to null,
+                "src=\"\"" to null,
+            )) {
+                server.enqueue(MockResponse().setBody("<article><h3>Shampoo</h3><span class='price'>1,49 €</span><img $attribute></article>"))
+                val result = HtmlFlyerProvider(retailer, retailer, server.url("/offers").toString(), OkHttpClient())
+                    .fetch(RetailerRequest("12345"))
+                assertEquals("$retailer: $attribute", expected, result.offers.single().imageUrl)
+            }
+        }
+    }
+
     @Test fun `rejects invalid postal code without network`() = runTest {
         val provider = HtmlFlyerProvider("test", "Test", server.url("/").toString(), OkHttpClient())
         try {

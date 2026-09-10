@@ -21,9 +21,12 @@ there is no TLS bypass, private app certificate, or scraped mobile token.
 Direct provider coverage is exposed through one `RetailerProvider` registry.
 REWE and GLOBUS use their public structured pages; ALDI Nord, ALDI Süd,
 Kaufland, Rossmann, Müller and HOL'AB! use their public flyer pages through a
-conservative HTML parser. A provider returns an error or an empty result when
-the public page changes, so stale Room data remains visible instead of being
-silently deleted.
+conservative HTML parser. Where an official page is unavailable, selected
+providers can use the public regional Marktguru catalogue as a read-only
+fallback. Results are accepted only when their advertiser identity matches the
+requested retailer. A provider returns an error or an empty result when no
+valid source remains, so stale Room data for the same region remains visible
+instead of being silently deleted.
 
 When a location is already saved, the native app starts the complete
 multi-retailer overview automatically at launch. The default selection is
@@ -49,6 +52,25 @@ The overview includes an `Alle Händler` selector, individual retailer filters
 and stable retailer/product sorting to match the Docker result flow.
 The optional self-hosted server and KitchenOwl connections are managed from
 the gear icon in the home and offers screens.
+
+## Prices, loyalty programmes, and product images
+
+Provider price fields remain separate from reference prices, package sizes,
+ratings, and crossed-out values. Loyalty prices are stored alongside the
+public selling price and affect display and sorting only after the user selects
+the corresponding programme. A quantity such as `0,75 l` is never accepted as
+a loyalty price.
+
+Product images are fetched lazily by the Compose cards, validated as decodable
+images, bounded to 8 MiB, and cached in private app storage. Retailer images
+have priority. GLOBUS offers without their own image may use a public product
+image only when normalized name and price match exactly; uncertain matches are
+rejected and shown with the neutral placeholder.
+
+Fressnapf is not registered as a provider in this release. Its public online
+sale pages expose structured product, price, image, and GTIN data and are a
+feasible source for a future native provider. Regional flyer availability is
+time-dependent and must be evaluated separately before adding that provider.
 
 ## Background and data safety
 

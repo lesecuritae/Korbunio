@@ -24,7 +24,13 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
             if (providers.isEmpty()) error("Unbekannter Händler: $providerId")
             val fetched = coroutineScope {
                 providers.map { provider ->
-                    async(Dispatchers.IO) { provider to runCatching { provider.fetch(RetailerRequest(postalCode, citySlug = citySlug)) } }
+                    async(Dispatchers.IO) {
+                        provider to runCatching {
+                            provider.fetch(RetailerRequest(postalCode, citySlug = citySlug)).also { value ->
+                                check(value.offers.isNotEmpty()) { "${provider.displayName} lieferte keine Angebote" }
+                            }
+                        }
+                    }
                 }.awaitAll()
             }
             val successes = fetched.mapNotNull { (provider, result) -> result.getOrNull()?.let { provider to it } }
@@ -39,7 +45,7 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
             }.distinctBy { it.id }
             val db = KorbuinoDatabase.create(applicationContext)
             db.productDao().upsertAll(products)
-            db.offerDao().upsertAll(offers)
+            db.offerDao().storeRefresh(offers)
             successes.forEach { (provider, result) ->
                 db.providerDao().upsert(
                     ProviderCacheEntity(

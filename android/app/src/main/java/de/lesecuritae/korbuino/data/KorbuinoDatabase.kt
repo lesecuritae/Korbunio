@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProviderCacheEntity::class, ProductImageEntity::class,
         SettingEntity::class, SyncStateEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class KorbuinoDatabase : RoomDatabase() {
@@ -33,13 +33,21 @@ abstract class KorbuinoDatabase : RoomDatabase() {
             "korbuino.db",
         // Never erase user data on a downgrade. Future schema changes must ship
         // an explicit Room migration; otherwise startup fails safely.
-        ).addMigrations(MIGRATION_1_2).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE product_images ADD COLUMN retailer TEXT NOT NULL DEFAULT ''")
                 database.execSQL("ALTER TABLE product_images ADD COLUMN sourceType TEXT NOT NULL DEFAULT 'external'")
                 database.execSQL("ALTER TABLE product_images ADD COLUMN gtin TEXT")
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE offers ADD COLUMN loyaltyProgram TEXT")
+                database.execSQL("ALTER TABLE offers ADD COLUMN loyaltyLabel TEXT")
+                database.execSQL("ALTER TABLE offers ADD COLUMN loyaltyPriceCents INTEGER")
             }
         }
     }

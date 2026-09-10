@@ -65,17 +65,24 @@ class HtmlFlyerProvider(
                 "[class*=product-price__current], [class*=product-price__price], " +
                 ".base-price--product-tile, .price, .offer-price, .product-price")
                 .firstOrNull()?.text()?.replace('\u00a0', ' ') ?: card.text().removePrefix(name)
-            val price = parsePrice(text)
+            val price = (if (id == "netto-marken") {
+                card.selectFirst(".product__current-price strong")?.clone()?.apply {
+                    select(".product__current-price--asterisk, .sr-only").remove()
+                }?.text()?.let { raw ->
+                    ProviderParsing.price(raw.replace(Regex("[.,][–—-]$"), ",00"))
+                }
+            } else parsePrice(text))
                 ?: return@forEachIndexed
             if (name.isBlank() || name.length > 240) return@forEachIndexed
             val external = card.attr("data-product-id").ifBlank { card.attr("data-id") }
+                .ifBlank { if (id == "netto-marken") card.selectFirst("[data-sku]")?.attr("data-sku").orEmpty() else "" }
                 .ifBlank { "$index-${normalize(name)}" }
             val productId = "$id-product-${normalize(name)}"
             val image = imageUrl(card)
             products += ProductEntity(productId, name, normalizedKey = normalize(name))
             offers += OfferEntity(
                 id = "$id:$external", retailerId = id, productId = productId,
-                externalId = external, priceCents = (price * 100).toInt(),
+                externalId = external, priceCents = java.math.BigDecimal.valueOf(price).movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).intValueExact(),
                 sourceUrl = offersUrl, imageUrl = image, cachedAt = System.currentTimeMillis(),
             )
         }
@@ -101,7 +108,7 @@ class HtmlFlyerProvider(
         )
         return attributes.asSequence().mapNotNull { attribute ->
             card.select("img[$attribute]").firstOrNull()?.let { image ->
-                val raw = image.attr(attribute).split(',').asSequence()
+                val raw = (if (attribute.endsWith("srcset")) image.attr(attribute).split(Regex(",\\s+(?=https?://|/)")).asSequence() else sequenceOf(image.attr(attribute)))
                     .map { it.trim().substringBefore(' ').trim() }
                     .filter(String::isNotBlank)
                     .lastOrNull()

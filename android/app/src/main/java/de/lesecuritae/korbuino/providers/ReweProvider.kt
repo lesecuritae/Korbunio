@@ -127,7 +127,7 @@ class ReweProvider(
     private fun imageUrl(card: org.jsoup.nodes.Element, pageUrl: String): String? {
         val attributes = listOf("data-lazy-src", "data-original", "data-srcset", "srcset", "data-src", "src")
         return attributes.asSequence().mapNotNull { attribute ->
-            card.select("img[$attribute]").firstOrNull()?.attr(attribute)?.split(',')?.asSequence()
+            card.select("img[$attribute]").firstOrNull()?.attr(attribute)?.let { if (attribute.endsWith("srcset")) it.split(Regex(",\\s+(?=https?://|/)")).asSequence() else sequenceOf(it) }
                 ?.map { it.trim().substringBefore(' ').trim() }
                 ?.filter(String::isNotBlank)
                 ?.lastOrNull()

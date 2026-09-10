@@ -1,3 +1,36 @@
+# 0.1.34
+
+## Native Händlerbilder, Netto-Preise und Bonusprogramme
+
+- Produktbilder werden in der nativen Compose-Oberfläche bei Bedarf geladen,
+  validiert, begrenzt dekodiert und dauerhaft im privaten App-Speicher
+  zwischengespeichert. Relative URLs, Weiterleitungen und die von den Händlern
+  gelieferten JPEG-, PNG-, WebP- und AVIF-Varianten werden unterstützt.
+- Netto Marken-Discount nutzt den regionalen Angebotskatalog statt der
+  allgemeinen Onlineshop-Suche. Verkaufspreise werden ausschließlich aus dem
+  semantischen Preisfeld übernommen; Grundpreise, Mengen und Bewertungen sind
+  keine Preis-Fallbacks.
+- Bonuspreise für Netto Plus, Lidl Plus, PENNY App und Kaufland Card XTRA werden
+  getrennt vom öffentlichen Verkaufspreis gespeichert und nur nach bewusster
+  Auswahl des jeweiligen Programms berücksichtigt. Packungsgrößen wie `0,75 l`
+  werden nicht mehr als Bonuspreis interpretiert.
+- Regionale Marktguru-Ergebnisse werden gegen die Händleridentität des Angebots
+  geprüft. Treffer anderer Händler oder reine Markenprodukte werden nicht mehr
+  dem ausgewählten Händler zugerechnet.
+- Erfolgreiche Aktualisierungen ersetzen den Datenbestand des jeweiligen
+  Providers. Beim Wechsel der PLZ wird der vorige Regionsbestand entfernt,
+  während ein temporär nicht erreichbarer Provider innerhalb derselben Region
+  weiterhin den letzten bekannten Offline-Stand behält.
+- GLOBUS-Prospektpreise mit deutschem Dezimalkomma werden korrekt verarbeitet.
+  Fehlt ein offizielles Produktbild, wird nur ein externes Bild übernommen,
+  dessen normalisierter Produktname und Preis exakt übereinstimmen.
+
+### Live-Validierung
+
+Die signierte Release-APK wurde auf Android 15 im VPS-Emulator als Update und
+als Fresh Install geprüft. Direkte Abrufe, lokale Room-Persistenz, Händlerbilder
+und die gerenderten Netto-Preise wurden ohne Korbunio-Server verifiziert.
+
 # 0.1.32
 
 ## Netto-Preise und Händlerbilder in der nativen App

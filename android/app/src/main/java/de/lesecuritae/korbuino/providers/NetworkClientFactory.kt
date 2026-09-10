@@ -12,7 +12,24 @@ import java.util.concurrent.TimeUnit
  * the platform OkHttp stack. Both paths retain normal certificate validation.
  */
 object NetworkClientFactory {
-    fun create(context: Context): OkHttpClient {
+    @Volatile private var shared: OkHttpClient? = null
+
+    fun create(context: Context): OkHttpClient = shared ?: synchronized(this) {
+        shared ?: build(context.applicationContext).also { shared = it }
+    }
+
+    private fun build(context: Context): OkHttpClient {
+        // Discovering Play Services can block. All providers execute their HTTP
+        // calls on IO; initialize Chromium there, never while creating the UI.
+        val transport by lazy {
+            runCatching {
+                val engine = CronetEngine.Builder(context)
+                    .enableHttp2(true)
+                    .enableQuic(true)
+                    .build()
+                CronetInterceptor.newBuilder(engine).build()
+            }.getOrNull()
+        }
         val base = OkHttpClient.Builder()
             .callTimeout(45, TimeUnit.SECONDS)
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -25,12 +42,8 @@ object NetworkClientFactory {
                 val enriched = if (cookies.isNullOrBlank()) request else request.newBuilder().header("Cookie", cookies).build()
                 chain.proceed(enriched)
             }
-        return runCatching {
-            val engine = CronetEngine.Builder(context.applicationContext)
-                .enableHttp2(true)
-                .enableQuic(true)
-                .build()
-            base.addInterceptor(CronetInterceptor.newBuilder(engine).build()).build()
-        }.getOrElse { base.build() }
+        return base.addInterceptor { chain ->
+            transport?.intercept(chain) ?: chain.proceed(chain.request())
+        }.build()
     }
 }

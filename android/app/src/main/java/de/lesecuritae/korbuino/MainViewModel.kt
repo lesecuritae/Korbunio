@@ -52,12 +52,14 @@ data class MainUiState(
     val serverUrl: String = "",
     val serverToken: String = "",
     val serverMode: Boolean = false,
+    val selectedLoyaltyPrograms: Set<String> = emptySet(),
 )
 
 data class OfferDisplay(
     val offer: OfferEntity,
     val productName: String,
     val imagePath: String? = null,
+    val imageUrl: String? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -66,7 +68,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow(MainUiState())
     private val secureStore = SecureStore(application)
     private val imageProvider = ProductImageProvider(NetworkClientFactory.create(application))
-    private val imageCache = ImageCache(application, NetworkClientFactory.create(application))
+    private val imageCache = ImageCache.shared(application)
     val state: StateFlow<MainUiState> = _state.asStateFlow()
 
     val retailers = listOf("all" to "Alle Händler") + registry.all().map { it.id to it.displayName }
@@ -76,7 +78,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val saved = withContext(Dispatchers.IO) {
             Triple(secureStore.get("postal_code").orEmpty(), secureStore.get("city").orEmpty(), secureStore.get("retailer_id") ?: "all")
             }
-            _state.value = _state.value.copy(postalCode = saved.first, city = saved.second, retailerId = saved.third, dailySync = secureStore.get("daily_sync") == "true", serverUrl = secureStore.get("server_url").orEmpty(), serverToken = secureStore.get("server_token").orEmpty(), serverMode = secureStore.get("server_mode") == "true", kitchenOwlUrl = secureStore.get("kitchenowl_url").orEmpty())
+            _state.value = _state.value.copy(
+                postalCode = saved.first,
+                city = saved.second,
+                retailerId = saved.third,
+                dailySync = secureStore.get("daily_sync") == "true",
+                serverUrl = secureStore.get("server_url").orEmpty(),
+                serverToken = secureStore.get("server_token").orEmpty(),
+                serverMode = secureStore.get("server_mode") == "true",
+                kitchenOwlUrl = secureStore.get("kitchenowl_url").orEmpty(),
+                selectedLoyaltyPrograms = secureStore.get("loyalty_programs")
+                    .orEmpty().split(',').filter(String::isNotBlank).toSet(),
+            )
             // Match the established KorbKlar flow: with a stored location,
             // the complete offer overview starts loading as soon as the app
             // opens. The user can still start it manually after changing the
@@ -122,6 +135,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _state.value = _state.value.copy(retailerId = value)
             secureStore.put("retailer_id", value)
         }
+    }
+
+    fun toggleLoyaltyProgram(program: String) {
+        val selected = _state.value.selectedLoyaltyPrograms.toMutableSet()
+        if (!selected.add(program)) selected.remove(program)
+        _state.value = _state.value.copy(selectedLoyaltyPrograms = selected)
+        secureStore.put("loyalty_programs", selected.sorted().joinToString(","))
     }
 
     fun setDailySync(enabled: Boolean) {
@@ -256,7 +276,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _state.value = _state.value.copy(loading = true, challengeUrl = null, message = "$label-Angebote werden direkt geladen …")
             val fetched = coroutineScope {
                 providers.map { provider ->
-                    async(Dispatchers.IO) { provider to runCatching { provider.fetch(RetailerRequest(current.postalCode, citySlug = current.city)) } }
+                    async(Dispatchers.IO) {
+                        provider to runCatching {
+                            provider.fetch(RetailerRequest(current.postalCode, citySlug = current.city)).also { value ->
+                                check(value.offers.isNotEmpty()) { "${provider.displayName} lieferte keine Angebote" }
+                            }
+                        }
+                    }
                 }.awaitAll()
             }
             val successes = fetched.mapNotNull { (provider, result) ->
@@ -295,18 +321,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     productIds[offer.productId]?.let { canonicalId -> offer.copy(productId = canonicalId) } ?: offer
                 }.distinctBy { it.id }
                 database.productDao().upsertAll(products)
-                database.offerDao().upsertAll(offers)
-                withContext(Dispatchers.IO) {
-                    // Keep first-party offer images available offline. The
-                    // bound prevents a large overview from exhausting storage.
-                    offers.asSequence()
-                        .mapNotNull { offer -> offer.imageUrl?.takeIf(String::isNotBlank)?.let { it to offer.sourceUrl } }
-                        .distinctBy { it.first }
-                        .take(40)
-                        .forEach { (url, referer) -> imageCache.download(url, referer) }
+                val previousOfferPostal = secureStore.get("offer_postal_code").orEmpty()
+                if (previousOfferPostal.isNotBlank() && previousOfferPostal != current.postalCode) {
+                    database.offerDao().deleteAll()
+                }
+                database.offerDao().storeRefresh(offers)
+                secureStore.put("offer_postal_code", current.postalCode)
+                // Cards download their first-party image on demand. Optional
+                // GTIN enrichment remains a background task and must never
+                // hold the offer overview behind dozens of image requests.
+                viewModelScope.launch(Dispatchers.IO) {
                     val knownImages = database.imageDao().find(products.map { it.id }).map { it.productId }.toSet()
-                    // Image enrichment is deliberately bounded so a large
-                    // overview cannot turn one refresh into hundreds of API calls.
                     products.filter { !it.gtin.isNullOrBlank() && it.id !in knownImages }.take(40).forEach { product ->
                         runCatching {
                             imageProvider.find(product.id, product.gtin, product.name, product.brand, "", "multi")
@@ -315,10 +340,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             imageCache.download(image.imageUrl)
                         }
                     }
-                    // Downloads happen after the Room upsert that triggered
-                    // the observer. Rebuild once so newly cached images are
-                    // visible immediately instead of waiting for the next
-                    // refresh.
                     rebuildOfferDisplay(database.offerDao().all())
                 }
                 val challenge = fetched.firstNotNullOfOrNull { (provider, result) ->
@@ -364,6 +385,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     offer = offer,
                     productName = products[offer.productId]?.name ?: offer.productId,
                     imagePath = imageUrl?.let { imageCache.get(it, Long.MAX_VALUE)?.path },
+                    imageUrl = imageUrl,
                 )
             }
         }
