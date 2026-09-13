@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
 
     steps:
       - name: Check out repository
@@ -104,6 +105,25 @@ jobs:
           files: |
             korbuino-*.apk
             korbuino-*.apk.sha256
+
+      - name: Close issues delivered by this milestone
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          close_issue() {
+            issue="$1"
+            comment="$2"
+            state="$(gh issue view "$issue" --json state --jq .state)"
+            if [ "$state" = "OPEN" ]; then
+              gh issue close "$issue" --reason completed --comment "$comment"
+            fi
+          }
+
+          close_issue 8 "Mit Korbunio v0.1.35 wurden die nativen Händlerabrufe, die REWE-PLZ- und Wochenlogik, die Angebotsvalidierung sowie die Produktbildkette überarbeitet und im Android-Emulator geprüft. Weitere Händlerwünsche können als eigene, klar abgegrenzte Anfrage erfasst werden."
+          close_issue 15 "Korbunio v0.1.35 nutzt strukturierte öffentliche bzw. offizielle Datenquellen, wo diese technisch verlässlich verfügbar sind, und hält die native App dabei serverlos. Anbieterabhängige Einschränkungen werden getrennt ausgewiesen statt mit erfundenen Daten überdeckt."
+          close_issue 39 "Die Docker-Startseite zeigt ab Korbunio v0.1.35 die laufende Versionsnummer sichtbar im Seitenfuß an."
+          close_issue 40 "Das mobile Angebotslayout und das Scrollverhalten wurden in Korbunio v0.1.35 korrigiert und auf Smartphone-Auflösungen sowie im Android-Emulator geprüft."
 
       - name: Explain how to install it
         run: |

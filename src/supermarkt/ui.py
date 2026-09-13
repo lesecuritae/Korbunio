@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .loyalty import normalize_program_ids
+from .version import __version__
 
 
 STATIC_DIR = Path(__file__).with_name("static")
@@ -32,6 +33,7 @@ def build_home_html(
         .replace("__POSTAL_CODE__", html.escape(postal_code, quote=True))
         .replace("__DEFAULT_POSTAL_CODE__", html.escape(default_postal_code, quote=True))
         .replace("__DEFAULT_RETAILERS__", html.escape(json.dumps(default_retailers, ensure_ascii=False), quote=True))
+        .replace("__VERSION__", html.escape(__version__))
     )
 
 

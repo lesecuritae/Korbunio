@@ -40,6 +40,8 @@
 - Die optionale KitchenOwl-Integration bleibt erhalten und verbindet die App
   direkt mit der selbst gehosteten KitchenOwl-Instanz. Weder Angebotsabruf noch
   KitchenOwl-Synchronisation benötigen dabei einen Korbunio-Server.
+- Die Docker-Startseite verwendet jetzt durchgängig den Namen Korbunio und
+  zeigt ihre laufende Version im Seitenfuß an.
 
 ### Validierung
 

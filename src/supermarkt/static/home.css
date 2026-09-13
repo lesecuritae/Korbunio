@@ -18,3 +18,4 @@ form{display:grid;grid-template-columns:1fr auto;gap:10px} form>label,form>selec
 .reweMarketPicker{grid-column:1/-1;display:grid;gap:6px}.reweMarketPicker[hidden]{display:none}.reweMarketPicker label{font-size:14px;color:var(--muted)}.marketHint{font-size:13px;color:var(--muted)}
 @media(max-width:520px){body{display:block;padding:12px}.card{margin:0 auto;padding:18px}.retailerGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.retailerGrid label{padding:9px 7px}}
 .supportNote{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}.supportNote h2{font-size:18px;margin:0 0 8px}.supportNote p{font-size:14px;margin:0 0 8px}.supportNote a{font-weight:700;color:var(--accent)}
+.versionFooter{margin-top:18px;color:var(--muted);font-size:13px;text-align:center}
