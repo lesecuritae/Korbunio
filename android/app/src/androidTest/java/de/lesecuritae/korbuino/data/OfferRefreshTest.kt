@@ -23,4 +23,32 @@ class OfferRefreshTest {
             assertEquals(setOf(other, fresh), db.offerDao().all().toSet())
         } finally { db.close() }
     }
+
+    @Test fun productAndImageQueriesSupportLargeMultiRetailerImports() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(
+            ApplicationProvider.getApplicationContext(), KorbuinoDatabase::class.java,
+        ).build()
+        try {
+            val products = (0 until 1_100).map {
+                ProductEntity("product-$it", "Product $it", normalizedKey = "product-$it")
+            }
+            db.productDao().upsertAll(products)
+            products.forEach {
+                db.imageDao().upsert(
+                    ProductImageEntity(
+                        productId = it.id,
+                        imageUrl = "https://example.invalid/${it.id}.jpg",
+                        source = "test",
+                        matchMethod = "exact",
+                        confidence = 1.0,
+                        verifiedAt = 1,
+                        cachedAt = 1,
+                    ),
+                )
+            }
+
+            assertEquals(1_100, db.productDao().find(products.map { it.id }).size)
+            assertEquals(1_100, db.imageDao().find(products.map { it.id }).size)
+        } finally { db.close() }
+    }
 }

@@ -65,7 +65,7 @@ void main() {
     'retailer': '',
     'view': 'best_only',
     'retailer_counts': {
-      'Combi': 216,
+      'ALDI Nord': 216,
       'famila Nordwest': 289,
       'REWE': 209,
       'Lidl': 193,
@@ -84,9 +84,9 @@ void main() {
     'warnings': ['Kaufland offiziell: keine Filialseite'],
     'offers': [
       {
-        'retailer': 'Combi',
-        'retailers': ['Combi', 'famila Nordwest'],
-        'retailer_label': 'Combi · famila Nordwest',
+        'retailer': 'ALDI Nord',
+        'retailers': ['ALDI Nord', 'famila Nordwest'],
+        'retailer_label': 'ALDI Nord · famila Nordwest',
         'category': 'Molkereiprodukte',
         'product': 'Kerrygold Original Irische Butter',
         'description': 'mild gesalzen oder original',
@@ -110,9 +110,9 @@ void main() {
         'source_url': 'https://www.marktguru.de/r/famila-nordwest',
       },
       {
-        'retailer': 'Combi',
-        'retailers': ['Combi'],
-        'retailer_label': 'Combi',
+        'retailer': 'Lidl',
+        'retailers': ['Lidl'],
+        'retailer_label': 'Lidl',
         'category': 'Obst & Gemüse',
         'product': 'Deutsche Erdbeeren',
         'description': 'Klasse I, Schale',
@@ -133,7 +133,7 @@ void main() {
         'selected_unit_price': '',
         'validity': '24.08.–26.08.2026',
         'image_url': '',
-        'source_url': 'https://www.marktguru.de/r/combi',
+        'source_url': 'https://www.marktguru.de/r/lidl',
       },
       {
         'retailer': 'REWE',

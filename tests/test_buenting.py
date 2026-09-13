@@ -1,4 +1,4 @@
-"""Combi and famila Nordwest, the two Bünting brands served by Marktguru."""
+"""Regional famila Nordwest offers served by Marktguru."""
 
 from supermarkt.compare import MARKTGURU_RETAILER_SLUGS, OfferMapper
 from supermarkt.models import AGGREGATOR_RETAILERS, RETAILER_SPECS, SPEC_BY_NAME, RetailerContext
@@ -33,26 +33,15 @@ def _raw(advertiser: str, offer_id: int = 1) -> dict:
     }
 
 
-def test_buenting_brands_are_registered_as_optional_aggregator_retailers():
-    for name in ("Combi", "famila Nordwest"):
-        spec = SPEC_BY_NAME[name]
-        # Bünting only sells in north-western Germany, so most postal codes
-        # legitimately return nothing and must not raise a source error.
-        assert spec.optional is True
-        assert name in AGGREGATOR_RETAILERS
-        assert name in MARKTGURU_RETAILER_SLUGS
+def test_famila_nordwest_is_registered_as_an_optional_aggregator_retailer():
+    spec = SPEC_BY_NAME["famila Nordwest"]
+    assert spec.optional is True
+    assert spec.name in AGGREGATOR_RETAILERS
+    assert spec.name in MARKTGURU_RETAILER_SLUGS
 
 
 def test_every_aggregator_retailer_has_a_marktguru_source_link():
     assert AGGREGATOR_RETAILERS <= set(MARKTGURU_RETAILER_SLUGS)
-
-
-def test_combi_offer_is_mapped_with_marktguru_source_link():
-    offer = OfferMapper().map_one(_raw("Combi"), _contexts())
-    assert offer is not None
-    assert offer.retailer == "Combi"
-    assert offer.price == 1.59
-    assert offer.source_url == "https://www.marktguru.de/r/combi"
 
 
 def test_famila_nordwest_offer_is_mapped_with_marktguru_source_link():
@@ -67,12 +56,10 @@ def test_famila_nordost_is_not_treated_as_the_buenting_brand():
     assert OfferMapper().map_one(_raw("famila Nordost"), _contexts()) is None
 
 
-def test_buenting_offers_do_not_claim_loyalty_benefits():
-    contexts = _contexts()
-    for advertiser in ("Combi", "famila-Nordwest"):
-        offer = OfferMapper().map_one(_raw(advertiser), contexts)
-        assert offer is not None
-        assert offer.benefits == ()
+def test_famila_offer_does_not_claim_loyalty_benefits():
+    offer = OfferMapper().map_one(_raw("famila-Nordwest"), _contexts())
+    assert offer is not None
+    assert offer.benefits == ()
 
 
 def test_marktguru_explicit_deposit_reaches_the_offer_model():

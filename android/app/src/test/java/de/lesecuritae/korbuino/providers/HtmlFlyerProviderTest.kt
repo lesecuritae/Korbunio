@@ -65,6 +65,48 @@ class HtmlFlyerProviderTest {
         assertTrue(HtmlFlyerProvider("netto-marken", "Netto", server.url("/").toString(), OkHttpClient()).fetch(RetailerRequest("12345")).offers.isEmpty())
     }
 
+    @Test fun `Netto Scottie reads its accessible weekly offer cards`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            <section aria-label="product-4711">
+              <h4><span>BioBio</span><span>Haferdrink</span></h4>
+              <p>1 Liter</p>
+              <h3><span>1</span><span>29</span></h3>
+              <img src="/images/haferdrink.webp">
+            </section>
+        """))
+        val result = HtmlFlyerProvider(
+            "netto-schwarz", "Netto mit Hund", server.url("/angebote/").toString(), OkHttpClient(),
+        ).fetch(RetailerRequest("26122"))
+
+        assertEquals(1, result.offers.size)
+        assertEquals(129, result.offers.single().priceCents)
+        assertEquals(server.url("/images/haferdrink.webp").toString(), result.offers.single().imageUrl)
+    }
+
+    @Test fun `Rossmann uses the current article price instead of the earlier base price`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            <article data-testid="product-card" data-item-id="031160" data-item-ean="8011530001865"
+                     data-item-brand="Laura Biagiotti" data-item-name="Roma Rosa, EdT 25 ml">
+              <img src="https://www.rossmann.de/media-neu/roma.png">
+              <div data-testid="product-baseprice">25 ml (1L = 919.6)</div>
+              <div data-testid="product-price">
+                <div class="inline-flex">22<span>.</span><span>99</span></div>
+                <span class="sr-only">Aktueller Artikelpreis: 22,99 €</span>
+              </div>
+            </article>
+        """))
+        val result = HtmlFlyerProvider(
+            "rossmann", "Rossmann", server.url("/angebote/").toString(), OkHttpClient(),
+        ).fetch(RetailerRequest("26122"))
+
+        assertEquals(1, result.offers.size)
+        assertEquals(2299, result.offers.single().priceCents)
+        assertEquals("031160", result.offers.single().externalId)
+        assertEquals("Roma Rosa, EdT 25 ml", result.products.single().name)
+        assertEquals("Laura Biagiotti", result.products.single().brand)
+        assertEquals("8011530001865", result.products.single().gtin)
+    }
+
     @Test fun `retains transformed image URLs and resolves relative URLs across HTML retailers`() = runTest {
         val transformed = "https://cdn.example.test/product?im=Resize=(310,310),type=downsize;"
         for (retailer in listOf("aldi-nord", "aldi-sued", "rossmann", "mueller", "kaufland", "netto-schwarz", "holab")) {

@@ -384,110 +384,126 @@ private fun OfferOverview(
         }
         if (selectedTab == 1) {
             ShoppingListOverview(state = state, viewModel = viewModel)
-            return@Column
-        }
-        OutlinedTextField(
-            value = offerFilter,
-            onValueChange = { offerFilter = it.take(80) },
-            label = { Text("Angebote durchsuchen") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            items(retailerOptions) { (id, name) ->
-                val count = if (id == "all") state.offers.size else retailerCounts[id] ?: 0
-                FilterChip(
-                    selected = retailerFilter == id,
-                    onClick = { retailerFilter = id },
-                    label = { Text("$name · $count") },
-                )
-            }
-        }
-        if (availableLoyaltyPrograms.isNotEmpty()) {
-            Text("Bonusprogramme", style = MaterialTheme.typography.labelLarge)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                items(availableLoyaltyPrograms) { (id, label) ->
-                    FilterChip(
-                        selected = id in state.selectedLoyaltyPrograms,
-                        onClick = { viewModel.toggleLoyaltyProgram(id) },
-                        label = { Text(label) },
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
+            ) {
+                item {
+                    OutlinedTextField(
+                        value = offerFilter,
+                        onValueChange = { offerFilter = it.take(80) },
+                        label = { Text("Angebote durchsuchen") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-            }
-        }
-        Box {
-            Button(onClick = { sortMenuOpen = true }) {
-                Text("Sortierung: ${when (sortMode) { "product" -> "Produktname"; "retailer" -> "Händler"; else -> "Preis" }}")
-            }
-            DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
-                listOf("price" to "Preis", "retailer" to "Händler", "product" to "Produktname").forEach { (id, label) ->
-                    DropdownMenuItem(text = { Text(label) }, onClick = { sortMode = id; sortMenuOpen = false })
-                }
-            }
-        }
-        Text(
-            "${visibleOffers.size} Treffer · " + when (sortMode) {
-                "product" -> "nach Produktname sortiert"
-                "retailer" -> "nach Händler gruppiert"
-                else -> "nach Preis sortiert"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = viewModel::refresh, enabled = !state.loading) {
-                if (state.loading) CircularProgressIndicator() else Text("Aktualisieren")
-            }
-            state.challengeUrl?.let { url ->
-                Button(onClick = { openChallenge(url) }) { Text("Händler bestätigen") }
-            }
-        }
-        Text(state.message)
-        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            items(visibleOffers, key = { it.offer.id }) { offer ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                            OfferThumbnail(offer.imagePath, offer.imageUrl, offer.offer.sourceUrl)
-                            Column(modifier = Modifier.weight(1f)) {
-                                if (retailerFilter == "all") {
-                                    Text(retailerNames[offer.offer.retailerId] ?: offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                }
-                                Text(offer.productName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                offer.offer.categoryId?.takeIf { it.isNotBlank() }?.let { category ->
-                                    Text(category, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                                }
-                                offer.offer.basePriceCents?.let { base ->
-                                    Text("Grundpreis ${base / 100},${(base % 100).toString().padStart(2, '0')} €", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                                }
-                                offer.offer.loyaltyPriceCents?.takeIf {
-                                    offer.offer.loyaltyProgram in state.selectedLoyaltyPrograms
-                                }?.let { loyaltyPrice ->
-                                    Text(
-                                        "Mit ${offer.offer.loyaltyLabel ?: "Kundenprogramm"}: " +
-                                            "${loyaltyPrice / 100},${(loyaltyPrice % 100).toString().padStart(2, '0')} €",
-                                        color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                            }
-                            Text(
-                                "${offer.offer.priceCents / 100},${(offer.offer.priceCents % 100).toString().padStart(2, '0')} €",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        items(retailerOptions) { (id, name) ->
+                            val count = if (id == "all") state.offers.size else retailerCounts[id] ?: 0
+                            FilterChip(
+                                selected = retailerFilter == id,
+                                onClick = { retailerFilter = id },
+                                label = { Text("$name · $count") },
                             )
                         }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = { viewModel.addShoppingItem(offer.productName) }) { Text("Zur Einkaufsliste") }
-                            if (state.kitchenTargets.isNotEmpty()) {
-                                TextButton(onClick = { viewModel.syncKitchenOwl(state.kitchenTargets.first()) }) { Text("Auf KitchenOwl") }
+                    }
+                }
+                if (availableLoyaltyPrograms.isNotEmpty()) {
+                    item { Text("Bonusprogramme", style = MaterialTheme.typography.labelLarge) }
+                    item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            items(availableLoyaltyPrograms) { (id, label) ->
+                                FilterChip(
+                                    selected = id in state.selectedLoyaltyPrograms,
+                                    onClick = { viewModel.toggleLoyaltyProgram(id) },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                    }
+                }
+                item {
+                    Box {
+                        Button(onClick = { sortMenuOpen = true }) {
+                            Text("Sortierung: ${when (sortMode) { "product" -> "Produktname"; "retailer" -> "Händler"; else -> "Preis" }}")
+                        }
+                        DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                            listOf("price" to "Preis", "retailer" to "Händler", "product" to "Produktname").forEach { (id, label) ->
+                                DropdownMenuItem(text = { Text(label) }, onClick = { sortMode = id; sortMenuOpen = false })
+                            }
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        "${visibleOffers.size} Treffer · " + when (sortMode) {
+                            "product" -> "nach Produktname sortiert"
+                            "retailer" -> "nach Händler gruppiert"
+                            else -> "nach Preis sortiert"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = viewModel::refresh, enabled = !state.loading) {
+                            if (state.loading) CircularProgressIndicator() else Text("Aktualisieren")
+                        }
+                        state.challengeUrl?.let { url ->
+                            Button(onClick = { openChallenge(url) }) { Text("Händler bestätigen") }
+                        }
+                    }
+                }
+                item { Text(state.message) }
+                items(visibleOffers, key = { it.offer.id }) { offer ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                OfferThumbnail(offer.imagePath, offer.imageUrl, offer.offer.sourceUrl)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    if (retailerFilter == "all") {
+                                        Text(retailerNames[offer.offer.retailerId] ?: offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                    }
+                                    Text(offer.productName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    offer.offer.categoryId?.takeIf { it.isNotBlank() }?.let { category ->
+                                        Text(category, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    offer.offer.basePriceCents?.let { base ->
+                                        Text("Grundpreis ${base / 100},${(base % 100).toString().padStart(2, '0')} €", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    offer.offer.loyaltyPriceCents?.takeIf {
+                                        offer.offer.loyaltyProgram in state.selectedLoyaltyPrograms
+                                    }?.let { loyaltyPrice ->
+                                        Text(
+                                            "Mit ${offer.offer.loyaltyLabel ?: "Kundenprogramm"}: " +
+                                                "${loyaltyPrice / 100},${(loyaltyPrice % 100).toString().padStart(2, '0')} €",
+                                            color = MaterialTheme.colorScheme.primary,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                                Text(
+                                    "${offer.offer.priceCents / 100},${(offer.offer.priceCents % 100).toString().padStart(2, '0')} €",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { viewModel.addShoppingItem(offer.productName) }) { Text("Zur Einkaufsliste") }
+                                if (state.kitchenTargets.isNotEmpty()) {
+                                    TextButton(onClick = { viewModel.syncKitchenOwl(state.kitchenTargets.first()) }) { Text("Auf KitchenOwl") }
+                                }
                             }
                         }
                     }

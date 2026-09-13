@@ -19,7 +19,7 @@ disabled and private mobile-app credentials are never used.
 
 The direct provider registry currently includes REWE, GLOBUS, ALDI Nord,
 ALDI Süd, Kaufland, Rossmann, Müller, HOL'AB!, both Netto variants and dm.
-Combi, famila Nordwest, Lidl and PENNY use the public regional Marktguru
+famila Nordwest, Lidl and PENNY use the public regional Marktguru
 adapter. The generic flyer provider accepts only cards with a product name and
 EUR price and keeps the source URL; retailers that require a store-specific
 flow can be added without moving network code into the Compose UI.

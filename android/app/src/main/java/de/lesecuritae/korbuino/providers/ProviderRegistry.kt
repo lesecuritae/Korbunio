@@ -11,10 +11,7 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
             listOf(
                 ReweProvider(http, fallback = MarktguruProvider("REWE", http)),
                 FallbackRetailerProvider(GlobusProvider(http), MarktguruProvider("Globus", http)),
-                FallbackRetailerProvider(
-                    HtmlFlyerProvider("aldi-nord", "ALDI Nord", "https://www.aldi-nord.de/angebote.html", http),
-                    MarktguruProvider("ALDI Nord", http),
-                ),
+                AldiNordProvider(http),
                 HtmlFlyerProvider(
                     "aldi-sued", "ALDI Süd", "https://www.aldi-sued.de/angebote", http,
                     renderedHtmlProvider = { RenderedPageStore.consume("https://www.aldi-sued.de/angebote") },
@@ -24,8 +21,14 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                     MarktguruProvider("Kaufland", http),
                 ),
                 FallbackRetailerProvider(
-                    HtmlFlyerProvider("rossmann", "Rossmann", "https://www.rossmann.de/de/angebote/m/angebote/", http),
-                    MarktguruProvider("Rossmann", http),
+                    HtmlFlyerProvider(
+                        "rossmann", "Rossmann", "https://www.rossmann.de/de/angebote/m/angebote/", http,
+                        renderedHtmlProvider = { RenderedPageStore.consume("https://www.rossmann.de/de/angebote/m/angebote/") },
+                    ),
+                    FallbackRetailerProvider(
+                        KaufdaRetailerProvider("rossmann", "Rossmann", "Rossmann", "Rossmann", http),
+                        MarktguruProvider("Rossmann", http, providerId = "rossmann", providerDisplayName = "Rossmann"),
+                    ),
                 ),
                 FallbackRetailerProvider(
                     HtmlFlyerProvider(
@@ -35,7 +38,10 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                         http,
                         renderedHtmlProvider = MuellerRenderedPageStore::consume,
                     ),
-                    MarktguruProvider("Müller", http),
+                    FallbackRetailerProvider(
+                        KaufdaRetailerProvider("mueller", "Müller", "Müller", "Mueller", http),
+                        MarktguruProvider("Müller", http, providerId = "mueller", providerDisplayName = "Müller"),
+                    ),
                 ),
                 HtmlFlyerProvider("holab", "HOL'AB!", "https://holab.de/angebote", http),
                 FallbackRetailerProvider(
@@ -49,7 +55,6 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                     providerDisplayName = "Netto Marken-Discount",
                 ),
                 DmProvider(http),
-                MarktguruProvider("Combi", http),
                 MarktguruProvider("famila Nordwest", http),
                 MarktguruProvider("Lidl", http),
                 MarktguruProvider("PENNY", http),

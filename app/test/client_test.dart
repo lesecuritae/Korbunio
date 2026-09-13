@@ -324,7 +324,7 @@ void main() {
       final page = ResultPage.fromJson({
         'search_id': 'abc',
         'postal_code': '26188',
-        'retailer_counts': {'Combi': 216, 'famila Nordwest': 289},
+        'retailer_counts': {'Lidl': 216, 'famila Nordwest': 289},
         'has_next': true,
         'page': 1,
         'offers': [
@@ -378,13 +378,13 @@ void main() {
     test('joins only the values an offer actually carries', () {
       final full = Offer.fromJson({
         'product': 'Kerrygold Butter',
-        'retailer': 'Combi',
+        'retailer': 'Lidl',
         'effective_price_text': '1,59 €',
         'pack': '250 g',
       });
       expect(
         ShoppingListText.lineFor(full),
-        'Kerrygold Butter · 250 g · Combi · 1,59 €',
+        'Kerrygold Butter · 250 g · Lidl · 1,59 €',
       );
 
       final sparse = Offer.fromJson({'product': 'Brot'});
@@ -430,14 +430,14 @@ void main() {
     test('a merged row names every retailer it stands for', () {
       final offer = Offer.fromJson({
         'product': 'Butter',
-        'retailer': 'Combi',
-        'retailers': ['Combi', 'famila Nordwest'],
-        'retailer_label': 'Combi · famila Nordwest',
+        'retailer': 'Lidl',
+        'retailers': ['Lidl', 'famila Nordwest'],
+        'retailer_label': 'Lidl · famila Nordwest',
         'effective_price_text': '1,59 €',
       });
       expect(
         ShoppingListText.lineFor(offer),
-        'Butter · Combi · famila Nordwest · 1,59 €',
+        'Butter · Lidl · famila Nordwest · 1,59 €',
       );
     });
   });

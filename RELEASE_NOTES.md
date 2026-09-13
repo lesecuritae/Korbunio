@@ -1,3 +1,45 @@
+# 0.1.35
+
+## Händlerbestand, aktuelle Prospekte und mobiles Layout
+
+- Müller und Rossmann erhalten einen aktuellen, nur lesenden KaufDA-
+  Prospektfallback, wenn die offizielle Händlerseite mobile Direktabrufe
+  ablehnt oder in der Browserprüfung hängen bleibt.
+- Rossmann-Verkaufspreise werden aus dem semantischen Artikelpreis gelesen;
+  Grund- und Einheitspreise können den Kartenpreis nicht mehr ersetzen.
+- Netto mit Hund verarbeitet wieder die zugänglichen Wochenangebotskarten
+  einschließlich getrennter Euro-/Cent-Darstellung und Händlerbildern.
+- ALDI Nord verwendet in der nativen Android-App wieder den strukturierten
+  offiziellen Wochenangebotsdatensatz einschließlich Preis, Gültigkeit,
+  Kategorie und Händlerbild.
+- Combi wurde aus den aktiven Händlerregistern, Oberflächen, Datenwegen und
+  Tests entfernt. Ein vorhandener Android-Cacheeintrag wird beim Update sicher
+  bereinigt, ohne andere Offline-Angebote zu löschen.
+- Regionale Marktguru-Angebote werden auf den aktuell gültigen Zeitraum
+  begrenzt. Dadurch vermischt Lidl nicht länger aktuelle Prospektwochen mit
+  bereits veröffentlichten Vorschauen.
+- Eine händlerspezifische Plausibilitätsprüfung verwirft offensichtlich
+  unvollständige oder unrealistisch große Abrufe und behält dabei den letzten
+  gültigen Offline-Stand.
+- Providerstatus trennt Händlererreichbarkeit, Datenquellenerreichbarkeit,
+  vorhandene Angebote, Bildabdeckung und Parserzustand. Ein fehlendes Bild
+  meldet den Händler nicht mehr als ausgefallen.
+- Android 8 und 9 erhalten einen aktuellen, weiterhin strikt prüfenden
+  TLS-Provider. Damit funktionieren moderne Zertifikatsketten der regionalen
+  Angebots- und Bild-CDNs auch auf unterstützten älteren Geräten.
+- Große kombinierte Händlerbestände werden bei Room-Abfragen in sichere
+  Blöcke geteilt. Mehr als 999 Produkt- oder Bildreferenzen führen dadurch
+  nicht mehr zu einem SQLite-Absturz nach dem Abruf aller Händler.
+- Filter, Händlerleiste, Bonusprogramme und Statushinweise scrollen auf kleinen
+  Displays mit dem Inhalt; die Angebotsliste erhält den verfügbaren Platz ohne
+  überlagernde feste Bedienbereiche.
+
+### Validierung
+
+Die Release-APK wird als Fresh Install und als Update von 0.1.34 auf Android 15
+geprüft. Live-Abrufe, Angebotsmengen, Bilder, Offline-Cache und mobile Layouts
+werden vor Veröffentlichung im VPS-Emulator kontrolliert.
+
 # 0.1.34
 
 ## Native Händlerbilder, Netto-Preise und Bonusprogramme

@@ -33,7 +33,6 @@ MARKTGURU_RETAILER_SLUGS = {
     "PENNY": "penny",
     "Netto Marken-Discount": "netto-marken-discount",
     "Globus": "globus",
-    "Combi": "combi",
     "famila Nordwest": "famila-nordwest",
 }
 

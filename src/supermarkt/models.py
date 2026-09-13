@@ -45,9 +45,8 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
         True,
         ("globus baumarkt",),
     ),
-    # Bünting group, regional in north-western Germany. Both are optional
-    # because most German postal codes are outside their sales area.
-    RetailerSpec("Combi", ("combi",), "#e2001a", "https://www.combi.de/kontakt/markt", True),
+    # Regional in north-western Germany and optional because most German
+    # postal codes are outside the sales area.
     RetailerSpec(
         "famila Nordwest",
         ("famila-nordwest", "famila nordwest"),
@@ -64,7 +63,7 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
 )
 
 SPEC_BY_NAME = {spec.name: spec for spec in RETAILER_SPECS}
-AGGREGATOR_RETAILERS = frozenset({"Lidl", "PENNY", "Netto Marken-Discount", "Globus", "Combi", "famila Nordwest"})
+AGGREGATOR_RETAILERS = frozenset({"Lidl", "PENNY", "Netto Marken-Discount", "Globus", "famila Nordwest"})
 
 
 def resolve_retailer_names(values: list[str] | tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:

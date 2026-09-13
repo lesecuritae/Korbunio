@@ -16,7 +16,7 @@ Room, verwendet WorkManager für optionale Hintergrundaufgaben, hält Zugangsdat
 im Android-Keystore und ruft Händlerquellen direkt ohne Korbunio-Server ab.
 Das native Register deckt derzeit REWE, GLOBUS, ALDI Nord, ALDI Süd,
 Kaufland, Rossmann, Müller, HOL'AB!, beide Netto-Varianten und dm sowie
-regionale Marktguru-Quellen für Combi, famila Nordwest, Lidl und PENNY ab. Der bestehende Flutter-Client unter
+regionale Marktguru-Quellen für famila Nordwest, Lidl und PENNY ab. Der bestehende Flutter-Client unter
 [`app/`](app/) bleibt während der Migration als kompatible Version erhalten,
 während weitere Händlerintegrationen umgestellt werden.
 
@@ -140,16 +140,13 @@ Der aktuelle Stand enthält Adapter beziehungsweise regionale Datenwege für:
 - HOL’AB!
 - Rossmann
 - Müller
-- Combi
 - famila Nordwest
 
-REWE, EDEKA, Marktkauf, Kaufland, GLOBUS sowie die passende ALDI-Region werden bevorzugt direkt aus den jeweiligen Händlerquellen geladen. ALDI Süd verwendet den strukturierten offiziellen Wochenprospekt als vollständige Primärquelle; ALDI Nord liefert Preis, Grundpreis, ausdrückliches Pfand und Produktbild aus seinem offiziellen Angebotsdatensatz. Lidl, PENNY, Netto Marken-Discount, Combi und famila Nordwest werden über regionale Marktguru-Daten eingebunden. Netto schwarz, Rossmann, Müller und HOL’AB! besitzen getrennte, quellenspezifische Datenwege. Fällt eine direkte Händlerquelle aus, kann ein vorhandener regionaler Datenweg gezielt für diesen Händler einspringen. Ein erfolgreicher Direktbestand wird dabei nicht mit einem zweiten vollständigen Bestand vermischt.
+REWE, EDEKA, Marktkauf, Kaufland, GLOBUS sowie die passende ALDI-Region werden bevorzugt direkt aus den jeweiligen Händlerquellen geladen. ALDI Süd verwendet den strukturierten offiziellen Wochenprospekt als vollständige Primärquelle; ALDI Nord liefert Preis, Grundpreis, ausdrückliches Pfand und Produktbild aus seinem offiziellen Angebotsdatensatz. Lidl, PENNY, Netto Marken-Discount und famila Nordwest werden über regionale Marktguru-Daten eingebunden. Netto schwarz, Rossmann, Müller und HOL’AB! besitzen getrennte, quellenspezifische Datenwege. Fällt eine direkte Händlerquelle aus, kann ein vorhandener regionaler Datenweg gezielt für diesen Händler einspringen. Ein erfolgreicher Direktbestand wird dabei nicht mit einem zweiten vollständigen Bestand vermischt.
 
 Bei mehreren exakten Filialtreffern innerhalb einer Postleitzahl können REWE- und Netto-Marken-Discount-Filialen gezielt ausgewählt werden. REWE-Angebote werden filialbezogen geladen. Bei Netto Marken-Discount bleibt der derzeitige Angebotskatalog regional; die gewählte offizielle Filiale wird deshalb transparent angezeigt, ohne filialgenaue Preise zu versprechen.
 
-Combi und famila Nordwest gehören zur Bünting-Gruppe und sind nur im Nordwesten vertreten. Beide sind deshalb optional wie Marktkauf und GLOBUS: Liefern sie nichts, wird das nicht als Quellenfehler gemeldet.
-
-Ihre regionale Abdeckung im Marktguru-Bestand ist uneinheitlich und für beide Marken nicht deckungsgleich. Eine Postleitzahl im Vertriebsgebiet kann eine Marke, beide oder keine liefern. Eine Filiale in der Nähe garantiert also keine Angebote. Korbunio zeigt, was der regionale Bestand tatsächlich hergibt, und setzt keine Daten aus einem anderen Gebiet ein.
+famila Nordwest ist nur im Nordwesten vertreten und deshalb optional wie Marktkauf und GLOBUS: Liefert die Quelle nichts, wird das nicht als Verbindungsfehler gemeldet. Korbunio zeigt nur den tatsächlich verfügbaren regionalen Bestand und setzt keine Daten aus einem anderen Gebiet ein.
 
 famila Nordwest und famila Nordost sind getrennte, voneinander unabhängige Handelsgruppen. Erkannt wird nur famila Nordwest; famila Nordost ist ausdrücklich ausgeschlossen und kann nie unter der Bünting-Marke erscheinen.
 

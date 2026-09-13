@@ -16,6 +16,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Locale
 
 /**
@@ -31,6 +33,7 @@ class MarktguruProvider(
     providerId: String? = null,
     providerDisplayName: String? = null,
     private val advertiserUniqueName: String = advertiserSlug(retailerName),
+    private val now: () -> Instant = Instant::now,
 ) : RetailerProvider {
     override val id: String = providerId ?: "marktguru-${slug(retailerName)}"
     override val displayName: String = providerDisplayName ?: "$retailerName (regional)"
@@ -99,6 +102,7 @@ class MarktguruProvider(
                         ?.equals(advertiserUniqueName, ignoreCase = true) == true
                 }
             ) return@forEachIndexed
+            val validity = activeValidity(item) ?: return@forEachIndexed
             val product = item["product"]?.jsonObject ?: item
             val name = text(product, "name", "title", "productName") ?: return@forEachIndexed
             val advertisedPrice = number(item, "price", "currentPrice", "regularPrice")
@@ -115,6 +119,10 @@ class MarktguruProvider(
                 priceCents = BigDecimal.valueOf(pricing.regularPrice).movePointRight(2)
                     .setScale(0, RoundingMode.HALF_UP).intValueExact(),
                 sourceUrl = "https://www.marktguru.de/", imageUrl = image,
+                categoryId = item["categories"]?.jsonArray?.firstOrNull()?.jsonObject
+                    ?.get("name")?.jsonPrimitive?.content,
+                validFrom = validity.first,
+                validUntil = validity.second,
                 loyaltyProgram = loyalty?.first,
                 loyaltyLabel = loyalty?.second,
                 loyaltyPriceCents = loyalty?.third,
@@ -122,6 +130,24 @@ class MarktguruProvider(
             )
         }
         return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
+    }
+
+    /** Missing validity is retained for compatibility; explicit future or expired ranges are rejected. */
+    private fun activeValidity(item: JsonObject): Pair<String?, String?>? {
+        val rawRanges = item["validityDates"] ?: return null to null
+        val ranges = runCatching { rawRanges.jsonArray }.getOrNull() ?: return null
+        val current = now()
+        val active = ranges.firstNotNullOfOrNull { raw ->
+            val range = raw.jsonObject
+            val fromText = text(range, "from") ?: return@firstNotNullOfOrNull null
+            val untilText = text(range, "to") ?: return@firstNotNullOfOrNull null
+            val from = runCatching { Instant.parse(fromText) }.getOrNull() ?: return@firstNotNullOfOrNull null
+            val until = runCatching { Instant.parse(untilText) }.getOrNull() ?: return@firstNotNullOfOrNull null
+            if (current < from || current > until) return@firstNotNullOfOrNull null
+            val zone = ZoneId.of("Europe/Berlin")
+            from.atZone(zone).toLocalDate().toString() to until.atZone(zone).toLocalDate().toString()
+        }
+        return active
     }
 
     private fun text(obj: JsonObject, vararg keys: String): String? = keys.asSequence()

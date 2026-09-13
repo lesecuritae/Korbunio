@@ -211,7 +211,6 @@ const _retailerIcons = {
   'rossmann': '🔴',
   'müller': '🟠',
   'dm': '🔵',
-  'combi': '🟢',
   'famila nordwest': '🔵',
   'famila': '🔵',
 };

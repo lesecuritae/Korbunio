@@ -72,6 +72,11 @@ data class ProviderCacheEntity(
     val lastFailure: Long? = null,
     val lastError: String? = null,
     val offerCount: Int = 0,
+    val retailerReachable: Boolean = false,
+    val sourceReachable: Boolean = false,
+    val offersAvailable: Boolean = false,
+    val imagesAvailable: Boolean = false,
+    val parserOk: Boolean = false,
 )
 
 @Entity(tableName = "product_images")

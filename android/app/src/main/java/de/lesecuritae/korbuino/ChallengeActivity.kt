@@ -26,7 +26,8 @@ class ChallengeActivity : Activity() {
         }
         val isMueller = url.contains("mueller.de", ignoreCase = true)
         val isAldiSouth = url.contains("aldi-sued.de", ignoreCase = true)
-        val supportsRenderedHandoff = isMueller || isAldiSouth
+        val isRossmann = url.contains("rossmann.de", ignoreCase = true)
+        val supportsRenderedHandoff = isMueller || isAldiSouth || isRossmann
         var doneButton: Button? = null
         val web = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -51,6 +52,7 @@ class ChallengeActivity : Activity() {
             text = when {
                 isMueller -> "Müller-Angebote übernehmen"
                 isAldiSouth -> "ALDI Süd-Angebote übernehmen"
+                isRossmann -> "Rossmann-Angebote übernehmen"
                 else -> "Bestätigung fertig – erneut versuchen"
             }
             setOnClickListener {
@@ -71,7 +73,7 @@ class ChallengeActivity : Activity() {
         }
         val note = TextView(this).apply {
             text = if (supportsRenderedHandoff) {
-                "Die Händlerseite wird direkt im Browser geladen. Wenn die Angebote sichtbar sind, tippe auf „${if (isMueller) "Müller" else "ALDI Süd"}-Angebote übernehmen“. Korbuino löst keine CAPTCHAs automatisch."
+                "Die Händlerseite wird direkt im Browser geladen. Wenn die Angebote sichtbar sind, tippe auf „${when { isMueller -> "Müller"; isRossmann -> "Rossmann"; else -> "ALDI Süd" }}-Angebote übernehmen“. Korbuino löst keine CAPTCHAs automatisch."
             } else {
                 "Die Händlerseite wird direkt im Browser geladen. Wenn die Bestätigung abgeschlossen ist, tippe auf „Bestätigung fertig – erneut versuchen“. Korbuino löst keine CAPTCHAs automatisch."
             }

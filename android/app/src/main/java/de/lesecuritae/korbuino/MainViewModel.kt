@@ -3,6 +3,7 @@ package de.lesecuritae.korbuino
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import de.lesecuritae.korbuino.backup.BackupService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,7 @@ import de.lesecuritae.korbuino.data.ShoppingListRow
 import de.lesecuritae.korbuino.data.ProviderCacheEntity
 import de.lesecuritae.korbuino.providers.NetworkClientFactory
 import de.lesecuritae.korbuino.providers.ProviderRegistry
+import de.lesecuritae.korbuino.providers.ProviderImportPolicy
 import de.lesecuritae.korbuino.providers.RetailerRequest
 import de.lesecuritae.korbuino.providers.ServerProvider
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlClient
@@ -76,7 +78,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) {
-            Triple(secureStore.get("postal_code").orEmpty(), secureStore.get("city").orEmpty(), secureStore.get("retailer_id") ?: "all")
+                database.offerDao().deleteProvider("marktguru-combi")
+                database.providerDao().delete("marktguru-combi")
+                val savedRetailer = secureStore.get("retailer_id") ?: "all"
+                if (savedRetailer == "marktguru-combi") secureStore.put("retailer_id", "all")
+                Triple(
+                    secureStore.get("postal_code").orEmpty(),
+                    secureStore.get("city").orEmpty(),
+                    savedRetailer.takeUnless { it == "marktguru-combi" } ?: "all",
+                )
             }
             _state.value = _state.value.copy(
                 postalCode = saved.first,
@@ -277,36 +287,65 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val fetched = coroutineScope {
                 providers.map { provider ->
                     async(Dispatchers.IO) {
-                        provider to runCatching {
-                            provider.fetch(RetailerRequest(current.postalCode, citySlug = current.city)).also { value ->
-                                check(value.offers.isNotEmpty()) { "${provider.displayName} lieferte keine Angebote" }
-                            }
-                        }
+                        provider to runCatching { provider.fetch(RetailerRequest(current.postalCode, citySlug = current.city)) }
                     }
                 }.awaitAll()
             }
-            val successes = fetched.mapNotNull { (provider, result) ->
+            val successes = mutableListOf<Pair<de.lesecuritae.korbuino.providers.RetailerProvider, de.lesecuritae.korbuino.providers.ProviderResult>>()
+            var emptySources = 0
+            var rejectedSources = 0
+            var failedSources = 0
+            fetched.forEach { (provider, result) ->
+                val previous = database.providerDao().get(provider.id)
                 result.onSuccess { value ->
+                    val rejection = ProviderImportPolicy.rejectionReason(provider.id, value.offers.size, previous?.offerCount ?: 0)
+                    if (rejection == null) {
+                        successes += provider to value
+                    } else if (value.offers.isEmpty()) {
+                        emptySources++
+                    } else {
+                        rejectedSources++
+                    }
                     database.providerDao().upsert(
                         ProviderCacheEntity(
                             providerId = provider.id,
-                            lastSuccess = System.currentTimeMillis(),
-                            lastFailure = null,
-                            lastError = null,
-                            offerCount = value.offers.size,
+                            lastSuccess = if (rejection == null) System.currentTimeMillis() else previous?.lastSuccess,
+                            lastFailure = if (rejection == null || value.offers.isEmpty()) previous?.lastFailure else System.currentTimeMillis(),
+                            lastError = rejection,
+                            offerCount = if (rejection == null) value.offers.size else previous?.offerCount ?: 0,
+                            retailerReachable = true,
+                            sourceReachable = true,
+                            offersAvailable = value.offers.isNotEmpty(),
+                            imagesAvailable = value.offers.any { !it.imageUrl.isNullOrBlank() },
+                            parserOk = true,
                         ),
                     )
                 }.onFailure { error ->
+                    failedSources++
+                    val safeDiagnostic = generateSequence(error) { it.cause }
+                        .joinToString(" <- ") { cause ->
+                            "${cause.javaClass.simpleName}: ${cause.message.orEmpty()}"
+                        }.take(320)
+                    Log.w("KorbuinoProvider", "${provider.id}: $safeDiagnostic")
+                    val detail = generateSequence(error) { it.cause }.joinToString(" ") { it.message.orEmpty() }.lowercase()
+                    val parserFailure = listOf("parse", "format", "json", "angebotsblock", "daten fehlen").any(detail::contains)
+                    val transportFailure = listOf("timeout", "timed out", "unable to resolve", "failed to connect", "ssl", "certificate").any(detail::contains)
                     database.providerDao().upsert(
                         ProviderCacheEntity(
                             providerId = provider.id,
+                            lastSuccess = previous?.lastSuccess,
                             lastFailure = System.currentTimeMillis(),
-                            lastError = error.javaClass.simpleName.take(80),
+                            lastError = error.message.orEmpty().ifBlank { error.javaClass.simpleName }.take(160),
+                            offerCount = previous?.offerCount ?: 0,
+                            retailerReachable = !transportFailure,
+                            sourceReachable = false,
+                            offersAvailable = false,
+                            imagesAvailable = previous?.imagesAvailable ?: false,
+                            parserOk = !parserFailure,
                         ),
                     )
-                }.getOrNull()?.let { value -> provider to value }
+                }
             }
-            val failures = fetched.filter { (_, result) -> result.isFailure }
             if (successes.isNotEmpty()) {
                 // Products are shared across retailers. Canonicalising by the
                 // Room normalized key prevents a multi-retailer refresh from
@@ -348,14 +387,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _state.value = _state.value.copy(
                     loading = false,
                     challengeUrl = challenge,
-                    message = if (failures.isEmpty()) "${offers.size} Angebote von ${successes.size} Händlern gespeichert"
-                    else "${offers.size} Angebote gespeichert (${failures.size} Händler nicht erreichbar)",
+                    message = buildString {
+                        append("${offers.size} Angebote von ${successes.size} Quellen gespeichert")
+                        if (emptySources > 0) append(" · $emptySources ohne aktuelle Angebote")
+                        if (rejectedSources > 0) append(" · $rejectedSources wegen Datenqualität verworfen")
+                        if (failedSources > 0) append(" · $failedSources Abruffehler")
+                    },
                 )
             } else {
                 val challenge = fetched.firstNotNullOfOrNull { (provider, result) ->
                     result.exceptionOrNull()?.let { error -> provider.challengeUrl?.takeIf { isChallengeError(error) } }
                 }
-                val error = failures.firstOrNull()?.second?.exceptionOrNull()
+                val error = fetched.firstNotNullOfOrNull { it.second.exceptionOrNull() }
                 _state.value = _state.value.copy(
                     loading = false,
                     challengeUrl = challenge,

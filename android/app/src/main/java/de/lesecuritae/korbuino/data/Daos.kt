@@ -37,7 +37,11 @@ interface ProductDao {
     suspend fun upsertAll(products: List<ProductEntity>)
 
     @Query("SELECT * FROM products WHERE id IN (:ids)")
-    suspend fun find(ids: List<String>): List<ProductEntity>
+    suspend fun findChunk(ids: List<String>): List<ProductEntity>
+
+    @Transaction
+    suspend fun find(ids: List<String>): List<ProductEntity> =
+        ids.distinct().chunked(SQLITE_BIND_CHUNK_SIZE).flatMap { findChunk(it) }
 
     @Query("SELECT * FROM products")
     suspend fun all(): List<ProductEntity>
@@ -50,6 +54,12 @@ interface ProviderDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(value: ProviderCacheEntity)
+
+    @Query("SELECT * FROM provider_cache WHERE providerId = :providerId LIMIT 1")
+    suspend fun get(providerId: String): ProviderCacheEntity?
+
+    @Query("DELETE FROM provider_cache WHERE providerId = :providerId")
+    suspend fun delete(providerId: String)
 }
 
 @Dao
@@ -58,7 +68,11 @@ interface ImageDao {
     suspend fun upsert(value: ProductImageEntity)
 
     @Query("SELECT * FROM product_images WHERE productId IN (:ids)")
-    suspend fun find(ids: List<String>): List<ProductImageEntity>
+    suspend fun findChunk(ids: List<String>): List<ProductImageEntity>
+
+    @Transaction
+    suspend fun find(ids: List<String>): List<ProductImageEntity> =
+        ids.distinct().chunked(SQLITE_BIND_CHUNK_SIZE).flatMap { findChunk(it) }
 }
 
 @Dao
@@ -86,3 +100,5 @@ interface ShoppingListDao {
 }
 
 data class ShoppingListRow(val productId: String, val name: String, val quantity: Int, val checked: Boolean)
+
+private const val SQLITE_BIND_CHUNK_SIZE = 900

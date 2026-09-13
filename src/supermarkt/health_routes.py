@@ -36,7 +36,6 @@ def health() -> dict[str, Any]:
             "Müller": "official online offers",
             "dm": "official clearance catalogue; branch availability unknown",
             "Globus": "official primary with Marktguru fallback",
-            "Combi": "Marktguru regional catalogue",
             "famila Nordwest": "Marktguru regional catalogue",
             "HOL’AB!": "official regional selected offers",
         },

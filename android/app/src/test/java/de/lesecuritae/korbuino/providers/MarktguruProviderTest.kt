@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 
 class MarktguruProviderTest {
     private lateinit var server: MockWebServer
@@ -86,6 +87,31 @@ class MarktguruProviderTest {
         assertEquals("/search?as=web&limit=100&offset=100&q=REWE&zipCode=12345", server.takeRequest().path)
     }
 
+    @Test fun `keeps only offers valid today instead of mixing future leaflet weeks`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        server.enqueue(MockResponse().setBody("""
+            {"results":[
+              {"id":"current","product":{"name":"Aktueller Artikel"},"price":1.49,
+               "validityDates":[{"from":"2026-09-06T22:00:00Z","to":"2026-09-12T21:59:00Z"}]},
+              {"id":"future","product":{"name":"Nächste Woche"},"price":2.49,
+               "validityDates":[{"from":"2026-09-14T00:00:00Z","to":"2026-09-19T23:59:59Z"}]},
+              {"id":"expired","product":{"name":"Abgelaufen"},"price":3.49,
+               "validityDates":[{"from":"2026-08-31T00:00:00Z","to":"2026-09-05T23:59:59Z"}]}
+            ]}
+        """))
+        val result = MarktguruProvider(
+            "Lidl",
+            OkHttpClient(),
+            server.url("/home").toString(),
+            server.url("/search").toString(),
+            now = { Instant.parse("2026-09-10T12:00:00Z") },
+        ).fetch(RetailerRequest("26122"))
+
+        assertEquals(listOf("Aktueller Artikel"), result.products.map { it.name })
+        assertEquals("2026-09-07", result.offers.single().validFrom)
+        assertEquals("2026-09-12", result.offers.single().validUntil)
+    }
+
     @Test fun `does not parse package volume as Lidl Plus price`() = runTest {
         server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
         server.enqueue(MockResponse().setBody("""
@@ -136,18 +162,18 @@ class MarktguruProviderTest {
         server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
         server.enqueue(MockResponse().setBody("""
             {"results":[
-              {"id":"right","advertisers":[{"uniqueName":"combi"}],"product":{"name":"Combi Brot"},"price":1.49},
+              {"id":"right","advertisers":[{"uniqueName":"famila-nordwest"}],"product":{"name":"famila Brot"},"price":1.49},
               {"id":"wrong","advertisers":[{"uniqueName":"lidl"}],"product":{"name":"Fremdes Brot"},"price":0.69}
             ]}
         """))
         val result = MarktguruProvider(
-            "Combi",
+            "famila Nordwest",
             OkHttpClient(),
             server.url("/home").toString(),
             server.url("/search").toString(),
         ).fetch(RetailerRequest("26122"))
 
-        assertEquals(listOf("Combi Brot"), result.products.map { it.name })
+        assertEquals(listOf("famila Brot"), result.products.map { it.name })
         assertEquals(149, result.offers.single().priceCents)
     }
 }

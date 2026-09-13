@@ -31,7 +31,7 @@ void main() {
         'page_count': 1,
         'offers': [
           {
-            'retailer': 'Combi',
+            'retailer': 'Lidl',
             'product': 'Butter',
             'regular_price': 1.99,
             'regular_price_text': '1,99 €',

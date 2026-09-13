@@ -41,8 +41,9 @@ class HtmlFlyerProvider(
                 parse(response.body?.string().orEmpty())
             }
         }
-        if (id == "mueller" && result.offers.isEmpty()) {
-            throw IllegalStateException("Müller lieferte keine lesbaren dynamischen Angebote")
+        if (id in setOf("mueller", "rossmann") && result.offers.isEmpty()) {
+            val reason = if (id == "rossmann") "Rossmann Anti-Bot-Seite lieferte" else "Müller lieferte"
+            throw IllegalStateException("$reason keine lesbaren dynamischen Angebote")
         }
         result
     }
@@ -53,14 +54,14 @@ class HtmlFlyerProvider(
         val offers = mutableListOf<OfferEntity>()
         val cards = doc.select(
             "[data-product], [data-testid*=product], .offer, .offer-card, .product-card, " +
-                ".product-tile, .kloffer, article, li[class*=offer], li[class*=product]",
+                ".product-tile, .kloffer, [aria-label^=\"product-\"], article, li[class*=offer], li[class*=product]",
         )
         cards.forEachIndexed { index, card ->
-            val name = card.select(
+            val name = card.attr("data-item-name").ifBlank { card.select(
                 "[data-product-name], [data-testid*=name], .product-name, .offer-name, " +
                     "[data-test*=product-tile__name], [class*=product-tile__product-name], " +
-                    ".product-tile__name, .title, h2, h3, h4",
-            ).firstOrNull()?.text()?.trim().orEmpty()
+                    ".product-tile__name, .title, h4, h2, h3",
+            ).firstOrNull()?.text()?.trim().orEmpty() }
             val text = card.select("[data-price], [data-testid*=price], [data-test*=product-tile__price], " +
                 "[class*=product-price__current], [class*=product-price__price], " +
                 ".base-price--product-tile, .price, .offer-price, .product-price")
@@ -71,15 +72,26 @@ class HtmlFlyerProvider(
                 }?.text()?.let { raw ->
                     ProviderParsing.price(raw.replace(Regex("[.,][–—-]$"), ",00"))
                 }
+            } else if (id == "netto-schwarz") {
+                splitPrice(card.selectFirst("h3")) ?: parsePrice(text)
+            } else if (id == "rossmann") {
+                rossmannPrice(card) ?: parsePrice(text)
             } else parsePrice(text))
                 ?: return@forEachIndexed
             if (name.isBlank() || name.length > 240) return@forEachIndexed
             val external = card.attr("data-product-id").ifBlank { card.attr("data-id") }
+                .ifBlank { card.attr("data-item-id") }
                 .ifBlank { if (id == "netto-marken") card.selectFirst("[data-sku]")?.attr("data-sku").orEmpty() else "" }
                 .ifBlank { "$index-${normalize(name)}" }
             val productId = "$id-product-${normalize(name)}"
             val image = imageUrl(card)
-            products += ProductEntity(productId, name, normalizedKey = normalize(name))
+            products += ProductEntity(
+                productId,
+                name,
+                brand = card.attr("data-item-brand"),
+                normalizedKey = normalize(name),
+                gtin = card.attr("data-item-ean").ifBlank { null },
+            )
             offers += OfferEntity(
                 id = "$id:$external", retailerId = id, productId = productId,
                 externalId = external, priceCents = java.math.BigDecimal.valueOf(price).movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).intValueExact(),
@@ -99,6 +111,39 @@ class HtmlFlyerProvider(
         } else {
             token.toDoubleOrNull()
         }
+    }
+
+    private fun splitPrice(node: org.jsoup.nodes.Element?): Double? {
+        if (node == null) return null
+        val euros = node.ownText().trim().removeSuffix(".").removeSuffix(",")
+        val cents = node.children().firstNotNullOfOrNull { child ->
+            child.text().trim().takeIf { it.matches(Regex("\\d{2}")) }
+        }
+        if (euros.matches(Regex("\\d{1,4}")) && cents != null) {
+            return ProviderParsing.price("$euros.$cents")
+        }
+        val fragments = node.children().map { it.text().trim() }.filter(String::isNotBlank)
+        if (fragments.size >= 2 && fragments[0].matches(Regex("\\d{1,4}")) && fragments[1].matches(Regex("\\d{2}"))) {
+            return ProviderParsing.price("${fragments[0]}.${fragments[1]}")
+        }
+        val text = node.text()
+        val compact = text.replace('\u00a0', ' ').trim()
+        parsePrice(compact)?.let { return it }
+        val parts = Regex("(?<!\\d)(\\d{1,4})\\s+(\\d{2})(?!\\d)").find(compact)
+            ?: return null
+        return ProviderParsing.price("${parts.groupValues[1]}.${parts.groupValues[2]}")
+    }
+
+    /** Rossmann exposes base prices before the sale price in DOM order. */
+    private fun rossmannPrice(card: org.jsoup.nodes.Element): Double? {
+        val priceBox = card.selectFirst("[data-testid=product-price]") ?: return null
+        val accessiblePrice = priceBox.select(".sr-only").asSequence()
+            .map { it.text().replace('\u00a0', ' ') }
+            .firstOrNull { it.contains("Preis", ignoreCase = true) || it.contains("Price", ignoreCase = true) }
+        parsePrice(accessiblePrice.orEmpty())?.let { return it }
+
+        val visual = priceBox.selectFirst(".inline-flex") ?: return null
+        return splitPrice(visual)
     }
 
     private fun imageUrl(card: org.jsoup.nodes.Element): String? {
