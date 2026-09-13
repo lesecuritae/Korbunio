@@ -33,6 +33,13 @@
 - Filter, Händlerleiste, Bonusprogramme und Statushinweise scrollen auf kleinen
   Displays mit dem Inhalt; die Angebotsliste erhält den verfügbaren Platz ohne
   überlagernde feste Bedienbereiche.
+- Die native Android-App bleibt vollständig eigenständig: Händlerdaten werden
+  direkt vom Smartphone abgerufen und lokal gespeichert. Ein eigener Korbunio-
+  Server kann optional in den Einstellungen verbunden werden, ist für den
+  normalen App-Betrieb aber nicht erforderlich.
+- Die optionale KitchenOwl-Integration bleibt erhalten und verbindet die App
+  direkt mit der selbst gehosteten KitchenOwl-Instanz. Weder Angebotsabruf noch
+  KitchenOwl-Synchronisation benötigen dabei einen Korbunio-Server.
 
 ### Validierung
 
