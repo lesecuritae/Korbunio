@@ -101,27 +101,44 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release edit "$GITHUB_REF_NAME" \
-              --title "Korbunio $GITHUB_REF_NAME" \
-              --notes-file /tmp/release-notes.md
-          else
+          release_apk="korbuino-${GITHUB_REF_NAME#v}.apk"
+
+          publish_release() {
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              assets="$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')"
+              if grep -Fxq "$release_apk" <<<"$assets" && \
+                 grep -Fxq "${release_apk}.sha256" <<<"$assets"; then
+                gh release edit "$GITHUB_REF_NAME" \
+                  --title "Korbunio $GITHUB_REF_NAME" \
+                  --notes-file /tmp/release-notes.md || return 1
+                return
+              fi
+              gh release delete "$GITHUB_REF_NAME" --yes || return 1
+            fi
+
             gh release create "$GITHUB_REF_NAME" \
+              "$release_apk" "${release_apk}.sha256" \
               --title "Korbunio $GITHUB_REF_NAME" \
               --notes-file /tmp/release-notes.md \
               --verify-tag
-          fi
+          }
 
+          published=false
           for attempt in 1 2 3 4; do
-            if gh release upload "$GITHUB_REF_NAME" \
-              korbuino-*.apk korbuino-*.apk.sha256 --clobber; then
-              exit 0
+            if publish_release; then
+              assets="$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')"
+              if grep -Fxq "$release_apk" <<<"$assets" && \
+                 grep -Fxq "${release_apk}.sha256" <<<"$assets"; then
+                published=true
+                break
+              fi
             fi
             if [ "$attempt" -eq 4 ]; then
               exit 1
             fi
             sleep "$((attempt * 15))"
           done
+          test "$published" = true
 
       - name: Close issues delivered by this milestone
         if: startsWith(github.ref, 'refs/tags/v')
