@@ -31,6 +31,7 @@ class SupermarketRequest(BaseModel):
         description="Optional: zuvor über die REWE-Marktsuche gewählte Markt-ID.",
     )
     netto_market_id: str = Field(default="", max_length=30, pattern=r"^\d*$", description="Optional gewählte Netto-Marken-Discount-Filial-ID.")
+    trinkgut_market_id: str = Field(default="", max_length=50, description="Optional gewählte trinkgut-Filial-ID.")
     page: int = Field(default=1, ge=1, le=10000)
     page_size: int = Field(default=100, ge=1, le=100, description="Maximal 100 Angebote pro API-Antwort")
     view: Literal["best_only", "all"] = Field(default="best_only", description="Nur günstigste sichere Treffer oder alle")

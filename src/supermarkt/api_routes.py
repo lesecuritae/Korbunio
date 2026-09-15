@@ -87,6 +87,15 @@ def rewe_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@router.get("/api/v1/trinkgut/markets", summary="trinkgut-Märkte einer PLZ auflösen", include_in_schema=False)
+def trinkgut_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"), _: None = Depends(require_api_auth)) -> dict[str, Any]:
+    try:
+        markets = runtime.get_engine().loader.official_trinkgut.markets(postal_code)
+        return {"postal_code": postal_code, "markets": markets, "count": len(markets)}
+    except ToolError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.get("/api/v1/netto/markets", summary="Netto-Marken-Discount-Filialen einer PLZ auflösen", include_in_schema=False)
 def netto_markets(postal_code: str = Query(min_length=5, max_length=5, pattern=r"^\d{5}$"), _: None = Depends(require_api_auth)) -> dict[str, Any]:
     try:

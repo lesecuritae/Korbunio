@@ -110,9 +110,11 @@ The browser interface and REST API use the same comparison engine. Retailer adap
 
 ## Supported retailers and data paths
 
-Korbunio currently supports REWE, EDEKA, Marktkauf, ALDI Nord, ALDI Süd, Kaufland, Lidl, PENNY, Netto Marken-Discount, Netto schwarz, GLOBUS, HOL’AB!, Rossmann, Müller, and famila Nordwest.
+Korbunio currently supports REWE, EDEKA, Marktkauf, ALDI Nord, ALDI Süd, Kaufland, Lidl, PENNY, Netto Marken-Discount, Netto schwarz, GLOBUS, HOL’AB!, Rossmann, Müller, famila Nordwest and trinkgut.
 
 REWE, EDEKA, Marktkauf, Kaufland, GLOBUS, and the applicable ALDI region are loaded preferentially from direct retailer sources. ALDI Süd uses its structured official weekly publication as its complete primary source. ALDI Nord takes price, unit price, explicitly published deposit, and product image from its official offer data. If the ALDI region cannot be determined unambiguously and no explicit selection was made, ALDI is omitted and a warning is shown.
+
+For trinkgut, the list of stores is downloaded from the official trinkgut website or taken from cached data. This list is used to provide the deposit amount for each product.
 
 Lidl, PENNY, Netto Marken-Discount, and famila Nordwest are loaded from regional Marktguru data. Netto schwarz, Rossmann, Müller, and HOL’AB! use separate source-specific data paths. Korbunio combines a broad regional search with supplementary retailer-name searches where applicable; the name queries alone are never treated as a complete catalogue.
 
@@ -123,6 +125,7 @@ famila Nordwest only trades in north-western Germany and is therefore optional i
 famila Nordwest and famila Nordost are separate, unrelated retail groups. Only famila Nordwest is matched; famila Nordost is explicitly excluded so its offers can never appear under the Bünting brand.
 
 If a direct adapter fails or returns no offers for the target week, Marktguru may act as a fallback for that retailer only. A successful direct catalogue is never mixed with a second complete Marktguru catalogue. Actual availability depends on postal code, region, and reachable sources; retailers without results are not shown as empty filters.
+
 
 ```bash
 docker exec korbunio python -m supermarkt.diagnostics 12345
@@ -272,6 +275,9 @@ The default setup needs no `.env`. [`.env.example`](.env.example) documents ever
 - `SUPERMARKT_IMAGE_CACHE_TTL_SECONDS`
 - `SUPERMARKT_IMAGE_CACHE_MAX_BYTES`
 - `SUPERMARKT_IMAGE_MAX_FILE_BYTES`
+- `SUPERMARKT_TRINKGUT_DEPOSIT_FETCH_WORKERS`
+- `SUPERMARKT_TRINKGUT_CACHE_DIR`
+
 
 The historical internal prefixes remain part of the current technical interface. `.env.example` is authoritative for meanings, defaults, and Docker paths.
 

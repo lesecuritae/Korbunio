@@ -57,6 +57,7 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
         ("famila-nordost", "famila nordost"),
     ),
     RetailerSpec("HOL’AB!", ("hol'ab", "hol’ab", "holab"), "#e30613", "https://holab.de/angebote", True),
+    RetailerSpec("trinkgut", ("trinkgut", "trink gut"), "#003399", "https://www.trinkgut.de/angebote/", True),
     RetailerSpec("Rossmann", ("rossmann",), "#cf003d", "https://www.rossmann.de/de/filialen/index.html", True),
     RetailerSpec("Müller", ("mueller", "müller drogerie", "mueller drogerie"), "#e30613", "https://www.mueller.de/storefinder/", True),
     RetailerSpec("dm", ("dm drogerie", "dm-drogerie markt"), "#f6d300", "https://www.dm.de/store/", True),

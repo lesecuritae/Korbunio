@@ -86,6 +86,14 @@ def browser_rewe_markets(postal_code: str = Query(default="", min_length=5, max_
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@router.get("/trinkgut/markets", include_in_schema=False)
+def browser_trinkgut_markets(postal_code: str = Query(default="", min_length=5, max_length=5, pattern=r"^\d{5}$")) -> dict:
+    try:
+        return {"postal_code": postal_code, "markets": runtime.get_engine().loader.official_trinkgut.markets(postal_code)}
+    except ToolError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.get("/netto/markets", include_in_schema=False)
 def browser_netto_markets(postal_code: str = Query(default="", min_length=5, max_length=5, pattern=r"^\d{5}$")) -> dict:
     try:
@@ -95,7 +103,7 @@ def browser_netto_markets(postal_code: str = Query(default="", min_length=5, max
 
 
 @router.post("/search", include_in_schema=False)
-def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str] | None, Form(alias="retailers")] = None, rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "") -> Response:
+def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str] | None, Form(alias="retailers")] = None, rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "", trinkgut_market_id_input: Annotated[str, Form(alias="trinkgut_market_id")] = "") -> Response:
     raw_postal_code = clean_text(postal_code_input)
     postal_code = validate_postal_code(raw_postal_code)
     if postal_code is None:
@@ -104,7 +112,7 @@ def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] 
         retailers, unknown = resolve_retailer_names(retailers_input or [])
         if unknown:
             raise ToolError("Unbekannte Händler: " + ", ".join(unknown))
-        snapshot_kwargs = {"retailers": retailers, "rewe_market_id": clean_text(rewe_market_id_input), "netto_market_id": clean_text(netto_market_id_input)}
+        snapshot_kwargs = {"retailers": retailers, "rewe_market_id": clean_text(rewe_market_id_input), "netto_market_id": clean_text(netto_market_id_input), "trinkgut_market_id": clean_text(trinkgut_market_id_input)}
         if clean_text(offer_week_input).casefold() == "next":
             snapshot_kwargs["offer_week"] = "next"
         snapshot, _ = runtime.get_engine().snapshot(postal_code, normalize_aldi_region(aldi_region_input), _wants_refresh(refresh_input), **snapshot_kwargs)
@@ -114,7 +122,7 @@ def browser_search(postal_code_input: Annotated[str, Form(alias="postal_code")] 
 
 
 @router.post("/search/jobs", include_in_schema=False)
-def start_search_job(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str] | None, Form(alias="retailers")] = None, rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "") -> dict[str, str]:
+def start_search_job(postal_code_input: Annotated[str, Form(alias="postal_code")] = "", aldi_region_input: Annotated[str, Form(alias="aldi_region")] = "auto", offer_week_input: Annotated[str, Form(alias="offer_week")] = "current", refresh_input: Annotated[str, Form(alias="refresh")] = "", retailers_input: Annotated[list[str] | None, Form(alias="retailers")] = None, rewe_market_id_input: Annotated[str, Form(alias="rewe_market_id")] = "", netto_market_id_input: Annotated[str, Form(alias="netto_market_id")] = "", trinkgut_market_id_input: Annotated[str, Form(alias="trinkgut_market_id")] = "") -> dict[str, str]:
     postal_code = validate_postal_code(clean_text(postal_code_input))
     if postal_code is None:
         raise HTTPException(status_code=400, detail="Bitte eine gültige fünfstellige deutsche Postleitzahl eingeben.")
@@ -123,7 +131,7 @@ def start_search_job(postal_code_input: Annotated[str, Form(alias="postal_code")
         raise HTTPException(status_code=400, detail="Unbekannte Händler: " + ", ".join(unknown))
     args = (postal_code, normalize_aldi_region(aldi_region_input), _wants_refresh(refresh_input), retailers, clean_text(rewe_market_id_input), clean_text(netto_market_id_input))
     try:
-        job_id = runtime.get_jobs().start(*args, offer_week="next") if clean_text(offer_week_input).casefold() == "next" else runtime.get_jobs().start(*args)
+        job_id = runtime.get_jobs().start(*args, offer_week="next", trinkgut_market_id=clean_text(trinkgut_market_id_input)) if clean_text(offer_week_input).casefold() == "next" else runtime.get_jobs().start(*args, trinkgut_market_id=clean_text(trinkgut_market_id_input))
     except SearchCapacityError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     return {"job_id": job_id}
