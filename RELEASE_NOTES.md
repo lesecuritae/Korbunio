@@ -1,3 +1,14 @@
+# 0.1.49
+
+## Android-Build für die neue Compose-Version
+
+- 0.1.48 hat die Compose-Bibliothek aktualisiert, aber der Android-Build in der CI brach
+  ab: Die Android-Lint-Prüfung der alten Build-Werkzeuge (Android Gradle Plugin 8.7.3) kam mit
+  den neuen Compose-Prüfregeln nicht zurecht. Für 0.1.48 gibt es deshalb keine APK.
+  0.1.49 hebt das Android Gradle Plugin auf 8.13.2 und Gradle auf 8.13 an und enthält alles
+  aus 0.1.48 (Bildfehler stürzen die App nicht mehr ab, Cronet nur mit echtem Anbieter,
+  Compose 1.10). Debug, Release mit R8, Lint und Unit-Tests laufen lokal durch.
+
 # 0.1.48
 
 ## Stabilität auf Handys ohne Google-Dienste, neue Compose-Version
