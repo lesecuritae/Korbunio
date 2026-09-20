@@ -1,3 +1,19 @@
+# 0.1.48
+
+## Stabilität auf Handys ohne Google-Dienste, neue Compose-Version
+
+- Native App: Ein Bild, das sich nicht laden lässt, bringt die App nicht mehr zum Absturz.
+  Bisher fing die App nur einen Teil der möglichen Fehler beim Laden von Produktbildern ab.
+  Ein anderer Fehler, etwa vom Netzwerkweg auf einem Handy ohne Google-Dienste (GrapheneOS),
+  hätte beim Öffnen einer Warengruppe mit noch nicht geladenen Bildern die Liste abgerissen.
+  Jetzt erscheint bei einem Fehler das Einkaufswagen-Symbol.
+- Native App: Der schnelle Chromium-Netzwerkweg (Cronet) wird nur genutzt, wenn das Handy
+  einen echten Anbieter dafür hat. Ohne Google-Dienste läuft alles über OkHttp, und ein
+  Fehler im Cronet-Weg fällt auf OkHttp zurück, statt die Anfrage abzubrechen.
+- Native App: Jetpack Compose von 1.7 auf 1.10 und Material 3 von 1.3 auf 1.4 aktualisiert
+  (Compose-BOM 2026.03.01). Das Aussehen bleibt, die Bibliothek ist aber näher an
+  Android 17. Im Emulator geprüft: Angebote, Warengruppen-Menü, Sortierung und Scrollen.
+
 # 0.1.47
 
 ## Warengruppen auswählen statt aufklappen, Absturzbericht
