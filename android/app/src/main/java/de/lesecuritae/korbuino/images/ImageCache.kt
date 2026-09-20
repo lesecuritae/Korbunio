@@ -27,7 +27,18 @@ class ImageCache(private val context: Context, private val http: OkHttpClient = 
     private val downloads = Semaphore(4)
 
     /** Decode bounded thumbnails, including files cached by older app versions. */
-    suspend fun thumbnail(path: String?, url: String?, referer: String?): Bitmap? = withContext(Dispatchers.IO) {
+    suspend fun thumbnail(path: String?, url: String?, referer: String?): Bitmap? = try {
+        loadThumbnail(path, url, referer)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Throwable) {
+        // A picture that cannot be loaded (no network stack, out of memory, a broken file) shows the cart
+        // symbol instead. It must never take the app down while a list scrolls or opens.
+        android.util.Log.w("KorbuinoImages", "Thumbnail failed: ${error.javaClass.simpleName}")
+        null
+    }
+
+    private suspend fun loadThumbnail(path: String?, url: String?, referer: String?): Bitmap? = withContext(Dispatchers.IO) {
         fun decode(file: File): Bitmap? {
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(file.path, options)
@@ -107,6 +118,10 @@ class ImageCache(private val context: Context, private val http: OkHttpClient = 
                 android.util.Log.w("KorbuinoImages", "Image transport ${error.javaClass.simpleName} from $host")
                 null
             } catch (_: IllegalStateException) {
+                null
+            } catch (error: RuntimeException) {
+                // For example a transport that is not available on this phone (no Google services).
+                android.util.Log.w("KorbuinoImages", "Image transport ${error.javaClass.simpleName} from $host")
                 null
             }
         }

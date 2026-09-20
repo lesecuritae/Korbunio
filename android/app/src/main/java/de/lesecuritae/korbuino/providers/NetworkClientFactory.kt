@@ -50,6 +50,9 @@ object NetworkClientFactory {
 
         val transport by lazy {
             runCatching {
+                // Phones without Google services (GrapheneOS, for example) only have the Java fallback provider, which
+                // cannot do what the interceptor needs. Then plain OkHttp is used.
+                check(hasRealCronetProvider(context)) { "No native Cronet provider" }
                 val engine = CronetEngine.Builder(context)
                     .enableHttp2(true)
                     .enableQuic(true)
@@ -58,7 +61,16 @@ object NetworkClientFactory {
             }.getOrNull()
         }
         return base.addInterceptor { chain ->
-            transport?.intercept(chain) ?: chain.proceed(chain.request())
+            val cronet = transport
+            if (cronet == null) chain.proceed(chain.request())
+            else try {
+                cronet.intercept(chain)
+            } catch (error: java.io.IOException) {
+                throw error
+            } catch (error: RuntimeException) {
+                // The Chromium transport misbehaves: this request goes through OkHttp itself.
+                chain.proceed(chain.request())
+            }
         }.build()
     }
 
@@ -67,6 +79,10 @@ object NetworkClientFactory {
      * reliably on the oldest supported Android releases. OkHttp uses the
      * platform trust store there and keeps full certificate verification.
      */
+    private fun hasRealCronetProvider(context: Context): Boolean = runCatching {
+        org.chromium.net.CronetProvider.getAllProviders(context).any { it.isEnabled && it.name != org.chromium.net.CronetProvider.PROVIDER_NAME_FALLBACK }
+    }.getOrDefault(false)
+
     internal fun supportsCronetTransport(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.Q
 
     private fun installLegacyTlsProvider(context: Context) {
