@@ -5,6 +5,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from . import kitchenowl, notify
+from .api_models import ShoppingListWriteRequest
+from .api_routes import add_kitchenowl_items
 from .security import api_key
 from .access import require_admin_auth
 from .ui import static_text
@@ -91,6 +93,12 @@ def kitchenowl_delete() -> dict:
     kitchenowl.clear()
     _refresh_mcp()
     return _status()
+
+
+@router.post("/api/v1/kitchenowl/items", include_in_schema=False, dependencies=[Depends(require_settings_access)])
+def kitchenowl_add_items(payload: ShoppingListWriteRequest) -> dict[str, list[str]]:
+    """Files browser shopping-list items without exposing the KitchenOwl token."""
+    return add_kitchenowl_items(payload)
 
 
 class NotifyRequest(BaseModel):

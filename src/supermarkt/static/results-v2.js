@@ -104,7 +104,7 @@ function renderPrograms(programs,note){
 }
 
 $("rows").addEventListener("click",event=>{const button=event.target.closest(".imageButton");if(!button)return;lightboxTrigger=button;$("lightboxImage").src=button.dataset.src;$("lightboxImage").alt=button.dataset.alt;$("lightboxTitle").textContent=button.dataset.alt;document.documentElement.classList.add("modalOpen");$("lightbox").showModal();$("lightboxClose").focus()});
-$("rows").addEventListener("click",async event=>{const button=event.target.closest(".shoppingAdd");if(!button)return;button.disabled=true;await globalThis.KorbunioShopping.addOffer(offerById.get(button.dataset.offerId));button.textContent="Hinzugefügt ✓";setTimeout(()=>{button.disabled=false;button.textContent="Zur Einkaufsliste"},1200)});
+$("rows").addEventListener("click",async event=>{const button=event.target.closest(".shoppingAdd");if(!button)return;button.disabled=true;try{await globalThis.KorbunioShopping.addOffer(offerById.get(button.dataset.offerId));button.textContent="Hinzugefügt ✓"}catch(error){button.textContent="Lokal gespeichert · KitchenOwl-Fehler";const notice=$("shoppingNotice");if(notice)notice.textContent=`KitchenOwl: ${error.message}`}setTimeout(()=>{button.disabled=false;button.textContent="Zur Einkaufsliste"},1800)});
 function closeLightbox(){$("lightbox").close();document.documentElement.classList.remove("modalOpen");$("lightboxImage").src="";lightboxTrigger?.focus()}
 $("lightboxClose").onclick=closeLightbox;$("lightbox").addEventListener("click",event=>{if(event.target===$("lightbox"))closeLightbox()});$("lightbox").addEventListener("cancel",event=>{event.preventDefault();closeLightbox()});
 $("q").addEventListener("input",()=>{clearTimeout(debounce);debounce=setTimeout(()=>query(true),300)});

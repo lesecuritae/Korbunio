@@ -1,3 +1,16 @@
+# 0.1.51
+
+## KitchenOwl wieder direkt aus Server und App erreichbar
+
+- Server-Weboberfläche: Artikel aus Suchergebnissen und der Einkaufsliste werden wieder
+  direkt an die auf dem Server eingerichtete KitchenOwl-Liste übertragen. Der Token bleibt
+  dabei ausschließlich auf dem Server; eine lokale Browserkopie der Liste bleibt erhalten.
+- Server-Kompatibilitäts-API: Die bereits von der Flutter-App erwarteten Endpunkte für
+  KitchenOwl-Ziele, vorhandene Einträge und neue Artikel sind jetzt implementiert.
+- Native Android-App: Direkter KitchenOwl-Abgleich und EDEKA-Abruf wurden erneut geprüft.
+  EDEKA lud im Android-15-Emulator 241 Angebote, ohne dass sich die App beendete; der Fix
+  für die EDEKA-Bestätigungsseite auf Android 8 bis 10 bleibt enthalten.
+
 # 0.1.50
 
 ## Alle Bibliotheken der Android-App auf dem aktuellen Stand

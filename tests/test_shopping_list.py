@@ -138,10 +138,13 @@ def test_import_limits_and_future_schema_are_rejected():
     assert js("(()=>{try{m.validateDocument({schema_version:99,items:[]});return false}catch{return true}})()") is True
 
 
-def test_shopping_frontend_is_local_only():
+def test_shopping_frontend_keeps_a_local_copy_and_syncs_without_exposing_tokens():
     shopping = (ROOT / "src/supermarkt/static/shopping.js").read_text(encoding="utf-8")
     assert "indexedDB.open" in shopping
-    assert "fetch(" not in shopping
+    assert 'fetch(path' in shopping
+    assert 'shopping-list/${action}' in shopping
+    assert '"/api/v1/kitchenowl/items"' in shopping
+    assert "kitchenOwlItem" in shopping
     assert "XMLHttpRequest" not in shopping
     assert "localStorage" not in shopping
     assert "document.cookie" not in shopping

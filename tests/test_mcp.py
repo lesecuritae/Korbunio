@@ -6,7 +6,7 @@ import pytest
 from mcp.client import Client
 from starlette.testclient import TestClient
 
-from supermarkt import mcp_server, runtime
+from supermarkt import access, mcp_server, runtime
 from supermarkt.asgi import app
 
 OFFERS = [
@@ -260,6 +260,55 @@ def test_settings_page_saves_token_privately_and_enables_the_tool(settings_file)
         fake.close()
 
 
+def test_browser_and_compatibility_client_can_file_items_in_kitchenowl(settings_file):
+    fake = _FakeKitchenOwl()
+    try:
+        client = TestClient(app)
+        saved = client.put(
+            "/api/v1/kitchenowl",
+            json={"url": fake.url, "token": "test-token", "list_id": "7"},
+        )
+        assert saved.status_code == 200
+
+        result_token = access.result_token("compatibility-result")
+        base = "/results/compatibility-result/shopping-list"
+        targets = client.get(f"{base}/targets", params={"token": result_token}).json()
+        assert targets == {
+            "configured": True,
+            "targets": [{"entity_id": "7", "label": "Haus · Einkauf"}],
+            "default_entity": "7",
+        }
+
+        filed = client.post(
+            f"{base}/items",
+            params={"token": result_token},
+            json={
+                "entity_id": "7",
+                "items": [{"product": "Butter", "retailer": "EDEKA", "price_text": "1,79 €", "pack": "250 g"}],
+            },
+        )
+        assert filed.status_code == 200
+        assert filed.json() == {"added": ["Butter"]}
+        post = [request for request in fake.requests if request[0] == "POST"][-1]
+        assert post[1] == "/api/shoppinglist/7/add-item-by-name"
+        assert post[3] == {"name": "Butter", "description": "bei EDEKA · 1,79 € · 250 g"}
+
+        entries = client.get(
+            f"{base}/entries",
+            params={"token": result_token, "entity_id": "7"},
+        )
+        assert entries.json()["items"] == ["Milch", "Butter"]
+
+        browser = client.post(
+            "/api/v1/kitchenowl/items",
+            json={"entity_id": "7", "items": [{"name": "Brot", "description": "Menge: 1"}]},
+        )
+        assert browser.status_code == 200
+        assert browser.json() == {"added": ["Brot"]}
+    finally:
+        fake.close()
+
+
 async def _tools():
     async with Client(mcp_server.mcp) as client:
         return (await client.list_tools()).tools
@@ -283,6 +332,7 @@ def test_settings_need_the_admin_key_when_one_is_configured(settings_file, monke
     client = TestClient(app)
     assert client.get("/api/v1/kitchenowl").status_code == 401
     assert client.get("/api/v1/kitchenowl", headers={"Authorization": "Bearer admin-for-test"}).status_code == 200
+    assert client.post("/api/v1/kitchenowl/items", json={"items": [{"name": "Milch"}]}).status_code == 401
 
 
 # ---- Preisverlauf, Beobachten, Benachrichtigen, Listenabgleich, Adapter ---------------------
