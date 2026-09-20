@@ -36,6 +36,11 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - name: Install Android SDK platform
+        run: |
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
+          "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0"
+
       - name: Configure release signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -295,7 +300,7 @@ jobs:
       - name: Install Android SDK platform
         run: |
           SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" "platforms;android-37.0" "build-tools;36.0.0"
       - name: Build native debug APK
         working-directory: android
         run: ./gradlew assembleDebug --stacktrace

@@ -1,3 +1,19 @@
+# 0.1.50
+
+## Alle Bibliotheken der Android-App auf dem aktuellen Stand
+
+- Native App: Die Build-Werkzeuge und Bibliotheken sind jetzt durchgehend aktuell statt ein
+  Mischmasch aus alt und neu: Android Gradle Plugin 9.4.1, Gradle 9.7.1, Kotlin 2.4.20, KSP 2.3.12,
+  Compose (BOM 2026.09.00, Compose 1.12) mit Material 3, Hilt 2.60.1, Room 2.8.5, Work 2.11.2,
+  Activity 1.13, Lifecycle 2.11, Coroutines 1.11, Serialization 1.11, Core 1.19, Material 1.14,
+  jsoup 1.23 und Security-Crypto 1.1.0 (stabil statt Alpha). Die App wird gegen Android 17
+  (API 37) gebaut und darauf ausgerichtet.
+- Bewusst nicht angehoben: OkHttp bleibt auf der aktuellen 4er-Version (4.12.0). Die 5er-Version
+  läuft zwar, aber der Cronet-Adapter (`cronet-okhttp` 0.1.1, die neueste Version) ist gegen 4.x
+  gebaut, und ich kann ihn hier ohne Google-Handy nicht gegen 5.x prüfen.
+- Die Prüfung im Emulator (Android 15 ohne Google-Dienste) lief mit dem neuen Stand: Angebote,
+  Warengruppen-Menü mit mehreren Gruppen, Scrollen, kein Absturz.
+
 # 0.1.49
 
 ## Android-Build für die neue Compose-Version
