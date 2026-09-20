@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -148,6 +149,49 @@ private fun KorbuinoApp(
     registerViewModel(viewModel)
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    var crashReport by remember { mutableStateOf(CrashReporter.read(context)) }
+    crashReport?.let { report ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Korbuino ist abgestürzt") },
+            text = {
+                Column {
+                    Text(
+                        "Der Bericht enthält nur technische Angaben (Fehlermeldung, App-, Android- und Gerätetyp), " +
+                            "keine Angebote und keine persönlichen Daten. Bitte kopiere ihn und schicke ihn mit, wenn du den Fehler meldest.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        report.take(1500),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        modifier = Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Korbuino Absturzbericht", report))
+                    android.widget.Toast.makeText(context, "Bericht kopiert", android.widget.Toast.LENGTH_SHORT).show()
+                }) { Text("Kopieren") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Korbuino Absturzbericht")
+                            putExtra(android.content.Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(send, "Bericht teilen").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }) { Text("Teilen") }
+                    TextButton(onClick = { CrashReporter.clear(context); crashReport = null }) { Text("Verwerfen") }
+                }
+            },
+        )
+    }
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(viewModel::exportBackup) }
     val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importBackup) }
     var showOverview by rememberSaveable { mutableStateOf(false) }
@@ -340,8 +384,9 @@ private fun OfferOverview(
     var sortMode by rememberSaveable { mutableStateOf("retailer") }
     var sortMenuOpen by remember { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
-    var categoryFilter by rememberSaveable { mutableStateOf("") }
-    val collapsedGroups = remember { mutableStateListOf<String>() }
+    // Product groups are picked from a menu (several at once); nothing picked means all of them.
+    var groupSelection by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var groupMenuOpen by remember { mutableStateOf(false) }
     val retailerNames = viewModel.retailers.toMap()
     // Only what the retailer menu selected is shown. Offers of earlier loads of other retailers stay
     // stored but do not turn up in the list or the search (in server mode the server decides).
@@ -368,9 +413,11 @@ private fun OfferOverview(
         }
     val groupCounts = scopedOffers.groupingBy { groupOf[it.offer.id] ?: ProductGroups.OTHER }.eachCount()
     val groupTabs = ProductGroups.ORDER.filter { it in groupCounts } + groupCounts.keys.filter { it !in ProductGroups.ORDER }.sorted()
-    val activeGroup = categoryFilter.takeIf { it in groupCounts }.orEmpty()
+    val activeGroups = groupSelection.filter { it in groupCounts }.toSet()
     val visibleOffers = scopedOffers
-        .filter { display -> activeGroup.isEmpty() || (groupOf[display.offer.id] ?: ProductGroups.OTHER) == activeGroup }
+        .filter { display -> activeGroups.isEmpty() || (groupOf[display.offer.id] ?: ProductGroups.OTHER) in activeGroups }
+        // The list is keyed by offer id; a repeated id would crash the list, so each offer shows once.
+        .distinctBy { it.offer.id }
         .let { offers ->
             when (sortMode) {
                 "product" -> offers.sortedWith(compareBy({ it.productName.lowercase() }, { retailerNames[it.offer.retailerId] ?: it.offer.retailerId }))
@@ -388,15 +435,6 @@ private fun OfferOverview(
                 else -> offers.sortedWith(compareBy({ effectivePriceCents(it.offer, state.selectedLoyaltyPrograms) }, { it.productName.lowercase() }))
             }
         }
-    // Sorted by product group, the list carries the group names as headings; a collapsed group keeps only its heading.
-    val rows: List<Any> = if (sortMode != "category") visibleOffers else buildList {
-        var current: String? = null
-        visibleOffers.forEach { display ->
-            val group = groupOf[display.offer.id] ?: ProductGroups.OTHER
-            if (group != current) { add(group); current = group }
-            if (group !in collapsedGroups) add(display)
-        }
-    }
     val availableLoyaltyPrograms = shownOffers.mapNotNull { display ->
         val id = display.offer.loyaltyProgram ?: return@mapNotNull null
         id to (display.offer.loyaltyLabel ?: id)
@@ -406,8 +444,7 @@ private fun OfferOverview(
     val headerItems = 6 + (if (groupTabs.isNotEmpty()) 1 else 0) + (if (availableLoyaltyPrograms.isNotEmpty()) 2 else 0)
     // What the fast scroller shows for the row under its handle, depending on the sort.
     val scrollLabel: (Int) -> String = { index ->
-        when (val row = rows.getOrNull(index)) {
-            is String -> row
+        when (val row = visibleOffers.getOrNull(index)) {
             is OfferDisplay -> when (sortMode) {
                 "product" -> row.productName.trim().firstOrNull()?.uppercaseChar()?.takeIf { it.isLetter() }?.toString() ?: "#"
                 "retailer" -> retailerNames[row.offer.retailerId] ?: row.offer.retailerId
@@ -470,20 +507,28 @@ private fun OfferOverview(
                 }
                 if (groupTabs.isNotEmpty()) {
                     item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            item {
-                                FilterChip(
-                                    selected = activeGroup.isEmpty(),
-                                    onClick = { categoryFilter = "" },
-                                    label = { Text("Alle Warengruppen · ${scopedOffers.size}") },
-                                )
+                        Box {
+                            Button(onClick = { groupMenuOpen = true }) {
+                                Text("Warengruppen: " + when (activeGroups.size) {
+                                    0 -> "Alle"
+                                    1 -> activeGroups.first()
+                                    else -> "${activeGroups.size} gewählt"
+                                })
                             }
-                            items(groupTabs) { group ->
-                                FilterChip(
-                                    selected = activeGroup == group,
-                                    onClick = { categoryFilter = group },
-                                    label = { Text("$group · ${groupCounts[group] ?: 0}") },
+                            DropdownMenu(expanded = groupMenuOpen, onDismissRequest = { groupMenuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Alle Warengruppen · ${scopedOffers.size}") },
+                                    leadingIcon = { Checkbox(checked = activeGroups.isEmpty(), onCheckedChange = null) },
+                                    onClick = { groupSelection = emptySet() },
                                 )
+                                groupTabs.forEach { group ->
+                                    DropdownMenuItem(
+                                        text = { Text("$group · ${groupCounts[group] ?: 0}") },
+                                        leadingIcon = { Checkbox(checked = group in activeGroups, onCheckedChange = null) },
+                                        // The menu stays open so several groups can be ticked in a row.
+                                        onClick = { groupSelection = if (group in activeGroups) activeGroups - group else activeGroups + group },
+                                    )
+                                }
                             }
                         }
                     }
@@ -519,7 +564,7 @@ private fun OfferOverview(
                         "${visibleOffers.size} Treffer · " + when (sortMode) {
                             "product" -> "nach Produktname sortiert"
                             "retailer" -> "nach Händler gruppiert"
-                            "category" -> "nach Warengruppe gruppiert"
+                            "category" -> "nach Warengruppe sortiert"
                             else -> "nach Preis sortiert"
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -537,18 +582,7 @@ private fun OfferOverview(
                     }
                 }
                 item { Text(state.message) }
-                items(rows, key = { if (it is String) "group:$it" else (it as OfferDisplay).offer.id }) { row ->
-                  if (row is String) {
-                    val collapsed = row in collapsedGroups
-                    androidx.compose.material3.OutlinedButton(
-                        onClick = { if (collapsed) collapsedGroups.remove(row) else collapsedGroups.add(row) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text((if (collapsed) "▸ " else "▾ ") + row + " · " + (groupCounts[row] ?: 0), fontWeight = FontWeight.SemiBold)
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                  } else {
-                    val offer = row as OfferDisplay
+                items(visibleOffers, key = { it.offer.id }) { offer ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -596,12 +630,11 @@ private fun OfferOverview(
                             }
                         }
                     }
-                  }
                 }
             }
             FastScroller(
                 listState = listState,
-                rowCount = rows.size,
+                rowCount = visibleOffers.size,
                 headerCount = headerItems,
                 label = scrollLabel,
                 modifier = Modifier.align(androidx.compose.ui.Alignment.CenterEnd),

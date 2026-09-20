@@ -1,3 +1,18 @@
+# 0.1.47
+
+## Warengruppen auswählen statt aufklappen, Absturzbericht
+
+- Native App: Die Warengruppen erscheinen jetzt in einem Menü „Warengruppen“, in dem alle
+  Gruppen mit Anzahl stehen und man beliebig viele ankreuzt (nichts angekreuzt = alle). Die
+  aufklappbaren Gruppenköpfe beim Sortieren nach Warengruppe und die lange Reihe von Reitern
+  fallen weg; nach Warengruppe zu sortieren bedeutet jetzt nur noch die Reihenfolge.
+- Native App: Die Angebotsliste zeigt jedes Angebot höchstens einmal. Eine doppelte
+  Angebotsnummer hätte die Liste zum Absturz bringen können.
+- Native App: Stürzt die App ab, merkt sie sich den Fehler und zeigt beim nächsten Start einen
+  Bericht zum Kopieren oder Teilen (Fehlermeldung, App-, Android- und Gerätetyp, keine
+  Angebote und keine persönlichen Daten). Das hilft auf Handys ohne Google-Dienste wie
+  GrapheneOS, wo es keine Absturzmeldung gibt.
+
 # 0.1.46
 
 ## Müller: das ganze Prospekt statt eines Ausschnitts

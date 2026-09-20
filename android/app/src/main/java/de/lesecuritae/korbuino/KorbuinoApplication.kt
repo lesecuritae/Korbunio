@@ -4,4 +4,9 @@ import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
-class KorbuinoApplication : Application()
+class KorbuinoApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        CrashReporter.install(this)
+    }
+}

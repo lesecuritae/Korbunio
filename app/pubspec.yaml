@@ -1,7 +1,7 @@
 name: korbunio_app
 description: Korbuino mobile client for comparing regional supermarket offers.
 publish_to: "none"
-version: 0.1.46+46
+version: 0.1.47+47
 
 environment:
   sdk: ^3.9.0
