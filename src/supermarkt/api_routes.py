@@ -40,15 +40,12 @@ def _kitchenowl_item(item: ShoppingListItemRequest) -> tuple[str, str]:
 
 def add_kitchenowl_items(request_data: ShoppingListWriteRequest) -> dict[str, list[str]]:
     settings = _kitchenowl_settings(request_data.entity_id)
-    stored: list[str] = []
+    entries = [_kitchenowl_item(item) for item in request_data.items]
     try:
-        for item in request_data.items:
-            name, description = _kitchenowl_item(item)
-            kitchenowl.add_item(settings, name, description)
-            stored.append(name)
+        kitchenowl.add_items(settings, entries)  # die Liste wird einmal abgerufen, nicht je Artikel
     except kitchenowl.KitchenOwlError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"added": stored}
+    return {"added": [name for name, _ in entries]}
 
 
 @router.get("/api/v1/client", include_in_schema=False)

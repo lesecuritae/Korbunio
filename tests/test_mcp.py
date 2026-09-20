@@ -511,3 +511,20 @@ def test_source_status_lists_last_day_per_retailer():
     rows = TestClient(app).get("/health/sources").json()["retailers"]
     assert {row["retailer"] for row in rows} == {"Kaufland", "REWE"}
     assert all(row["days_ago"] == 0 and row["offers"] >= 1 for row in rows)
+
+
+def test_many_items_fetch_the_kitchenowl_list_only_once(settings_file):
+    fake = _FakeKitchenOwl()
+    try:
+        client = TestClient(app)
+        assert client.put("/api/v1/kitchenowl", json={"url": fake.url, "token": "test-token", "list_id": "7"}).status_code == 200
+        before = len(fake.requests)
+        response = client.post("/api/v1/kitchenowl/items", json={"entity_id": "7", "items": [
+            {"name": "Butter"}, {"name": "Käse", "retailer": "Lidl"}, {"name": "butter"}, {"name": "Milch"},  # Milch steht schon auf der Liste
+        ]})
+        assert response.status_code == 200 and response.json() == {"added": ["Butter", "Käse", "butter", "Milch"]}
+        calls = fake.requests[before:]
+        assert [request[0] for request in calls].count("GET") == 1, calls
+        assert [request[3]["name"] for request in calls if request[0] == "POST"] == ["Butter", "Käse"], "Duplikate und vorhandene Artikel werden übersprungen"
+    finally:
+        fake.close()

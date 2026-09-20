@@ -1,3 +1,13 @@
+# 0.1.52
+
+## Viele Artikel auf einmal zu KitchenOwl
+
+- Server: Werden mehrere Artikel auf einmal an KitchenOwl übertragen (Einkaufsliste in der
+  Weboberfläche, Kompatibilitäts-API), ruft der Server die Liste nur noch einmal ab, statt vor
+  jedem Artikel neu. Bei 100 Artikeln waren das etwa 200 Anfragen und dauerte entsprechend;
+  jetzt sind es eine Abfrage plus eine je neuem Artikel. Artikel, die schon auf der Liste
+  stehen oder im Stapel doppelt vorkommen, werden weiter übersprungen.
+
 # 0.1.51
 
 ## KitchenOwl wieder direkt aus Server und App erreichbar

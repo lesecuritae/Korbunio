@@ -118,15 +118,26 @@ def fetch_lists(url: str, token: str) -> list[dict[str, str]]:
     return result
 
 
-def add_item(settings: Settings, name: str, description: str) -> bool:
-    """True, wenn neu angelegt; False, wenn der Artikel schon auf der Liste steht."""
+def add_items(settings: Settings, items: list[tuple[str, str]]) -> list[bool]:
+    """Mehrere Artikel anlegen und die Liste dafür nur einmal abrufen. Je Artikel True (neu) oder False (stand schon da,
+    auch wenn er im selben Stapel zweimal vorkommt)."""
     existing = call(settings.url, settings.token, f"/api/shoppinglist/{settings.list_id}/items") or []
     known = {str(item.get("name", "")).strip().casefold() for item in existing if isinstance(item, dict)}
-    if name.casefold() in known:
-        return False
-    body = {"name": name, **({"description": description} if description else {})}
-    call(settings.url, settings.token, f"/api/shoppinglist/{settings.list_id}/add-item-by-name", body)
-    return True
+    added: list[bool] = []
+    for name, description in items:
+        if name.casefold() in known:
+            added.append(False)
+            continue
+        body = {"name": name, **({"description": description} if description else {})}
+        call(settings.url, settings.token, f"/api/shoppinglist/{settings.list_id}/add-item-by-name", body)
+        known.add(name.casefold())
+        added.append(True)
+    return added
+
+
+def add_item(settings: Settings, name: str, description: str) -> bool:
+    """True, wenn neu angelegt; False, wenn der Artikel schon auf der Liste steht."""
+    return add_items(settings, [(name, description)])[0]
 
 
 def list_items(settings: Settings) -> list[dict[str, str]]:
