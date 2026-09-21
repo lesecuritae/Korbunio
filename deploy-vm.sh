@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Korbuino auf der VM aktualisieren: ./deploy-vm.sh 0.1.44   (als general17 auf der VM ausführen)
+# Korbuino auf dem Server aktualisieren: ./deploy-vm.sh 0.1.44   (als general17 auf dev-device ausführen; früher die VM)
 # Baut das Image aus dem GitHub-Tag, hält das alte als Rollback bereit und startet neu.
 # Rollback: ./deploy-vm.sh --rollback <alte-version>
 # Bei einem Fehler bricht das Skript ab, ohne die Shell zu beenden.
