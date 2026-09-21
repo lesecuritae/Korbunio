@@ -1,3 +1,19 @@
+# 0.1.53
+
+## Suche ohne Warengruppe, ruhigere Händlerlinks, Hinweis zu Bonusprogrammen (Issue #46)
+
+- Server-Weboberfläche und App: Die Suche berücksichtigt die Warengruppe nicht mehr. Wer
+  „Dessert“ oder „Eis“ suchte, bekam bisher auch Schweine-Nacken und Energy Drinks, weil deren
+  Gruppe „Tiefkühl / Eis & Dessert“ heißt. Jetzt zählen Name, Marke, Beschreibung und Händler;
+  für Warengruppen gibt es die Reiter beziehungsweise das Menü „Warengruppen“.
+- Server-Weboberfläche: Bei Händlern, deren Produktlink nur auf die Produktsuche des Händlers
+  führt (zum Beispiel Lidl), stand unter jedem Treffer „Offizielle Produktsuche“. Der Hinweis
+  steht jetzt als Tooltip am Link statt als Zeile unter jedem Produkt.
+- Native App: Unter „Bonusprogramme“ steht jetzt ein Hinweis, warum nur bestimmte Programme
+  auftauchen: Es erscheinen nur Programme, für die in den geladenen Angeboten ein
+  Preisvorteil steht; bei manchen Händlern (etwa REWE oder EDEKA) nennen die Daten keinen
+  berechenbaren Bonuspreis.
+
 # 0.1.52
 
 ## Viele Artikel auf einmal zu KitchenOwl

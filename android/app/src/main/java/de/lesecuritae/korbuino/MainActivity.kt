@@ -408,8 +408,7 @@ private fun OfferOverview(
         .filter { display -> retailerFilter == "all" || display.offer.retailerId == retailerFilter }
         .filter { display ->
             offerFilter.isBlank() || display.productName.contains(offerFilter, ignoreCase = true) ||
-                display.offer.retailerId.contains(offerFilter, ignoreCase = true) ||
-                display.offer.categoryId.orEmpty().contains(offerFilter, ignoreCase = true)
+                display.offer.retailerId.contains(offerFilter, ignoreCase = true)
         }
     val groupCounts = scopedOffers.groupingBy { groupOf[it.offer.id] ?: ProductGroups.OTHER }.eachCount()
     val groupTabs = ProductGroups.ORDER.filter { it in groupCounts } + groupCounts.keys.filter { it !in ProductGroups.ORDER }.sorted()
@@ -534,7 +533,17 @@ private fun OfferOverview(
                     }
                 }
                 if (availableLoyaltyPrograms.isNotEmpty()) {
-                    item { Text("Bonusprogramme", style = MaterialTheme.typography.labelLarge) }
+                    item {
+                        Column {
+                            Text("Bonusprogramme", style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                "Hier stehen nur Programme, für die in den geladenen Angeboten ein Preisvorteil ausgewiesen ist. " +
+                                    "Bei manchen Händlern (zum Beispiel REWE oder EDEKA) nennen die Angebotsdaten keinen berechenbaren Bonuspreis.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     item {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             items(availableLoyaltyPrograms) { (id, label) ->

@@ -123,11 +123,12 @@ def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
     query = clean_text(filter_text).casefold()
     if not query:
         return list(offers)
+    # Die Warengruppe zählt nicht zur Suche: Wer „Dessert“ sucht, will keine Fleischangebote, nur weil die
+    # Gruppe „Tiefkühl / Eis & Dessert“ heißt. Für Gruppen gibt es die Reiter darüber.
     return [
         offer
         for offer in offers
-        if query
-        in f"{offer.name} {offer.brand} {offer.description} {offer.category} {offer.retailer}".casefold()
+        if query in f"{offer.name} {offer.brand} {offer.description} {offer.retailer}".casefold()
     ]
 
 
