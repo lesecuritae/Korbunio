@@ -1,3 +1,15 @@
+# 0.1.55
+
+## REWE Bonus kommt in der App wirklich an, Netto-Betrag „1.- €“
+
+- Native App: Die App lädt REWE hauptsächlich aus der regionalen Liste (die REWE-Seite selbst
+  liefert nur wenige Kacheln). Dort stand der REWE Bonus nur im Beschreibungstext („MIT APP 0.20 €
+  REWE BONUS“) und wurde in 0.1.54 nicht gelesen. Jetzt wird er auch aus diesem Text übernommen
+  und als Guthaben angezeigt; Prozent- und Punkteangaben bleiben unberücksichtigt. Geprüft an den
+  echten Angeboten: alle 56 REWE-Hinweise mit Euro-Betrag werden erkannt.
+- Native App: Netto schreibt glatte Bonuspreise als „1.- €“. Diese werden jetzt als 1,00 €
+  gelesen statt ignoriert.
+
 # 0.1.54
 
 ## Netto-Warengruppen korrigiert, REWE Bonus in der App (Issue #46)

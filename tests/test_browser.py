@@ -23,7 +23,7 @@ def test_home_and_static_assets():
     assert 'name="rewe_market_id"' in response.text
     assert 'name="offer_week"' in response.text
     assert 'value="next"' in response.text
-    assert "Korbuino 0.1.54" in response.text
+    assert "Korbuino 0.1.55" in response.text
     assert "KorbKlar" not in response.text
     assert client.get("/static/home.css").status_code == 200
     assert client.get("/static/results-v2.js").status_code == 200

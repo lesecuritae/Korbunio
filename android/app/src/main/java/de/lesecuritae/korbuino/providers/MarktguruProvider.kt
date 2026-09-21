@@ -113,6 +113,8 @@ class MarktguruProvider(
             val productId = "$id-product-${slug(name)}"
             val image = ProviderParsing.imageUrl(item, product)
             val loyalty = pricing.loyalty
+            // REWE Bonus steht bei Marktguru als „MIT APP 0.20 € REWE BONUS“ in der Beschreibung: Guthaben, kein Preis.
+            val cashback = if (loyalty == null) reweBonusCents(text(item, "description").orEmpty()) else null
             products += ProductEntity(productId, name, normalizedKey = slug(name))
             offers += OfferEntity(
                 id = "$id:$external", retailerId = id, productId = productId,
@@ -124,9 +126,10 @@ class MarktguruProvider(
                     ?.get("name")?.jsonPrimitive?.content,
                 validFrom = validity.first,
                 validUntil = validity.second,
-                loyaltyProgram = loyalty?.first,
-                loyaltyLabel = loyalty?.second,
+                loyaltyProgram = loyalty?.first ?: if (cashback != null) "rewe_bonus" else null,
+                loyaltyLabel = loyalty?.second ?: if (cashback != null) "REWE Bonus" else null,
                 loyaltyPriceCents = loyalty?.third,
+                loyaltyCashbackCents = cashback,
                 cachedAt = System.currentTimeMillis(),
             )
         }
@@ -186,7 +189,7 @@ class MarktguruProvider(
             ?: return Pricing(advertisedPrice, null)
 
         val directMemberPrice = ProviderParsing.price(
-            definition.directPrice.find(description)?.groupValues?.get(1),
+            definition.directPrice.find(description)?.groupValues?.get(1)?.replace("-", "00"),
         )
         if (directMemberPrice != null && directMemberPrice > 0.0 && directMemberPrice < advertisedPrice) {
             return Pricing(advertisedPrice, definition.benefit(directMemberPrice))
@@ -207,7 +210,8 @@ class MarktguruProvider(
     private fun loyaltyDefinition(marker: String, program: String, label: String): LoyaltyDefinition =
         LoyaltyDefinition(
             marker = Regex(marker, RegexOption.IGNORE_CASE),
-            directPrice = Regex("$marker\\s*[:=-]?\\s*(\\d{1,4}[,.]\\d{2})(?:\\s*€)?", RegexOption.IGNORE_CASE),
+            // Netto schreibt glatte Beträge als „1.- €“.
+            directPrice = Regex("$marker\\s*[:=-]?\\s*(\\d{1,4}[,.](?:\\d{2}|-))(?:\\s*€)?", RegexOption.IGNORE_CASE),
             publicPrice = Regex(
                 "(?:NORMALPREIS\\s*:|OHNE\\s+$marker)\\s*(\\d{1,4}[,.]\\d{2})(?:\\s*€)?",
                 RegexOption.IGNORE_CASE,
@@ -229,6 +233,17 @@ class MarktguruProvider(
     private fun slug(value: String): String = value.lowercase(Locale.GERMAN).replace("[^a-z0-9]+".toRegex(), "-").trim('-')
 
     companion object {
+        private val reweBonus = listOf(
+            Regex("(\\d{1,4}[,.]\\d{2})\\s*€\\s*rewe\\s*bonus\\b", RegexOption.IGNORE_CASE),
+            Regex("\\brewe\\s*bonus\\b[^\\d]{0,24}(\\d{1,4}[,.]\\d{2})\\s*€", RegexOption.IGNORE_CASE),
+        )
+
+        /** Nur ein ausdrücklich genannter Euro-Betrag zählt; Prozent- oder Punkteangaben bleiben unberücksichtigt. */
+        internal fun reweBonusCents(description: String): Int? = reweBonus.asSequence()
+            .mapNotNull { it.find(description)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull() }
+            .firstOrNull { it > 0.0 }
+            ?.let { BigDecimal.valueOf(it).movePointRight(2).setScale(0, RoundingMode.HALF_UP).intValueExact() }
+
         private fun advertiserSlug(value: String): String = value.lowercase(Locale.GERMAN)
             .replace("ä", "a")
             .replace("ö", "o")

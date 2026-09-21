@@ -112,6 +112,51 @@ class MarktguruProviderTest {
         assertEquals("2026-09-12", result.offers.single().validUntil)
     }
 
+    @Test fun `REWE Bonus from the regional description is credit and not a lower price`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        server.enqueue(MockResponse().setBody("""
+            {"results":[
+              {"id":"juice","product":{"name":"Orangensaft"},"price":1.79,"description":"HINWEIS: MIT APP 0.20 € REWE BONUS versch. Sorten, auch 100% Orangensaft, je 1-l-Fl. zzgl. 0.25 Pfand"},
+              {"id":"points","product":{"name":"Joghurt"},"price":0.49,"description":"20 % REWE Bonus Punkte je 150-g-Becher"},
+              {"id":"plain","product":{"name":"Brot"},"price":2.29,"description":"je 500-g-Laib"}
+            ]}
+        """))
+        val offers = MarktguruProvider("REWE", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString())
+            .fetch(RetailerRequest("12345")).offers.associateBy { it.externalId }
+        assertEquals(20, offers.getValue("juice").loyaltyCashbackCents)
+        assertEquals("rewe_bonus", offers.getValue("juice").loyaltyProgram)
+        assertEquals(179, offers.getValue("juice").priceCents)
+        assertEquals(null, offers.getValue("juice").loyaltyPriceCents)
+        assertEquals(null, offers.getValue("points").loyaltyCashbackCents)
+        assertEquals(null, offers.getValue("plain").loyaltyProgram)
+    }
+
+    @Test fun `Netto whole-euro member price written with a dash is read`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        server.enqueue(MockResponse().setBody("""
+            {"results":[{"id":"dessert","product":{"name":"Dessert"},"price":1.29,"description":"HINWEIS: MIT NETTO PLUS APP 1.- € gekühlt, versch. Sorten 185 g"}]}
+        """))
+        val offer = MarktguruProvider("Netto Marken-Discount", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString())
+            .fetch(RetailerRequest("12345")).offers.single()
+        assertEquals("netto_plus", offer.loyaltyProgram)
+        assertEquals(100, offer.loyaltyPriceCents)
+    }
+
+    @Test fun `PENNY App and Mein Globus member prices are read from the description`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        server.enqueue(MockResponse().setBody("""
+            {"results":[
+              {"id":"butter","product":{"name":"Kerrygold Extra"},"price":1.79,"description":"HINWEIS: MIT PENNY APP 1.59 € Butter, 250 g"},
+              {"id":"cola","product":{"name":"Cola"},"price":9.99,"description":"HINWEIS: MIT PENNY APP 8.49 € Zzgl. 3.10 Pfand, je 20 x 0,5 l"}
+            ]}
+        """))
+        val offers = MarktguruProvider("PENNY", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString())
+            .fetch(RetailerRequest("12345")).offers.associateBy { it.externalId }
+        assertEquals("penny_app", offers.getValue("butter").loyaltyProgram)
+        assertEquals(159, offers.getValue("butter").loyaltyPriceCents)
+        assertEquals(849, offers.getValue("cola").loyaltyPriceCents)
+    }
+
     @Test fun `does not parse package volume as Lidl Plus price`() = runTest {
         server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
         server.enqueue(MockResponse().setBody("""
