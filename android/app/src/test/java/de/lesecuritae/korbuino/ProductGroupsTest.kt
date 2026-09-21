@@ -54,4 +54,14 @@ class ProductGroupsTest {
         assertTrue(ProductGroups.rank("Getränke") < ProductGroups.rank(ProductGroups.OTHER))
         assertEquals(ProductGroups.ORDER.size, ProductGroups.rank("Gibt es nicht"))
     }
+
+    @Test fun `only real ice cream lands in the ice cream group`() {
+        // Früher traf \w*eis auch Reis, Preis und Hinweis und sortierte Fleisch und Getränke zu den Desserts (Issue #46).
+        assertEquals("Vorräte & Grundnahrungsmittel", ProductGroups.of(null, "Bonrisi Express-Reis"))
+        assertEquals(ProductGroups.OTHER, ProductGroups.of(null, "Hell Energy Drink Einzelpreis"))
+        assertEquals(ProductGroups.OTHER, ProductGroups.of(null, "Eistee Pfirsich"))
+        assertEquals("Tiefkühl / Eis & Dessert", ProductGroups.of(null, "Langnese Vanilleeis"))
+        assertEquals("Tiefkühl / Eis & Dessert", ProductGroups.of(null, "Magnum Eis am Stiel"))
+        assertEquals("Tiefkühl / Eis & Dessert", ProductGroups.of(null, "Ehrmann Grand Dessert"))
+    }
 }

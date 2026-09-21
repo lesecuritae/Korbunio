@@ -1,3 +1,20 @@
+# 0.1.54
+
+## Netto-Warengruppen korrigiert, REWE Bonus in der App (Issue #46)
+
+- Server und App: Die Gruppe „Tiefkühl / Eis & Dessert“ hielt jedes Wort, das auf „eis“ endet, für
+  Eis, also auch „Hinweis“. Netto schreibt „HINWEIS: MIT NETTO PLUS APP …“ in fast jede
+  Beschreibung, deshalb landeten Schweine-Nacken, Energy Drinks und Gemüse dort. Jetzt zählt nur
+  echtes Speiseeis (Eiscreme, Stieleis, Eisbecher und Ähnliches); Reis, Eistee und Eisbergsalat
+  nicht mehr. Bei Netto sank die Gruppe von 52 auf 12 passende Angebote.
+- Native App: Der REWE Bonus wird von der REWE-Angebotsseite gelesen und als
+  „REWE Bonus: −0,10 € Guthaben“ angezeigt, wenn das Programm ausgewählt ist. Der Regalpreis bleibt
+  unverändert, weil das Guthaben erst nach dem Einkauf gutgeschrieben wird (wie im Server). Ohne
+  angegebenen Betrag wird nichts erfunden.
+- Native App: Der Hinweis unter „Bonusprogramme“ nennt REWE nicht mehr als nicht berechenbar.
+- Die App-Datenbank hat jetzt Version 5 (neue Spalte für das Guthaben); vorhandene Daten bleiben
+  erhalten.
+
 # 0.1.53
 
 ## Suche ohne Warengruppe, ruhigere Händlerlinks, Hinweis zu Bonusprogrammen (Issue #46)

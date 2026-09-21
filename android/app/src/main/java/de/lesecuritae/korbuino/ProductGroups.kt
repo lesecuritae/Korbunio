@@ -39,7 +39,8 @@ object ProductGroups {
 
     // Concrete product kinds precede terms which can merely describe a flavour.
     private val productRules: List<Pair<String, Regex>> = listOf(
-        "Tiefkühl / Eis & Dessert" to """\b(?:ice cream|eiscreme|speiseeis|stieleis|wassereis|gelato|calippo|pirulo|dessert|mousse|\w*eis)\b""",
+        // "eis" nur als Speiseeis: das frühere \w*eis traf auch Reis, Preis und Hinweis (Netto: "HINWEIS: MIT NETTO PLUS APP ...").
+        "Tiefkühl / Eis & Dessert" to """\b(?:ice cream|eiscreme|eisbecher|eiskonfekt|eistorte|eiskugel|eiswaffel|speiseeis|stieleis|wassereis|softeis|milcheis|sahneeis|cremeeis|fruchteis|joghurteis|vanilleeis|schokoladeneis|erdbeereis|gelato|calippo|pirulo|dessert|mousse|eis)\b""",
         "Haushalt & Reinigung" to """\b(?:bodenkehrer|kehrmaschine|besen|wischmopp|staubsauger|wc reiniger|\w*reiniger|grillanzuender|grillanzünder)\b""",
         "Tierbedarf" to """\b(?:katzenfutter|hundefutter|katzenstreu|tierzubehoer|tierzubehör|tierfutter)\b""",
         "Snacks" to """\b(?:pom bär|pom baer|chips|flips|knabber\w*|snacks?|smarties|chocolate|schokolade)\b""",

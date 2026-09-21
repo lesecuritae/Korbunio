@@ -538,7 +538,7 @@ private fun OfferOverview(
                             Text("Bonusprogramme", style = MaterialTheme.typography.labelLarge)
                             Text(
                                 "Hier stehen nur Programme, für die in den geladenen Angeboten ein Preisvorteil ausgewiesen ist. " +
-                                    "Bei manchen Händlern (zum Beispiel REWE oder EDEKA) nennen die Angebotsdaten keinen berechenbaren Bonuspreis.",
+                                    "REWE Bonus erscheint als Guthaben neben dem Preis. Bei manchen Händlern (zum Beispiel EDEKA) nennen die Angebotsdaten keinen berechenbaren Bonuspreis.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -611,6 +611,17 @@ private fun OfferOverview(
                                     }
                                     offer.offer.basePriceCents?.let { base ->
                                         Text("Grundpreis ${base / 100},${(base % 100).toString().padStart(2, '0')} €", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    offer.offer.loyaltyCashbackCents?.takeIf {
+                                        offer.offer.loyaltyProgram in state.selectedLoyaltyPrograms
+                                    }?.let { credit ->
+                                        // Guthaben nach dem Einkauf (REWE Bonus): kein niedrigerer Preis, aber der Vorteil steht dabei.
+                                        Text(
+                                            "${offer.offer.loyaltyLabel ?: "Bonus"}: −${credit / 100},${(credit % 100).toString().padStart(2, '0')} € Guthaben",
+                                            color = MaterialTheme.colorScheme.primary,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                        )
                                     }
                                     offer.offer.loyaltyPriceCents?.takeIf {
                                         offer.offer.loyaltyProgram in state.selectedLoyaltyPrograms

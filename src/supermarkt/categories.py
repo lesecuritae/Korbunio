@@ -18,7 +18,9 @@ CATEGORIES = (
 
 # Concrete product kinds precede terms which can merely describe a flavour.
 _PRODUCT_RULES = (
-    ("Tiefkühl / Eis & Dessert", r"\b(?:ice cream|eiscreme|speiseeis|stieleis|wassereis|gelato|calippo|pirulo|dessert|mousse|\w*eis)\b"),
+    # „eis“ nur als Speiseeis: Das frühere `\w*eis` traf auch Reis, Preis, Hinweis (Netto schreibt „HINWEIS: MIT NETTO PLUS APP …“
+# in fast jede Beschreibung) und sortierte Fleisch, Gemüse und Getränke in diese Gruppe (Issue #46).
+    ("Tiefkühl / Eis & Dessert", r"\b(?:ice cream|eiscreme|eisbecher|eiskonfekt|eistorte|eiskugel|eiswaffel|speiseeis|stieleis|wassereis|softeis|milcheis|sahneeis|cremeeis|fruchteis|joghurteis|vanilleeis|schokoladeneis|erdbeereis|gelato|calippo|pirulo|dessert|mousse|eis)\b"),
     ("Haushalt & Reinigung", r"\b(?:bodenkehrer|kehrmaschine|besen|wischmopp|staubsauger|wc reiniger|\w*reiniger|grillanzuender|grillanzünder)\b"),
     ("Tierbedarf", r"\b(?:katzenfutter|hundefutter|katzenstreu|tierzubehoer|tierzubehör|tierfutter)\b"),
     ("Snacks", r"\b(?:pom bär|pom baer|chips|flips|knabber\w*|snacks?|smarties|chocolate|schokolade)\b"),

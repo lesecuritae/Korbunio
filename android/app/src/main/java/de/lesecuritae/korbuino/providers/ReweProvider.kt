@@ -115,6 +115,7 @@ class ReweProvider(
             val price = Regex("(\\d{1,4}[,.]\\d{1,2})").find(priceText)?.groupValues?.get(1)
                 ?.replace(',', '.')?.toDoubleOrNull() ?: return@forEachIndexed
             if (name.isBlank()) return@forEachIndexed
+            val bonusCents = bonusCents(card)
             val productId = "rewe-product-" + normalize(name)
             products += ProductEntity(productId, name, normalizedKey = normalize(name))
             offers += OfferEntity(
@@ -127,10 +128,31 @@ class ReweProvider(
                 validUntil = until.toString(),
                 sourceUrl = marketUrl,
                 imageUrl = imageUrl(card, marketUrl),
+                loyaltyProgram = if (bonusCents != null) "rewe_bonus" else null,
+                loyaltyLabel = if (bonusCents != null) "REWE Bonus" else null,
+                loyaltyCashbackCents = bonusCents,
                 cachedAt = System.currentTimeMillis(),
             )
         }
         return ProviderResult(products.distinctBy { it.id }, offers)
+    }
+
+    /**
+     * Ein ausdrücklich veröffentlichter Euro-Betrag REWE Bonus, in Cent. REWE zeigt ihn im Bonus-Abzeichen oder in einer Zeile wie
+     * "MIT APP 0,10 € REWE BONUS". Prozente, Punkte und Vorteile ohne Betrag bleiben ohne Preis (wie im Server).
+     */
+    internal fun bonusCents(card: org.jsoup.nodes.Element): Int? {
+        fun cents(text: String?): Int? = text?.let { Regex("(\\d{1,4}[,.]\\d{2})").find(it)?.groupValues?.get(1) }
+            ?.replace(',', '.')?.toDoubleOrNull()?.takeIf { it > 0.0 }?.let { Math.round(it * 100).toInt() }
+        cents(card.select(".cor-loyalty-badge").text())?.let { return it }
+        val details = card.select(".cor-offer-information__additional").joinToString(" ") { it.text() }.replace(Regex("\\s+"), " ")
+        for (pattern in listOf(
+            Regex("(?:mit\\s+app\\s+)?(\\d+[,.]\\d{2})\\s*€\\s*rewe\\s*bonus\\b", RegexOption.IGNORE_CASE),
+            Regex("\\brewe\\s*bonus\\b[^\\d]{0,24}(\\d+[,.]\\d{2})\\s*€", RegexOption.IGNORE_CASE),
+        )) {
+            cents(pattern.find(details)?.groupValues?.get(1))?.let { return it }
+        }
+        return null
     }
 
     private fun imageUrl(card: org.jsoup.nodes.Element, pageUrl: String): String? {

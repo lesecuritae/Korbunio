@@ -38,6 +38,43 @@ class ReweProviderTest {
         assertEquals("https://img.rewe-static.de/example.jpg", result.offers.single().imageUrl)
     }
 
+    @Test fun `reads the published REWE Bonus amount and ignores unpriced app benefits`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            <a href="/angebote/teststadt/123456/rewe-markt-hauptstrasse/">REWE Markt 12345 Teststadt</a>
+        """))
+        server.enqueue(MockResponse().setBody("""
+            <div class="cor-offer-renderer-tile">
+              <div class="cor-offer-information__title">Milch 1 l</div>
+              <span class="cor-offer-price__tag-price">1,09 €</span>
+              <span class="cor-loyalty-badge">0,10 €</span>
+            </div>
+            <div class="cor-offer-renderer-tile">
+              <div class="cor-offer-information__title">Butter 250 g</div>
+              <div class="cor-offer-information__additional">MIT APP 0,20 € REWE BONUS</div>
+              <span class="cor-offer-price__tag-price">1,79 €</span>
+            </div>
+            <div class="cor-offer-renderer-tile">
+              <div class="cor-offer-information__title">Joghurt</div>
+              <div class="cor-offer-information__additional">20 % REWE Bonus Punkte</div>
+              <span class="cor-offer-price__tag-price">0,49 €</span>
+            </div>
+            <div class="cor-offer-renderer-tile">
+              <div class="cor-offer-information__title">Brot</div>
+              <span class="cor-offer-price__tag-price">2,29 €</span>
+            </div>
+        """))
+        val provider = ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'))
+        val offers = provider.fetch(RetailerRequest("12345", citySlug = "teststadt")).offers.associateBy { it.priceCents }
+        assertEquals(10, offers.getValue(109).loyaltyCashbackCents)
+        assertEquals("rewe_bonus", offers.getValue(109).loyaltyProgram)
+        assertEquals("REWE Bonus", offers.getValue(109).loyaltyLabel)
+        assertEquals(20, offers.getValue(179).loyaltyCashbackCents)
+        assertEquals(null, offers.getValue(49).loyaltyCashbackCents)
+        assertEquals(null, offers.getValue(229).loyaltyProgram)
+        // Guthaben senkt den Preis nicht (wie im Server): der Regalpreis bleibt stehen.
+        assertEquals(109, offers.getValue(109).priceCents)
+    }
+
     @Test fun `rejects invalid postal code before network`() = runTest {
         val provider = ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'))
         try {

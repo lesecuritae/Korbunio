@@ -47,6 +47,8 @@ data class OfferEntity(
     val loyaltyProgram: String? = null,
     val loyaltyLabel: String? = null,
     val loyaltyPriceCents: Int? = null,
+    // Guthaben in Cent, das nach dem Einkauf gutgeschrieben wird (REWE Bonus): kein niedrigerer Preis, wird daneben gezeigt.
+    val loyaltyCashbackCents: Int? = null,
     val cachedAt: Long,
 )
 
