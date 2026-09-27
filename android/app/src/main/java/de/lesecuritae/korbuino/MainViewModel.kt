@@ -20,6 +20,7 @@ import de.lesecuritae.korbuino.providers.RetailerRequest
 import de.lesecuritae.korbuino.providers.RetailerProvider
 import de.lesecuritae.korbuino.providers.ServerFallbackProvider
 import de.lesecuritae.korbuino.providers.ServerProvider
+import de.lesecuritae.korbuino.providers.fetchProviderBatch
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlClient
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlSyncPlan
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlTarget
@@ -32,9 +33,6 @@ import de.lesecuritae.korbuino.work.BackgroundMode
 import de.lesecuritae.korbuino.work.BackgroundScheduler
 import de.lesecuritae.korbuino.work.BackgroundSettings
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -317,10 +315,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refresh() {
         val current = _state.value
+        if (current.loading) return
         if (current.postalCode.length != 5) {
             _state.value = current.copy(message = "Eine gültige fünfstellige PLZ eingeben")
             return
         }
+        // Mark the request in flight before launching so an automatic startup
+        // refresh and a tap cannot start two full batches together.
+        _state.value = current.copy(loading = true, challengeUrl = null)
         viewModelScope.launch {
             val serverToken = secureStore.get("server_token").orEmpty()
             val http = NetworkClientFactory.create(getApplication())
@@ -343,13 +345,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             val label = if (providers.size == 1) providers.single().displayName else "${providers.size} Händler"
             _state.value = _state.value.copy(loading = true, challengeUrl = null, message = "$label-Angebote werden direkt geladen …")
-            val fetched = coroutineScope {
-                providers.map { provider ->
-                    async(Dispatchers.IO) {
-                        provider to runCatching { provider.fetch(RetailerRequest(current.postalCode, citySlug = current.city)) }
-                    }
-                }.awaitAll()
-            }
+            val fetched = fetchProviderBatch(providers, RetailerRequest(current.postalCode, citySlug = current.city))
             if (!current.serverMode) rememberEmptyRetailers(current.postalCode, fetched)
             val successes = mutableListOf<Pair<de.lesecuritae.korbuino.providers.RetailerProvider, de.lesecuritae.korbuino.providers.ProviderResult>>()
             var emptySources = 0
