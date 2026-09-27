@@ -1,3 +1,11 @@
+# 0.1.56
+
+## Eingrenzung des Android-Absturzes (Issue #47) – Ursache noch nicht bestätigt
+
+- Beim Laden aller Händler werden höchstens vier Händler gleichzeitig abgerufen; ein zweiter Ladevorgang startet nicht parallel.
+- Diese Änderung soll die gleichzeitige Thread- und Netzwerklast verringern. Der gemeldete `OutOfMemoryError: pthread_create ... failed` ist damit **nicht nachweislich behoben**: Der Fehler ließ sich auf dem betroffenen Pixel 9 nicht zuverlässig reproduzieren. Das passende Android-17-Emulator-Image stürzt hier bereits im Systemdienst `surfaceflinger` ab, bevor die App getestet werden kann.
+- Issue #47 bleibt offen. Diese APK dient dazu zu prüfen, ob der Absturz mit begrenzter Parallelität erneut auftritt; aus einem erfolgreichen Abruf allein folgt noch keine bestätigte Ursache.
+
 # 0.1.55
 
 ## REWE Bonus kommt in der App wirklich an, Netto-Betrag „1.- €“
