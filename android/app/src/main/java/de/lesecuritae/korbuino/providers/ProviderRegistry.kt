@@ -75,6 +75,8 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                 ),
                 DmProvider(http),
                 MarktguruProvider("famila Nordwest", http),
+                MarktguruProvider("Combi", http),
+                AktivIrmaProvider(http),
                 MarktguruProvider("Lidl", http),
                 MarktguruProvider("PENNY", http),
             ),

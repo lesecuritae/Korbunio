@@ -47,6 +47,8 @@ def health() -> dict[str, Any]:
             "dm": "official clearance catalogue; branch availability unknown",
             "Globus": "official primary with Marktguru fallback",
             "famila Nordwest": "Marktguru regional catalogue",
+            "aktiv & irma": "official weekly flyer (regional)",
+            "Combi": "Marktguru regional catalogue",
             "HOL’AB!": "official regional selected offers",
         },
         **engine.store.health(),

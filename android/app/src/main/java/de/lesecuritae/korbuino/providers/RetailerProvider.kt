@@ -25,6 +25,8 @@ object ProviderImportPolicy {
         "rossmann" to 300,
         "holab" to 150,
         "marktguru-famila-nordwest" to 500,
+        "marktguru-combi" to 500,
+        "aktiv-irma" to 300,
     )
 
     /** Reject clearly implausible imports before they can replace offline data. */

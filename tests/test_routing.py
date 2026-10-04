@@ -3,7 +3,7 @@ from supermarkt.service import SourceLoader
 
 
 def test_marktguru_scope_is_minimal():
-    assert AGGREGATOR_RETAILERS == {"Lidl", "PENNY", "Netto Marken-Discount", "Globus", "famila Nordwest"}
+    assert AGGREGATOR_RETAILERS == {"Lidl", "PENNY", "Netto Marken-Discount", "Globus", "famila Nordwest", "Combi"}
     assert not {"ALDI Nord", "ALDI Süd", "REWE", "EDEKA", "Marktkauf", "Kaufland"} & AGGREGATOR_RETAILERS
 
 

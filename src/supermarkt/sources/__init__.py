@@ -11,6 +11,7 @@ from .netto_marken import NettoMarkenMarketResolver
 from .drogeries import OfficialDmSource, OfficialMuellerSource, OfficialRossmannSource
 from .kaufda import KaufdaGlobusImageSource, KaufdaRetailerSource
 from .trinkgut import OfficialTrinkgutSource
+from .aktiv_irma import OfficialAktivIrmaSource
 
-__all__ = ["KaufdaRetailerSource", "OfficialAldiSource", "OfficialEdekaSource", "OfficialMarktkaufSource", "OfficialKauflandSource", "MarktguruClient", "OfficialReweSource", "OfficialHolabSource", "OfficialGlobusSource", "GlobusMarket", "GlobusMarketResolver", "AldiOfferChain", "AldiOfferProvider", "OfficialNettoScottieSource", "NettoMarkenMarketResolver", "OfficialDmSource", "OfficialMuellerSource", "OfficialRossmannSource", "KaufdaGlobusImageSource", "OfficialTrinkgutSource"]
+__all__ = ["KaufdaRetailerSource", "OfficialAldiSource", "OfficialEdekaSource", "OfficialMarktkaufSource", "OfficialKauflandSource", "MarktguruClient", "OfficialReweSource", "OfficialHolabSource", "OfficialGlobusSource", "GlobusMarket", "GlobusMarketResolver", "AldiOfferChain", "AldiOfferProvider", "OfficialNettoScottieSource", "NettoMarkenMarketResolver", "OfficialDmSource", "OfficialMuellerSource", "OfficialRossmannSource", "KaufdaGlobusImageSource", "OfficialTrinkgutSource", "OfficialAktivIrmaSource"]
 

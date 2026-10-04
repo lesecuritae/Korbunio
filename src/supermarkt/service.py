@@ -42,7 +42,7 @@ from .presentation import offer_for_response, offer_sort_key, resolve_retailer_n
 from .region import AldiRegionResolver
 
 LOGGER = logging.getLogger(__name__)
-from .sources import KaufdaGlobusImageSource, KaufdaRetailerSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialMuellerSource, OfficialRossmannSource, OfficialTrinkgutSource
+from .sources import KaufdaGlobusImageSource, KaufdaRetailerSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAktivIrmaSource, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialMuellerSource, OfficialRossmannSource, OfficialTrinkgutSource
 from .sources.netto_scottie import NettoScottieMarketResolver
 from .sources.aldi_chain import AldiOfferChain
 
@@ -89,6 +89,7 @@ class SourceLoader:
             deposit_workers=TRINKGUT_DEPOSIT_FETCH_WORKERS,
             deposit_cache_ttl_seconds=TRINKGUT_DEPOSIT_CACHE_TTL_SECONDS,
         )
+        self.official_aktiv_irma = OfficialAktivIrmaSource(http)
         self.mapper = OfferMapper()
 
     @staticmethod
@@ -255,6 +256,8 @@ class SourceLoader:
             official_jobs["dm"] = lambda: self.official_dm.load(postal_code)
         if hasattr(self, "official_holab") and "HOL’AB!" in active_contexts:
             official_jobs["HOL’AB!"] = lambda: self.official_holab.load(postal_code)
+        if hasattr(self, "official_aktiv_irma") and "aktiv & irma" in active_contexts:
+            official_jobs["aktiv & irma"] = lambda: self.official_aktiv_irma.load(postal_code)
         if hasattr(self, "official_trinkgut") and "trinkgut" in active_contexts:
             def load_trinkgut() -> list[Offer]:
                 if requested_week == "next":
