@@ -3,8 +3,9 @@
 ## Neue regionale Märkte: aktiv & irma und Combi (Issue #48)
 
 - Server und App: aktiv & irma (Oldenburg/Hude/Wardenburg) ist neu. Ein eigener Scraper liest den Wochenprospekt direkt von aktiv-irma.de – Titel, Angebots- und „statt“-Preis, Grundpreis und die wochengenaue Gültigkeit je Warengruppe. Marktguru führt keinen aktiv-&-irma-Feed, darum eine eigene First-Party-Quelle statt des Aggregator-Wegs. Der native On-Device-Provider der App nutzt dieselbe Struktur.
-- Server und App: Combi (Bünting-Gruppe, Schwesterkette von famila) ist neu und wird – wie famila – über Marktguru geladen. Geprüft für PLZ 26121 (Oldenburg): ein vollständiges Lebensmittelsortiment.
+- Server und App: Combi (Bünting-Gruppe, Schwesterkette von famila) ist wieder da – es war versehentlich entfernt worden. Wird wie famila über Marktguru geladen. Geprüft für PLZ 26121 (Oldenburg): vollständiges Lebensmittelsortiment.
 - Test-PLZ für beide: 26121 / 26123 (Oldenburg).
+- Warengruppen: alle Angebote (auch der neuen Märkte) werden einheitlich in die kanonischen Gruppen normalisiert. Die Quellgruppe „Frische“ wird jetzt den Kühlprodukten zugeordnet, sodass deutlich weniger aktiv-&-irma-Angebote in „Weitere Angebote“ landen.
 
 # 0.1.56
 

@@ -44,7 +44,7 @@ _SOURCE_RULES = (
     ("Molkereiprodukte & Eier", r"molkerei|milch|kaese|käse|eier|sahne|schmand|joghurt|jogurt|quark|butter|frischk"),
     ("Tiefkühl / Eis & Dessert", r"tiefkuehl|tiefkühl|tk\b|eiscreme|speiseeis|dessert|\beis\b"),
     ("Backwaren", r"backwaren|baeck|bäck|brot"),
-    ("Kühlprodukte", r"kuehl|kühl|frische convenience|feinkost"),
+    ("Kühlprodukte", r"kuehl|kühl|frische|feinkost"),
     ("Konserven & Fertiggerichte", r"konserve|fertiggericht|instant"),
     ("Frühstück & Brotaufstriche", r"fruehst|frühst|brotaufstrich|muesli|müsli|cerealien"),
     ("Getränke", r"getraenk|getränk|bier|wein|spirituose|wasser\b|saft|limonade|softdrink|cocktail|sekt|prosecco|likoer|likör|schnaps|whisk|aperitif"),
