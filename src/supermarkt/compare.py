@@ -34,6 +34,7 @@ MARKTGURU_RETAILER_SLUGS = {
     "Netto Marken-Discount": "netto-marken-discount",
     "Globus": "globus",
     "famila Nordwest": "famila-nordwest",
+    "Combi": "combi",
 }
 
 

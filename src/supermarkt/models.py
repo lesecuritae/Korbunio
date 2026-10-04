@@ -65,6 +65,15 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
         "https://www.aktiv-irma.de/angebote/",
         True,
     ),
+    # Combi (Bünting group, regional in north-western Germany like famila);
+    # served by Marktguru's regional catalogue, optional for the same reason.
+    RetailerSpec(
+        "Combi",
+        ("combi",),
+        "#c8102e",
+        "https://www.combi.de/",
+        True,
+    ),
     RetailerSpec("HOL’AB!", ("hol'ab", "hol’ab", "holab"), "#e30613", "https://holab.de/angebote", True),
     RetailerSpec("trinkgut", ("trinkgut", "trink gut"), "#003399", "https://www.trinkgut.de/angebote/", True),
     RetailerSpec("Rossmann", ("rossmann",), "#cf003d", "https://www.rossmann.de/de/filialen/index.html", True),
@@ -73,7 +82,7 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
 )
 
 SPEC_BY_NAME = {spec.name: spec for spec in RETAILER_SPECS}
-AGGREGATOR_RETAILERS = frozenset({"Lidl", "PENNY", "Netto Marken-Discount", "Globus", "famila Nordwest"})
+AGGREGATOR_RETAILERS = frozenset({"Lidl", "PENNY", "Netto Marken-Discount", "Globus", "famila Nordwest", "Combi"})
 
 
 def resolve_retailer_names(values: list[str] | tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
