@@ -56,6 +56,15 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
         # famila Nordost is a different, unrelated retail group.
         ("famila-nordost", "famila nordost"),
     ),
+    # Regional around Oldenburg (aktiv & irma Oldenburg/Hude/Wardenburg),
+    # served by Marktguru like famila; optional for the same reason.
+    RetailerSpec(
+        "aktiv & irma",
+        ("aktiv & irma", "aktiv&irma", "aktiv irma", "aktiv-irma"),
+        "#e2001a",
+        "https://www.aktiv-irma.de/angebote/",
+        True,
+    ),
     RetailerSpec("HOL’AB!", ("hol'ab", "hol’ab", "holab"), "#e30613", "https://holab.de/angebote", True),
     RetailerSpec("trinkgut", ("trinkgut", "trink gut"), "#003399", "https://www.trinkgut.de/angebote/", True),
     RetailerSpec("Rossmann", ("rossmann",), "#cf003d", "https://www.rossmann.de/de/filialen/index.html", True),

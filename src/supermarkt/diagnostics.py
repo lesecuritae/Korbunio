@@ -15,7 +15,7 @@ REQUIRED_MINIMUMS = {
     "Kaufland": 50,
     "EDEKA": 10,
 }
-OPTIONAL_RETAILERS = ("Marktkauf", "Globus", "famila Nordwest")
+OPTIONAL_RETAILERS = ("Marktkauf", "Globus", "famila Nordwest", "aktiv & irma")
 
 
 def evaluate(result: dict[str, Any]) -> dict[str, Any]:
