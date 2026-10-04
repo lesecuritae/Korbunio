@@ -59,14 +59,13 @@ class OfficialAktivIrmaSource:
     def load(self, postal_code: str = "") -> list[Offer]:
         # The weekly flyer is identical across all aktiv & irma stores; the
         # postal code is accepted for a uniform source interface but unused.
+        return self.parse(self._html(self.OFFERS_URL))
+
+    def parse(self, html: str) -> list[Offer]:
         try:
             from bs4 import BeautifulSoup
         except Exception as exc:  # pragma: no cover - dependency guard
             raise ToolError(f"aktiv & irma benötigt BeautifulSoup: {exc}") from exc
-        return self.parse(self._html(self.OFFERS_URL))
-
-    def parse(self, html: str) -> list[Offer]:
-        from bs4 import BeautifulSoup
 
         page = BeautifulSoup(html, "html.parser")
         result: list[Offer] = []
