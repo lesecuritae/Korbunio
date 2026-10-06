@@ -48,6 +48,10 @@ jobs:
           test -n "$ANDROID_KEYSTORE_BASE64"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > /tmp/korbunio-release.jks
 
+      - name: Native Android unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest
+
       - name: Build APK
         working-directory: android
         env:

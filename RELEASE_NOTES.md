@@ -1,3 +1,20 @@
+# 0.1.58
+
+## Kaufland-Wochenstartangebote wieder importieren
+
+- Die Android-App hat vollständige Kaufland-Abrufe mit mehr als 600 Angeboten
+  fälschlich verworfen. Für PLZ 78467 (Konstanz, DE1680) lieferte die offizielle
+  Quelle 629 Angebote, für 04317 (Leipzig-Reudnitz, DE7923) 618. Darunter sind
+  jeweils 57 Wochenstartangebote. Die Kaufland-Importgrenze berücksichtigt jetzt
+  auch die gleichzeitig gültigen Wochenstart- und Monatsaktionen und beträgt
+  je ausgewählter Kaufland-Filiale 800 Angebote. Die Gesamtübersicht mehrerer
+  Händler wird dadurch nicht auf 800 Angebote begrenzt.
+- Die Datums- und Filialverfügbarkeitsfilter, die Obergrenzen anderer Händler
+  und die Prüfung auf ungewöhnliche Sprünge bleiben erhalten. Fehlgeschlagene
+  Importe ersetzen weiterhin keine vorhandenen Offline-Daten.
+- Regressionstests decken die beiden gemeldeten Angebotsmengen sowie weiterhin
+  abgewiesene übergroße und unerklärlich stark gewachsene Importe ab.
+
 # 0.1.57
 
 ## Neue regionale Märkte: aktiv & irma und Combi (Issue #48)
