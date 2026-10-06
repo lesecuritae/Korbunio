@@ -434,9 +434,8 @@ private fun OfferOverview(
                 else -> offers.sortedWith(compareBy({ effectivePriceCents(it.offer, state.selectedLoyaltyPrograms) }, { it.productName.lowercase() }))
             }
         }
-    val availableLoyaltyPrograms = shownOffers.mapNotNull { display ->
-        val id = display.offer.loyaltyProgram ?: return@mapNotNull null
-        id to (display.offer.loyaltyLabel ?: id)
+    val availableLoyaltyPrograms = shownOffers.flatMap { display ->
+        LoyaltyBenefits.forOffer(display.offer).map { it.programId to it.displayLabel }
     }.distinctBy { it.first }.sortedBy { it.second }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     // Items in front of the offer rows: search, retailer chips, sort, count, refresh row, message (+ optional rows).
@@ -612,23 +611,14 @@ private fun OfferOverview(
                                     offer.offer.basePriceCents?.let { base ->
                                         Text("Grundpreis ${base / 100},${(base % 100).toString().padStart(2, '0')} €", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                                     }
-                                    offer.offer.loyaltyCashbackCents?.takeIf {
-                                        offer.offer.loyaltyProgram in state.selectedLoyaltyPrograms
-                                    }?.let { credit ->
-                                        // Guthaben nach dem Einkauf (REWE Bonus): kein niedrigerer Preis, aber der Vorteil steht dabei.
+                                    LoyaltyBenefits.forOffer(offer.offer).filter {
+                                        it.programId in state.selectedLoyaltyPrograms
+                                    }.forEach { benefit ->
+                                        val cents = benefit.cents
+                                        val amount = "${cents / 100},${(cents % 100).toString().padStart(2, '0')} €"
                                         Text(
-                                            "${offer.offer.loyaltyLabel ?: "Bonus"}: −${credit / 100},${(credit % 100).toString().padStart(2, '0')} € Guthaben",
-                                            color = MaterialTheme.colorScheme.primary,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                    }
-                                    offer.offer.loyaltyPriceCents?.takeIf {
-                                        offer.offer.loyaltyProgram in state.selectedLoyaltyPrograms
-                                    }?.let { loyaltyPrice ->
-                                        Text(
-                                            "Mit ${offer.offer.loyaltyLabel ?: "Kundenprogramm"}: " +
-                                                "${loyaltyPrice / 100},${(loyaltyPrice % 100).toString().padStart(2, '0')} €",
+                                            if (benefit.kind == "cashback") "${benefit.displayLabel}: $amount Guthaben"
+                                            else "Mit ${benefit.displayLabel}: $amount",
                                             color = MaterialTheme.colorScheme.primary,
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold,
@@ -665,12 +655,10 @@ private fun OfferOverview(
 }
 
 internal fun effectivePriceCents(offer: OfferEntity, selectedPrograms: Set<String>): Int {
-    val loyaltyPrice = offer.loyaltyPriceCents
-    return if (offer.loyaltyProgram in selectedPrograms && loyaltyPrice != null) {
-        minOf(offer.priceCents, loyaltyPrice)
-    } else {
-        offer.priceCents
-    }
+    return LoyaltyBenefits.forOffer(offer).asSequence()
+        .filter { it.programId in selectedPrograms && it.kind == "direct_price" }
+        .map { it.cents }
+        .fold(offer.priceCents) { price, memberPrice -> minOf(price, memberPrice) }
 }
 
 @Composable

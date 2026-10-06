@@ -3,6 +3,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 .toolchain/
+.tools/
+.android-sdk/
+android/.kotlin/
 .gradle/
 local.properties
 **/local.properties

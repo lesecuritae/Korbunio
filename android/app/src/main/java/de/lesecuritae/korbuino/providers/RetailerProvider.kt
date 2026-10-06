@@ -37,7 +37,7 @@ object ProviderImportPolicy {
     fun rejectionReason(providerId: String, count: Int, previousCount: Int = 0): String? {
         // Server mode returns the already consolidated multi-retailer result;
         // per-provider limits therefore do not apply to it.
-        if (providerId == "server") return null
+        if (providerId == "server" || providerId == "korbuino-server") return null
         if (count <= 0) return "keine aktuell gültigen Angebote"
         val maximum = maximumCurrentOffers[providerId] ?: 750
         if (count > maximum) return "$count Angebote überschreiten die Plausibilitätsgrenze $maximum"

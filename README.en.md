@@ -2,7 +2,9 @@
 
 ## Android app
 
-[`app/`](app/) contains an offline-first Flutter client. Users can connect their own Korbuino Docker instance in Settings; API tokens are kept in the Android Keystore and transmitted over HTTPS only. Previously loaded offers remain available without a server. On Android a button in the settings fetches the latest release APK from this repository's GitHub releases, verified against the digest GitHub publishes before installing it. A user-owned KitchenOwl instance can be connected directly over HTTPS without forwarding its token to Korbuino. See [`app/README.md`](app/README.md) for details and APK build instructions.
+The published APK is the native Kotlin/Jetpack Compose app in [`android/`](android/). It fetches retailer offers directly and stores them offline in Room. Users can optionally connect their own Korbuino Docker instance; credentials stay in the Android Keystore. See [`android/README.md`](android/README.md) for details and APK build instructions.
+
+Loyalty programs: [tested behavior and source limitations](docs/loyalty-support.md).
 
 [← Language selection](README.md) · [Deutsch](README.de.md)
 
@@ -10,8 +12,8 @@
 
 ## Native Android app
 
-The Kotlin/Jetpack Compose client in [`android/`](android/) is being migrated
-to a serverless, offline-first architecture. It stores normalized data in Room,
+The Kotlin/Jetpack Compose client in [`android/`](android/) uses a
+serverless, offline-first architecture. It stores normalized data in Room,
 uses WorkManager for opt-in background work, keeps credentials in the Android
 Keystore, and fetches retailer sources directly without a Korbuino server.
 The native registry currently covers REWE, GLOBUS, ALDI Nord, ALDI Süd,

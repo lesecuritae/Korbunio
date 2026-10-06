@@ -33,5 +33,6 @@ class ProviderImportPolicyTest {
     @Test fun `rejects an unexplained surge and preserves server aggregation`() {
         assertTrue(ProviderImportPolicy.rejectionReason("marktguru-lidl", 400, 100)!!.contains("letzten gültigen Stand"))
         assertNull(ProviderImportPolicy.rejectionReason("server", 1800, 500))
+        assertNull(ProviderImportPolicy.rejectionReason("korbuino-server", 10000, 500))
     }
 }

@@ -2,7 +2,9 @@
 
 ## Android-App
 
-Unter [`app/`](app/) liegt ein Offline-first-Flutter-Client. In den Einstellungen kann eine eigene Korbuino-Docker-Instanz verbunden werden; API-Tokens liegen im Android Keystore und werden nur über HTTPS übertragen. Bereits geladene Angebote bleiben ohne Server verfügbar. Unter Android holt ein Button in den Einstellungen die aktuelle Release-APK aus den GitHub-Releases dieses Repositories und prüft sie vor der Installation gegen die von GitHub veröffentlichte Prüfsumme. Eine eigene KitchenOwl-Instanz kann direkt per HTTPS angebunden werden, ohne den Token an Korbuino weiterzugeben. Details und APK-Bauanleitung stehen in [`app/README.md`](app/README.md).
+Die veröffentlichte APK ist die native Kotlin-/Jetpack-Compose-App unter [`android/`](android/). Sie lädt Händlerangebote direkt und speichert sie offline in Room. Optional kann eine eigene Korbuino-Docker-Instanz verbunden werden; Zugangsdaten bleiben im Android Keystore. Details und APK-Bauanleitung stehen in [`android/README.md`](android/README.md).
+
+Bonusprogramme: [geprüfte Funktionen und Quellgrenzen](docs/loyalty-support.md).
 
 [← Sprachauswahl](README.md) · [English](README.en.md)
 
@@ -10,8 +12,8 @@ Unter [`app/`](app/) liegt ein Offline-first-Flutter-Client. In den Einstellunge
 
 ## Native Android-App
 
-Der Kotlin-/Jetpack-Compose-Client unter [`android/`](android/) wird zu einer
-serverlosen, offlinefähigen App ausgebaut. Er speichert normalisierte Daten in
+Der Kotlin-/Jetpack-Compose-Client unter [`android/`](android/) ist eine
+serverlose, offlinefähige App. Er speichert normalisierte Daten in
 Room, verwendet WorkManager für optionale Hintergrundaufgaben, hält Zugangsdaten
 im Android-Keystore und ruft Händlerquellen direkt ohne Korbuino-Server ab.
 Das native Register deckt derzeit REWE, GLOBUS, ALDI Nord, ALDI Süd,

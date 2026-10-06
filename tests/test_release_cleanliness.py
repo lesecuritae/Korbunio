@@ -115,7 +115,7 @@ def test_runtime_version_matches_package_metadata():
     metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert metadata["project"]["version"] == __version__
     assert USER_AGENT == f"korbunio/{__version__}"
-    assert __version__ == "0.1.58"
+    assert __version__ == "0.1.59"
 
 
 def test_default_host_port_is_configurable_without_changing_container_port():
@@ -150,9 +150,9 @@ def test_release_has_no_development_machine_references():
     text = "\n".join(
         path.read_text(encoding="utf-8", errors="replace")
         for path in _release_paths()
-        if path.is_file() and path.suffix in {".py", ".md", ".toml", ".yml", ".yaml", ".example", ".txt"}
+        if path.is_file() and path.suffix in {".py", ".md", ".toml", ".yml", ".yaml", ".example", ".txt", ".sh", ".ps1", ".bat"}
     )
-    for marker in ("/srv/" + "docker/", "192." + "168.0.", "042" + "09"):
+    for marker in ("/srv/" + "docker/", "192." + "168.0.", "042" + "09", "dev-" + "device", "general" + "17"):
         assert marker not in text
 
 

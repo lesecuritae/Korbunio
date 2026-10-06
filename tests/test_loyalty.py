@@ -16,6 +16,26 @@ def offer(*benefits):
     )
 
 
+@pytest.mark.parametrize("program_id", sorted(PROGRAM_BY_ID))
+def test_every_registered_program_survives_api_and_obeys_selection(program_id):
+    from supermarkt.presentation import offer_for_response
+
+    item = offer(
+        LoyaltyBenefit(program_id, "direct_price", 1.79, "Öffentlicher Preis"),
+        LoyaltyBenefit(program_id, "cashback", 0.20, "Öffentliches Guthaben"),
+    )
+    response = offer_for_response(item, include_image_urls=False)
+    assert response["regular_price"] == 2.29
+    assert response["benefits"] == [
+        {"program_id": program_id, "kind": "direct_price", "value": 1.79,
+         "condition": "Öffentlicher Preis", "label": PROGRAM_BY_ID[program_id].label},
+        {"program_id": program_id, "kind": "cashback", "value": 0.20,
+         "condition": "Öffentliches Guthaben", "label": PROGRAM_BY_ID[program_id].label},
+    ]
+    assert apply_selected_programs(item, ())[0] == 2.29
+    assert apply_selected_programs(item, (program_id,))[0:2] == (1.79, 1.79)
+
+
 def test_multiple_programs_can_be_selected_together():
     item = Offer(
         offer_id="x", retailer="EDEKA", category="Test", name="Produkt", brand="",
