@@ -1,3 +1,23 @@
+# 0.1.59
+
+## Bonusprogramme im Server-Modus und Bereinigung
+
+- Die API liefert alle konkreten Bonusvorteile strukturiert samt Programm-ID,
+  Art, Wert und Bezeichnung, auch wenn noch kein Programm gewählt ist.
+- Die native App übernimmt und speichert mehrere Vorteile je Angebot; EDEKA
+  App und PAYBACK können beispielsweise getrennt gewählt werden. Guthaben
+  senkt weder Kassenpreis noch Preisvergleich. Ungültige Bonuswerte werden ignoriert.
+- Room-Migration 5 → 6 ergänzt die Speicherung ohne vorhandene Angebote,
+  Einkaufslisten, Favoriten oder Einstellungen zu löschen. Bisherige native
+  Bonusdaten bleiben lesbar; ältere Server ohne das Zusatzfeld funktionieren weiter.
+- Der zusammengefasste Server-Modus hat kein globales Angebotslimit. Die
+  Kaufland-Grenze von 800 Angeboten je Filiale bleibt erhalten.
+- Der private, nicht mehr verwendete Deployment-Helfer wurde entfernt;
+  README und Schutzprüfung für Entwicklungsrechner-Bezüge wurden korrigiert.
+- Programmübergreifende Regressionstests prüfen Auswahl, API-Übertragung,
+  Mehrfachvorteile und Guthaben. Persönliche Coupons und Punkte werden ohne
+  konkreten öffentlichen Produktpreis weiterhin nicht geschätzt.
+
 # 0.1.58
 
 ## Kaufland-Wochenstartangebote wieder importieren
@@ -214,8 +234,6 @@
 - Native App: Der KitchenOwl-Abgleich entfernt Artikel wieder, die aus der Korbuino-Liste
   gelöscht wurden, aber nur solche, die Korbuino selbst dorthin gelegt hat. Was jemand von
   Hand in KitchenOwl hinzugefügt hat, bleibt unberührt.
-- `deploy-vm.sh`: ein Befehl, der das Image aus dem GitHub-Tag baut, das alte als
-  Rollback sichert und neu startet (`./deploy-vm.sh 0.1.44`, zurück mit `--rollback`).
 
 # 0.1.43
 

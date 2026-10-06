@@ -32,4 +32,16 @@ class LoyaltySelectionTest {
             effectivePriceCents(offer.copy(loyaltyPriceCents = 129), setOf("netto_plus")),
         )
     }
+
+    @Test fun `cashback is preserved without lowering the checkout price`() {
+        val cashback = offer.copy(loyaltyPriceCents = null, loyaltyCashbackCents = 50)
+        assertEquals(99, effectivePriceCents(cashback, setOf("netto_plus")))
+        assertEquals(50, LoyaltyBenefits.forOffer(cashback).single().cents)
+    }
+
+    @Test fun `invalid stored member prices cannot alter checkout`() {
+        for (invalid in listOf(0, -79)) {
+            assertEquals(99, effectivePriceCents(offer.copy(loyaltyPriceCents = invalid), setOf("netto_plus")))
+        }
+    }
 }

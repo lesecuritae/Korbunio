@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import asdict
 from typing import Any
 
 from .common import (
@@ -155,6 +156,8 @@ def offer_for_response(
             else ""
         ),
         "loyalty_benefit": _benefit_text(offer),
+        # Keep all choices machine-readable even when no program is selected.
+        "benefits": [{**asdict(b), "label": benefit_label(b)} for b in offer.benefits],
         "cashback_credit": cashback_credit,
         "cashback_credit_text": format_euro(cashback_credit) if cashback_credit > 0 else "",
         "cashback_credit_note": cashback_note,

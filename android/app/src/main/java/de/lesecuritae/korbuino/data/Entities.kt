@@ -1,5 +1,6 @@
 package de.lesecuritae.korbuino.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -49,6 +50,8 @@ data class OfferEntity(
     val loyaltyPriceCents: Int? = null,
     // Guthaben in Cent, das nach dem Einkauf gutgeschrieben wird (REWE Bonus): kein niedrigerer Preis, wird daneben gezeigt.
     val loyaltyCashbackCents: Int? = null,
+    @ColumnInfo(defaultValue = "'[]'")
+    val loyaltyBenefitsJson: String = "[]",
     val cachedAt: Long,
 )
 

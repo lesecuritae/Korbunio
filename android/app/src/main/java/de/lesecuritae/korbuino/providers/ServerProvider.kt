@@ -1,6 +1,7 @@
 package de.lesecuritae.korbuino.providers
 
 import de.lesecuritae.korbuino.data.OfferEntity
+import de.lesecuritae.korbuino.LoyaltyBenefits
 import de.lesecuritae.korbuino.data.ProductEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,23 +39,20 @@ class ServerProvider(
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(request.postalCode.matches(Regex("^\\d{5}$"))) { "Ungültige PLZ" }
-        val singleRetailer = retailerName != null
         val offerItems = mutableListOf<JsonObject>()
         var page = 1
         var pageCount = 1
         do {
             val body = buildJsonObject {
                 put("postal_code", request.postalCode)
-                put("refresh", true)
+                put("refresh", page == 1)
                 // Lets the app load product images itself, like for its own offers. Older servers ignore it.
                 put("include_image_urls", true)
                 putJsonArray("retailers") { retailerName?.let { add(JsonPrimitive(it)) } }
-                if (singleRetailer) {
-                    // One retailer's whole offer list, not just the cheapest hits.
-                    put("view", "all")
-                    put("page", page)
-                    put("page_size", 100)
-                }
+                // Page through the complete result in both server and fallback modes.
+                put("view", "all")
+                put("page", page)
+                put("page_size", 100)
             }.toString()
             val requestBuilder = Request.Builder().url(baseUrl.trimEnd('/') + "/api/v1/compare")
                 .header("Accept", "application/json")
@@ -68,7 +66,7 @@ class ServerProvider(
             ).jsonObject
             val resultRoot = if (root["offers"]?.jsonArray?.isNotEmpty() == true) root else fetchResult(root)
             resultRoot["offers"]?.jsonArray.orEmpty().forEach { offerItems += it.jsonObject }
-            pageCount = if (singleRetailer) (resultRoot.number("page_count")?.toInt() ?: 1).coerceIn(1, MAX_PAGES) else 1
+            pageCount = (resultRoot.number("page_count")?.toInt() ?: 1).coerceAtLeast(1)
             page++
         } while (page <= pageCount)
         val products = mutableListOf<ProductEntity>()
@@ -76,13 +74,15 @@ class ServerProvider(
         offerItems.forEachIndexed { index, item ->
             val name = item.text("product") ?: item.text("name") ?: return@forEachIndexed
             val price = item.number("regular_price") ?: item.number("price") ?: return@forEachIndexed
+            val benefits = LoyaltyBenefits.parse(item["benefits"]?.toString().orEmpty())
             val retailer = localId ?: item.text("retailer") ?: "Unbekannt"
             val external = item.text("offer_id") ?: "$index-${name.lowercase().hashCode()}"
             val productId = "server-product-${name.lowercase().hashCode()}"
             products += ProductEntity(productId, name, brand = item.text("brand").orEmpty(), normalizedKey = productId)
             offers += OfferEntity(
                 id = "${localId ?: "server"}:$external", retailerId = retailer, productId = productId,
-                externalId = external, priceCents = (price * 100).toInt(),
+                externalId = external, priceCents = Math.round(price * 100).toInt(),
+                loyaltyBenefitsJson = LoyaltyBenefits.encode(benefits),
                 basePriceCents = item.number("base_price")?.let { (it * 100).toInt() },
                 categoryId = item.text("category"), sourceUrl = item.text("source_url").orEmpty(),
                 imageUrl = item.text("image_url")?.let { image ->
@@ -94,8 +94,6 @@ class ServerProvider(
         }
         ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
     }
-
-    private companion object { const val MAX_PAGES = 20 }
 
     private fun fetchResult(compare: JsonObject): JsonObject {
         val resultUrl = compare.text("result_url") ?: return compare
