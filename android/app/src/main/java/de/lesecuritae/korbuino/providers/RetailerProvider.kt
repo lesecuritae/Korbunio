@@ -19,7 +19,11 @@ object ProviderImportPolicy {
         "marktguru-lidl" to 500,
         "marktguru-penny" to 350,
         "netto-marken" to 500,
-        "kaufland" to 600,
+        // Verified regional assortments can exceed 600 when week-start and
+        // monthly promotions overlap (Konstanz: 629, Leipzig-Reudnitz: 618).
+        // Each Kaufland fetch targets one store and filters by date and local
+        // article availability. This is not a combined all-retailer limit.
+        "kaufland" to 800,
         "dm" to 600,
         "globus" to 600,
         "rossmann" to 300,
