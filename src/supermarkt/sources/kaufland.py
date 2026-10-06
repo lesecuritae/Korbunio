@@ -108,6 +108,7 @@ class KauflandOfficialAnchorParser(HTMLParser):
         return clean_text(" ".join(self.page_text_parts))
 
 class OfficialKauflandSource:
+    MAX_STORE_OFFERS = 800
     STORE_HOST = "filiale.kaufland.de"
     SITEMAP_URLS = (
         "https://filiale.kaufland.de/.sitemap.xml",
@@ -974,6 +975,11 @@ class OfficialKauflandSource:
             raise ToolError(
                 f"Kaufland-Angebotsübersicht für {store_url} lieferte nur "
                 f"{len(offers)} sicher parsebare Angebote"
+            )
+        if len(offers) > self.MAX_STORE_OFFERS:
+            raise ToolError(
+                f"Kaufland-Angebote für {store_url}: {len(offers)} Angebote "
+                f"überschreiten die Filialgrenze {self.MAX_STORE_OFFERS}"
             )
         self.last_store_url = store_url
         self.last_store_postal_code = store_postal

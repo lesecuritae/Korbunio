@@ -14,6 +14,9 @@
   Importe ersetzen weiterhin keine vorhandenen Offline-Daten.
 - Regressionstests decken die beiden gemeldeten Angebotsmengen sowie weiterhin
   abgewiesene übergroße und unerklärlich stark gewachsene Importe ab.
+- Docker/Server: Die Kaufland-Filialgrenze beträgt ebenfalls 800 und gilt für
+  strukturierte Daten und den Browser-Fallback. Kein globales Händlerlimit.
+  Docker und APK tragen die Version 0.1.58.
 
 # 0.1.57
 

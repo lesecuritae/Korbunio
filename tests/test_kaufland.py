@@ -1,7 +1,45 @@
 from datetime import date
 import json
+import pytest
+
+from supermarkt.models import ToolError
 
 from supermarkt.sources.kaufland import OfficialKauflandSource
+
+
+@pytest.mark.parametrize("count", [629, 800, 801])
+@pytest.mark.parametrize("browser_fallback", [False, True])
+def test_store_limit_preserves_valid_week_start_and_checks_browser_fallback(monkeypatch, count, browser_fallback):
+    raw = [{
+        "offerId": f"ART.{i}", "klNr": str(i), "dateFrom": "2026-10-05",
+        "dateTo": "2026-10-07", "title": f"Produkt {i}", "formattedPrice": "1.11",
+    } for i in range(count)]
+    payload = {"component": "OfferTemplate", "props": {"offerData": {"cycles": [{
+        "categories": [{"displayName": "Angebote zum Wochenstart", "offers": raw}],
+    }]}}}
+
+    class Http:
+        def get_bytes(self, url, headers=None):
+            if ".kloffers." in url:
+                return json.dumps(raw).encode()
+            return json.dumps(payload, separators=(",", ":")).encode()
+
+    monkeypatch.setattr("supermarkt.common.today_berlin", lambda: date(2026, 10, 6))
+    source = OfficialKauflandSource(Http(), locator=None)
+    store = "https://filiale.kaufland.de/service/filiale/konstanz-industriegebiet-1680.html"
+    monkeypatch.setattr(source, "_resolve_store_page", lambda *_args: (store, "", "Konstanz", "78467"))
+    if browser_fallback:
+        parsed = source._load_structured_offers(store)
+        def fail_structured(*_args):
+            raise ToolError("Structured source unavailable")
+        monkeypatch.setattr(source, "_load_structured_offers", fail_structured)
+        monkeypatch.setattr(source, "_load_full_overview", lambda *_args: ("fallback HTML", store))
+        monkeypatch.setattr(source, "_parse_page", lambda *_args: parsed)
+    if count > 800:
+        with pytest.raises(ToolError, match="Filialgrenze 800"):
+            source.load("78467")
+    else:
+        assert len(source.load("78467")) == count
 
 
 def test_kaufland_store_page_uses_complete_direct_html_before_browser(monkeypatch):
