@@ -290,7 +290,11 @@ private fun KorbuinoApp(
                 state.challengeUrl?.let { url ->
                     Button(onClick = { openChallenge(url) }) { Text("Händler-Bestätigung öffnen") }
                 }
-                Button(onClick = viewModel::checkUpdate) { Text("Nach Updates suchen") }
+                if (BuildConfig.ENABLE_SELF_UPDATE) {
+                    Button(onClick = viewModel::checkUpdate) { Text("Nach Updates suchen") }
+                } else {
+                    Text("App-Updates werden über F-Droid installiert")
+                }
                 Button(onClick = { viewModel.setDailySync(!state.dailySync) }) {
                     Text(if (state.dailySync) "Tägliche Aktualisierung deaktivieren" else "Tägliche Aktualisierung aktivieren")
                 }
@@ -298,7 +302,7 @@ private fun KorbuinoApp(
                     Button(onClick = { exportBackup.launch("korbunio-backup.json") }) { Text("Backup exportieren") }
                     Button(onClick = { importBackup.launch(arrayOf("application/json", "text/json", "text/plain")) }) { Text("Backup importieren") }
                 }
-                state.update?.let { update ->
+                state.update?.takeIf { BuildConfig.ENABLE_SELF_UPDATE }?.let { update ->
                     Button(onClick = { viewModel.installUpdate(update) { context.startActivity(it) } }, enabled = !state.loading) {
                         Text("Update ${update.version} installieren")
                     }

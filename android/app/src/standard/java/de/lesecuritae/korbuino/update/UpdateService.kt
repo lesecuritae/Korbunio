@@ -15,8 +15,6 @@ import okhttp3.Request
 import java.io.File
 import java.security.MessageDigest
 
-data class UpdateInfo(val tag: String, val version: String, val apkUrl: String, val sha256: String?, val releaseUrl: String?)
-
 /** GitHub-release updater for the native APK. Android still performs signature validation on install. */
 class UpdateService(
     private val context: Context,
@@ -101,15 +99,7 @@ class UpdateService(
     }
 
     companion object {
-        /** Compare dotted numeric release versions without treating 0.1.10 as 0.1.2. */
-        fun isNewerVersion(remote: String, installed: String): Boolean {
-            fun parts(value: String): List<Int> = value.removePrefix("v")
-                .split('.', '-', '+')
-                .map { it.toIntOrNull() ?: 0 }
-                .take(4)
-                .let { values -> values + List(4 - values.size) { 0 } }
-            return parts(remote).zip(parts(installed)).firstOrNull { (r, i) -> r != i }
-                ?.let { (r, i) -> r > i } ?: false
-        }
+        fun isNewerVersion(remote: String, installed: String): Boolean =
+            UpdateVersions.isNewerVersion(remote, installed)
     }
 }

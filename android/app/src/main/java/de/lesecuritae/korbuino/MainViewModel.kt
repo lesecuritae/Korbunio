@@ -209,6 +209,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun kitchenOwlUrl(value: String) { _state.value = _state.value.copy(kitchenOwlUrl = value.take(200)) }
 
     fun checkUpdate() {
+        if (!BuildConfig.ENABLE_SELF_UPDATE) return
         viewModelScope.launch {
             _state.value = _state.value.copy(message = "Nach Updates wird gesucht …")
             runCatching { withContext(Dispatchers.IO) { UpdateService(getApplication()).check() } }
@@ -220,6 +221,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun installUpdate(info: UpdateInfo, start: (Intent) -> Unit) {
+        if (!BuildConfig.ENABLE_SELF_UPDATE) return
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, message = "Update wird geladen …")
             runCatching {

@@ -1,0 +1,1 @@
+First F-Droid edition using free OkHttp/Conscrypt networking, without Google Play Services or an APK updater. Self-hosted Korbuino servers, server fallback and KitchenOwl remain available. App updates are handled by F-Droid.

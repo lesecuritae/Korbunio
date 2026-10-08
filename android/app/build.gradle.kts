@@ -22,21 +22,39 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    val releaseStore = System.getenv("KORBUINO_STORE_FILE")
+    if (!releaseStore.isNullOrBlank()) {
+        signingConfigs.create("korbuinoRelease") {
+            storeFile = file(releaseStore)
+            storePassword = System.getenv("KORBUINO_STORE_PASSWORD")
+            keyAlias = System.getenv("KORBUINO_KEY_ALIAS")
+            keyPassword = System.getenv("KORBUINO_KEY_PASSWORD")
+        }
+    }
+    if (System.getenv("KORBUINO_REQUIRE_SIGNED_RELEASE") == "true" &&
+        providers.gradleProperty("fdroidOnly").orNull != "true") {
+        require(!releaseStore.isNullOrBlank()) { "KORBUINO_STORE_FILE is required for a signed release" }
+    }
+
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("standard") {
+            dimension = "distribution"
+            buildConfigField("boolean", "ENABLE_SELF_UPDATE", "true")
+            if (!releaseStore.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("korbuinoRelease")
+            }
+        }
+        create("fdroid") {
+            dimension = "distribution"
+            buildConfigField("boolean", "ENABLE_SELF_UPDATE", "false")
+            // Leave release signing to F-Droid or an external apksigner step.
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
-            val releaseStore = System.getenv("KORBUINO_STORE_FILE")
-            if (!releaseStore.isNullOrBlank()) {
-                signingConfig = signingConfigs.create("korbuinoRelease") {
-                    storeFile = file(releaseStore)
-                    storePassword = System.getenv("KORBUINO_STORE_PASSWORD")
-                    keyAlias = System.getenv("KORBUINO_KEY_ALIAS")
-                    keyPassword = System.getenv("KORBUINO_KEY_PASSWORD")
-                }
-            }
-            if (System.getenv("KORBUINO_REQUIRE_SIGNED_RELEASE") == "true") {
-                require(!releaseStore.isNullOrBlank()) { "KORBUINO_STORE_FILE is required for a signed release" }
-            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -76,8 +94,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("com.google.net.cronet:cronet-okhttp:0.1.1")
-    implementation("com.google.android.gms:play-services-cronet:18.1.1")
     implementation("org.conscrypt:conscrypt-android:2.7.0")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.security:security-crypto:1.1.0")
@@ -86,6 +102,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    "testFdroidImplementation"("com.squareup.okhttp3:okhttp-tls:4.12.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
@@ -94,4 +111,27 @@ dependencies {
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.generateKotlin", "true")
+}
+
+// The F-Droid recipe removes this script and the standard source set before
+// scanning. fdroidOnly also allows building without either being present.
+if (providers.gradleProperty("fdroidOnly").orNull != "true") {
+    apply(from = "standard-dependencies.gradle")
+} else {
+    androidComponents.beforeVariants(androidComponents.selector().withFlavor("distribution" to "standard")) {
+        it.enable = false
+    }
+}
+
+// Validate the resolved graph, including transitives, for the free distribution.
+tasks.register("verifyFdroidDependencies") {
+    doLast {
+        val forbiddenGroups = listOf("com.google.android.gms", "com.google.firebase", "com.google.net.cronet", "org.chromium.net")
+        val forbidden = configurations.getByName("fdroidReleaseRuntimeClasspath")
+            .resolvedConfiguration.resolvedArtifacts
+            .map { it.moduleVersion.id }
+            .filter { module -> forbiddenGroups.any { module.group == it || module.group.startsWith("$it.") } }
+        check(forbidden.isEmpty()) { "Non-free distribution dependencies in F-Droid: $forbidden" }
+        logger.lifecycle("F-Droid runtime dependencies contain no Play Services, Firebase or Cronet")
+    }
 }
