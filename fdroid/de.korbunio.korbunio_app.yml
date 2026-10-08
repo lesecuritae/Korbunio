@@ -21,7 +21,7 @@ Builds:
   - versionName: 0.1.59
     versionCode: 59
     commit: fdroid-v0.1.59
-    subdir: android
+    subdir: android/app
     gradle:
       - fdroid
     rm:

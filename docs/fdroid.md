@@ -71,6 +71,10 @@ fdroid build de.korbunio.korbunio_app
 ```
 
 Then open a merge request titled `New App: Korbuino` against `fdroiddata`.
+The recipe builds from `android/app`, the application module, so F-Droid can
+locate its APK output. Building from the aggregator `android` directory produces
+an APK but F-Droid looks for it in the wrong output directory.
+
 Submission requires a GitLab account; GitHub and Forgejo accounts alone cannot
 create that merge request. F-Droid's maintainers decide acceptance and any
 Anti-Features. The recipe discloses retailer services as `NonFreeNet`.
