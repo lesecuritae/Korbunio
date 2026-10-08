@@ -39,7 +39,9 @@ The tests cover cookie handoff, rejection of an untrusted HTTPS certificate,
 trusted HTTPS, authenticated self-hosted server requests, and the existing
 provider parsers. They do not establish that
 all retailer websites are reachable or free from anti-bot challenges. Android
-8/9's native Conscrypt path also needs testing on real devices.
+9's native Conscrypt path and the release UI were smoke-tested in a clean
+emulator without Google Play Services. Physical-device coverage, especially
+Android 8, remains a separate check.
 
 ## Submission files
 
