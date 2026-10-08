@@ -1,0 +1,1 @@
+Erste F-Droid-Variante mit freiem OkHttp-/Conscrypt-Netzwerkcode, ohne Google Play Services und ohne eingebauten APK-Updater. Eigener Korbuino-Server, Server-Fallback und KitchenOwl bleiben verfügbar. Updates erfolgen über F-Droid.

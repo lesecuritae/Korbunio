@@ -35,7 +35,7 @@ Background work is opt-in and scheduled with WorkManager. Manual mode is the
 default; daily mode can require Wi-Fi and charging. A failed sync keeps the
 last successful Room snapshot.
 
-The native settings surface can check the latest GitHub release, download an
+The standard distribution's native settings surface can check the latest GitHub release, download an
 HTTPS APK, verify an optional SHA-256 sidecar, and hand installation to the
 Android package installer. Android signature validation remains in control;
 there is no silent installation.
@@ -74,3 +74,10 @@ The overview also provides an `Alle Händler` selector, individual retailer
 filters and retailer/product sorting like the Docker client.
 Connection settings for an optional self-hosted server and KitchenOwl are
 available from the gear icon in the home and offers screens.
+
+## F-Droid
+
+Use `assembleFdroidRelease -PfdroidOnly=true` for the free distribution and
+`assembleStandardRelease` for direct-download releases. The F-Droid flavor has
+no Google Play Services dependencies and uses F-Droid for app updates. See
+[packaging and signing instructions](../docs/fdroid.md).

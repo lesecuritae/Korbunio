@@ -1,0 +1,14 @@
+Korbuino compares regional supermarket offers using a German postal code. Search, filter and sort offers by retailer, and add products to a local shopping list.
+
+The app fetches public retailer data directly and does not require a Korbuino server. Saved offers and shopping lists remain available offline. Refreshing offers requires internet access; some retailers may require manual confirmation or may be temporarily unavailable.
+
+Features:
+• Manual postal code entry or optional location permission
+• Optional scheduled background refresh
+• Local backup export and import
+• Optional connection to a self-hosted Korbuino server and KitchenOwl
+• Light and dark themes
+
+The F-Droid edition uses OkHttp and Conscrypt without Google Play Services. App updates are handled by F-Droid. Crash reports stay on the device and are not submitted automatically.
+
+Korbuino is an independent project and is not affiliated with the listed retailers. Verify prices and availability with the retailer.

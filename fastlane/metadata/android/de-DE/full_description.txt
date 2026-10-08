@@ -1,0 +1,14 @@
+Korbuino vergleicht regionale Supermarktangebote anhand deiner deutschen Postleitzahl. Du kannst Angebote nach Händler filtern, suchen und sortieren sowie Produkte auf eine lokale Einkaufsliste setzen.
+
+Die App lädt öffentliche Händlerdaten direkt und benötigt keinen Korbuino-Server. Bereits gespeicherte Angebote und die Einkaufsliste bleiben offline verfügbar. Internetzugang ist für neue Angebote erforderlich; einzelne Händler können eine manuelle Bestätigung verlangen oder zeitweise nicht erreichbar sein.
+
+Weitere Funktionen:
+• Manuelle PLZ-Eingabe oder freiwillige Standortfreigabe
+• Optional geplante Aktualisierung im Hintergrund
+• Export und Import lokaler Backups
+• Optionale Verbindung zu einem eigenen Korbuino-Server und KitchenOwl
+• Helles und dunkles Design
+
+Die F-Droid-Variante nutzt OkHttp und Conscrypt ohne Google Play Services. App-Updates erfolgen über F-Droid. Absturzberichte bleiben lokal und werden nicht automatisch versendet.
+
+Korbuino ist ein unabhängiges Projekt und nicht mit den genannten Händlern verbunden. Preise und Verfügbarkeit bitte beim Händler prüfen.

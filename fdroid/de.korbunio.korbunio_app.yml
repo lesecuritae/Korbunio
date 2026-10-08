@@ -1,0 +1,42 @@
+Categories:
+  - Shopping List
+License: BSD-3-Clause
+AuthorName: lesecuritae
+SourceCode: https://github.com/lesecuritae/Korbunio
+IssueTracker: https://github.com/lesecuritae/Korbunio/issues
+Changelog: https://github.com/lesecuritae/Korbunio/blob/HEAD/RELEASE_NOTES.md
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: Offer refresh uses public retailer websites and services.
+    de-DE: Angebotsaktualisierungen nutzen öffentliche Händler-Webseiten und Dienste.
+
+AutoName: Korbuino
+
+RepoType: git
+Repo: https://github.com/lesecuritae/Korbunio.git
+Binaries: https://github.com/lesecuritae/Korbunio/releases/download/fdroid-v%v/korbuino-fdroid-%v.apk
+
+Builds:
+  - versionName: 0.1.59
+    versionCode: 59
+    commit: fdroid-v0.1.59
+    subdir: android
+    gradle:
+      - fdroid
+    rm:
+      - app
+      - android/app/src/standard
+      - android/app/src/testStandard
+      - android/app/standard-dependencies.gradle
+    gradleprops:
+      - fdroidOnly=true
+      - org.gradle.workers.max=2
+
+AllowedAPKSigningKeys:
+  - 02302c699db0156825b85cf1748a4648941b2b47a58c0177aafdd037d77e53e8
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags fdroid-v[0-9]+\.[0-9]+\.[0-9]+
+CurrentVersion: 0.1.59
+CurrentVersionCode: 59
