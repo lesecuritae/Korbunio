@@ -691,6 +691,10 @@ private fun ShoppingListOverview(state: MainUiState, viewModel: MainViewModel) {
                 TextButton(onClick = viewModel::undoRemoveShoppingItem) { Text("Rückgängig") }
             }
         }
+        val plan = remember(state.shoppingItems, state.offers, state.selectedLoyaltyPrograms) {
+            ShoppingPlan.build(state.shoppingItems.map { it.name }, state.offers, state.selectedLoyaltyPrograms)
+        }
+        if (plan.hasPlan) ShoppingPlanCard(plan, retailerNames)
         state.shoppingItems.forEach { item ->
             val open = item.productId in expanded
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -742,6 +746,52 @@ private fun ShoppingListOverview(state: MainUiState, viewModel: MainViewModel) {
         }
         if (state.shoppingItems.isEmpty()) {
             Text("Noch keine Artikel in der Einkaufsliste.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ShoppingPlanCard(plan: ShoppingPlan.Plan, retailerNames: Map<String, String>) {
+    fun shop(id: String) = retailerNames[id] ?: id
+    fun shops(ids: List<String>) = ids.joinToString(", ") { shop(it) }
+    fun laeden(n: Int) = if (n == 1) "einen Laden" else "$n Läden"
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "Einkaufsplan",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            val total = OfferMatcher.formatPrice(plan.cheapestTotalCents)
+            Text(
+                if (plan.cheapestStores.size == 1) {
+                    "Alles am günstigsten bei ${shops(plan.cheapestStores)} – zusammen $total für ${plan.matchedCount} Artikel."
+                } else {
+                    "Für die günstigsten Preise bräuchtest du ${laeden(plan.cheapestStores.size)} (${shops(plan.cheapestStores)}) – zusammen $total."
+                },
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            if (plan.consolidations.isNotEmpty() && plan.savedTrips > 0 && plan.primaryStoreId != null) {
+                val extra = OfferMatcher.formatPrice(plan.consolidationExtraCents)
+                val items = plan.consolidations.joinToString(", ") { it.itemName }
+                Text(
+                    "Spartipp: $items ${if (plan.consolidations.size == 1) "ist" else "sind"} woanders nur $extra günstiger – " +
+                        "gibt es auch bei ${shop(plan.primaryStoreId)}. Dann reichen ${laeden(plan.consolidatedStores.size)} statt ${plan.cheapestStores.size}.",
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+            if (plan.unmatchedItems.isNotEmpty()) {
+                Text(
+                    "Aktuell nicht im Angebot: ${plan.unmatchedItems.joinToString(", ")}.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

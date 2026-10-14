@@ -107,9 +107,24 @@ class ReweProvider(
         val from = if (nextWeek && today.dayOfWeek != DayOfWeek.SUNDAY) currentMonday.plusWeeks(1)
             else if (nextWeek) today.plusDays(1) else currentMonday
         val until = from.plusDays(6)
+        // REWE publishes on Mondays and offers no preview before then: its
+        // ?week=next page then returns the *current* catalogue. Dating that as
+        // next week would fabricate offers, so a forced next-week request (not
+        // the legitimate Sunday case) only counts when a verified next-week
+        // container is present. Otherwise return nothing and let the caller
+        // fall back to the current week.
+        val nextRoot = if (nextWeek) {
+            doc.selectFirst("[data-categories-week-value=next], .sos-categories-next, #sos-categories-next")
+        } else {
+            null
+        }
+        if (nextWeek && today.dayOfWeek != DayOfWeek.SUNDAY && nextRoot == null) {
+            return ProviderResult(emptyList(), emptyList())
+        }
+        val scope = nextRoot ?: doc
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
-        doc.select(".cor-offer-renderer-tile").forEachIndexed { index, card ->
+        scope.select(".cor-offer-renderer-tile").forEachIndexed { index, card ->
             val name = card.select(".cor-offer-information__title").text().trim()
             val priceText = card.select(".cor-offer-price__tag-price").text()
             val price = Regex("(\\d{1,4}[,.]\\d{1,2})").find(priceText)?.groupValues?.get(1)

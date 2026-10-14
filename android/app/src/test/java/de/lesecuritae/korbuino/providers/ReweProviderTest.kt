@@ -108,6 +108,50 @@ class ReweProviderTest {
         assertEquals("2026-09-14", result.offers.single().validFrom)
     }
 
+    @Test fun `forced next week without a preview container does not fabricate offers`() = runTest {
+        // Monday: REWE has no preview, so ?week=next returns this week's catalogue.
+        // Without a verified next-week container it must yield nothing (and the
+        // caller falls back to the current week) instead of re-dating offers.
+        server.enqueue(MockResponse().setBody("""
+            <a href="/angebote/teststadt/123456/rewe-markt-hauptstrasse/">REWE Markt 12345 Teststadt</a>
+        """))
+        server.enqueue(MockResponse().setBody("""
+            <div class="cor-offer-renderer-tile">
+              <div class="cor-offer-information__title">Diese Woche</div>
+              <span class="cor-offer-price__tag-price">1,29 €</span>
+            </div>
+        """))
+        val provider = ReweProvider(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            now = { Instant.parse("2026-09-14T10:00:00Z") }, // Monday
+        )
+
+        val failed = runCatching { provider.fetch(RetailerRequest("12345", citySlug = "teststadt", week = OfferWeek.NEXT)) }
+        assertTrue(failed.isFailure)
+    }
+
+    @Test fun `forced next week honours a verified next-week container`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            <a href="/angebote/teststadt/123456/rewe-markt-hauptstrasse/">REWE Markt 12345 Teststadt</a>
+        """))
+        server.enqueue(MockResponse().setBody("""
+            <div class="sos-categories-next" data-categories-week-value="next">
+              <div class="cor-offer-renderer-tile">
+                <div class="cor-offer-information__title">Nächste Woche</div>
+                <span class="cor-offer-price__tag-price">0,99 €</span>
+              </div>
+            </div>
+        """))
+        val provider = ReweProvider(
+            OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            now = { Instant.parse("2026-09-14T10:00:00Z") }, // Monday
+        )
+
+        val result = provider.fetch(RetailerRequest("12345", citySlug = "teststadt", week = OfferWeek.NEXT))
+        assertEquals(1, result.offers.size)
+        assertEquals("2026-09-21", result.offers.single().validFrom) // following Monday
+    }
+
     @Test fun `uses regional fallback when direct page only exposes ten offers`() = runTest {
         server.enqueue(MockResponse().setBody("""
             <a href="/angebote/teststadt/123456/rewe-markt-hauptstrasse/">REWE Markt 12345 Teststadt</a>

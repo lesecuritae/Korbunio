@@ -1,3 +1,20 @@
+# 0.1.60
+
+## Einkaufsplan, REWE Bonus im MCP und ehrliche Folgewoche
+
+- Neue Einkaufsplan-Übersicht in der Einkaufsliste: zeigt auf einen Blick,
+  in wie vielen Läden der günstigste Einkauf nötig wäre, und gibt einen
+  Spartipp, wenn sich ein Extra-Weg wegen nur weniger Cent Unterschied nicht
+  lohnt. Artikel ohne aktuelles Angebot werden getrennt ausgewiesen (#56).
+- MCP: Der REWE Bonus wird jetzt korrekt ausgegeben. Das Guthaben erscheint als
+  eigenes Feld samt effektivem Preis (z. B. 0,99 € ohne Bonus, effektiv 0,79 €
+  mit 0,20 € REWE Bonus Guthaben). Cashback bleibt bewusst rankingneutral und
+  wird nicht als Kassenpreis ausgegeben.
+- REWE-Folgewoche ehrlich: REWE veröffentlicht erst montags und bietet keine
+  Vorschau. Die `?week=next`-Seite liefert dann den aktuellen Katalog; dieser
+  wird nicht länger auf die nächste Woche umdatiert. Ohne echten Folgewochen-
+  Container werden die aktuellen Angebote gezeigt (Server und native App).
+
 # 0.1.59
 
 ## Bonusprogramme im Server-Modus und Bereinigung
