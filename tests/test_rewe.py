@@ -222,7 +222,11 @@ def test_rewe_offer_root_marker_fallback_has_normal_class_set():
     assert root.get("data-categories-week-value") == "next"
 
 
-def test_rewe_explicit_next_url_can_use_active_generic_container():
+def test_rewe_next_week_does_not_fabricate_from_current_container():
+    # REWE serves the current catalogue on ?week=next when it has no preview.
+    # Treating a current/generic container as next week would date this week's
+    # offers into the future (a fabricated preview), so it must be rejected and
+    # the caller falls back to the current week with a "no preview" notice.
     soup = BeautifulSoup(
         '''
         <div class="sos-categories-current sos-categories" data-controller="categories">
@@ -236,9 +240,47 @@ def test_rewe_explicit_next_url_can_use_active_generic_container():
         "next",
         "https://www.rewe.de/angebote/musterstadt/222/rewe-center/?week=next",
     )
+    assert root is None
+
+
+def test_rewe_next_week_uses_a_verified_next_container():
+    # A genuine published next-week container is still honoured.
+    soup = BeautifulSoup(
+        '''
+        <div class="sos-categories-current" data-categories-week-value="current">
+          <div data-controller="offer" data-offer-nan="old"></div>
+        </div>
+        <div class="sos-categories-next" data-categories-week-value="next">
+          <div data-controller="offer" data-offer-nan="new" data-offer-wwident="different"></div>
+        </div>
+        ''',
+        "html.parser",
+    )
+    root = OfficialReweSource._best_offer_root(
+        soup,
+        "next",
+        "https://www.rewe.de/angebote/musterstadt/222/rewe-center/?week=next",
+    )
     assert root is not None
+    assert root.get("data-categories-week-value") == "next"
     unique, _ = OfficialReweSource._collect_offer_cards(root, "222")
-    assert unique["new"]["wwident"] == "different"
+    assert list(unique) == ["new"]
+
+
+def test_rewe_current_week_still_uses_single_generic_container():
+    # The current-week fallback for renamed containers must stay intact.
+    soup = BeautifulSoup(
+        '''
+        <div class="sos-categories" data-controller="categories">
+          <div data-controller="offer" data-offer-nan="now" data-offer-wwident="w"></div>
+        </div>
+        ''',
+        "html.parser",
+    )
+    root = OfficialReweSource._best_offer_root(soup, "current", "https://www.rewe.de/angebote/x/1/y/")
+    assert root is not None
+    unique, _ = OfficialReweSource._collect_offer_cards(root, "1")
+    assert unique["now"]["wwident"] == "w"
 
 
 

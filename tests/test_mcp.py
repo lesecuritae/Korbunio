@@ -65,6 +65,38 @@ def test_find_offers_lists_cheapest_first_with_bonus_price_and_image():
     assert [block.type for block in result.content].count("image") == 1
 
 
+def test_rewe_bonus_cashback_shows_credit_and_effective_price(monkeypatch):
+    """REWE Bonus is cashback: it was dropped before, now it shows as a credit.
+
+    Issue regression (Rockstar Energy): 0,99 € ohne Bonus, 0,20 € REWE Bonus,
+    effektiv 0,79 €. Cashback must not become a fake checkout price or reorder.
+    """
+
+    class RockstarEngine:
+        def page(self, snapshot, loyalty_programs=(), **_kwargs):
+            offer = {
+                "offer_id": "r", "retailer": "REWE", "product": "Rockstar Energy", "pack": "0,5 l",
+                "unit_price": "1,98 €/l", "regular_price_text": "0,99 €", "effective_price": 0.99,
+                "effective_price_text": "0,99 €", "validity": "gültig bis 20.09.",
+                "cashback_credit": 0.0, "cashback_credit_text": "", "loyalty_benefit": "", "image_url": None,
+            }
+            if loyalty_programs:
+                offer = {**offer, "cashback_credit": 0.20, "cashback_credit_text": "0,20 €",
+                         "loyalty_benefit": "REWE Bonus: 0,20 € Guthaben"}
+            return {"offers": [offer], "available_loyalty_programs": [
+                {"id": "rewe_bonus", "label": "REWE Bonus", "retailers": ["REWE"], "priced_offer_count": 1}]}
+
+    monkeypatch.setattr(runtime, "get_engine", lambda: RockstarEngine())
+    result = call("find_offers", {"product": "Rockstar", "postal_code": "01067"})
+    offer = result.structured_content["offers"][0]
+    assert offer["price_without_bonus"] == "0,99 €"
+    assert offer["price_with_bonus"] is None  # cashback is credited after checkout, not a lower price
+    assert offer["bonus_credit"] == "0,20 €"
+    assert offer["price_after_credit"] == "0,79 €"
+    assert "REWE Bonus" in (offer["bonus_program"] or "")
+    assert "effektiv 0,79 € mit 0,20 € REWE Bonus Guthaben" in result.content[0].text
+
+
 def test_only_one_image_by_default_and_up_to_three_on_request():
     assert [b.type for b in call("find_offers", {"product": "x", "postal_code": "01067"}).content].count("image") == 1
     result = call("find_offers", {"product": "x", "postal_code": "01067", "max_images": 0})

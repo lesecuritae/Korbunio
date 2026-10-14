@@ -232,17 +232,26 @@ class OfficialReweSource:
     def _best_offer_root(cls, soup: Any, week: str, request_url: str = "") -> Any:
         """Return the requested week root, with a guarded active-DOM fallback.
 
-        REWE has used several container names for the active offer week. On a
-        URL that explicitly selects ``week=next`` the active container can still
-        carry a generic/current-looking class. In that case choose the container
-        that actually contains the most offer nodes instead of failing the whole
-        retailer.
+        REWE has used several container names for the active offer week, so the
+        current week falls back to the single generic categories container when
+        the known selectors miss.
+
+        A next-week request, however, never falls back to a generic or
+        current-week container. REWE serves the *current* catalogue on its
+        ``?week=next`` page whenever it has no preview yet (REWE publishes on
+        Mondays and offers no preview before then; a mid-week next-week page was
+        confirmed to be a 100% duplicate of the current week). Dating that
+        catalogue as next week fabricates offers, so a next-week result requires
+        a verified next-week container. Without one the caller reports "no
+        preview" and the current week is shown instead.
         """
         root = cls._offer_root(soup, week)
         if root is not None:
             return root
 
-        explicit_next = week == "next" and "week=next" in clean_text(request_url).casefold()
+        if clean_text(week).casefold() == "next":
+            return None
+
         selectors = (
             '[data-testid="sos-categories"]',
             '[data-controller="categories"]',
@@ -265,14 +274,8 @@ class OfficialReweSource:
             return max(wrappers, cards)
 
         ranked = sorted(((score(node), node) for node in candidates), key=lambda item: item[0], reverse=True)
-        if ranked and ranked[0][0] > 0 and (explicit_next or len(ranked) == 1):
+        if ranked and ranked[0][0] > 0 and len(ranked) == 1:
             return ranked[0][1]
-
-        # Last resort for a fully rendered page where REWE removed the week
-        # container but kept the offer tiles. This is safe for an explicitly
-        # selected next-week URL; deduplication later removes repeated tiles.
-        if explicit_next and soup.select('.cor-offer-renderer-tile'):
-            return soup
         return None
 
     def _render_market_page(self, market_url: str) -> str:

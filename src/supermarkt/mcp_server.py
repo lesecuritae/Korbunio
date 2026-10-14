@@ -30,7 +30,7 @@ from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 
 from . import history, kitchenowl, notify, runtime
-from .common import validate_postal_code
+from .common import format_euro, validate_postal_code
 from .images import ImageServiceError
 from .loyalty import PROGRAMS
 from .models import RETAILER_SPECS, ToolError, resolve_retailer_names
@@ -106,8 +106,10 @@ class Offer(BaseModel):
     pack: str = Field(default="", description="Packungsgröße")
     unit_price: str = Field(default="", description="Grundpreis, z. B. 8,95 €/kg")
     price_without_bonus: str = Field(description="Preis ohne Bonusprogramm")
-    price_with_bonus: Optional[str] = Field(default=None, description="Preis mit Bonusprogramm, nur wenn es einen gibt")
-    bonus_program: Optional[str] = Field(default=None, description="Welches Programm dafür nötig ist, z. B. Kaufland Card XTRA")
+    price_with_bonus: Optional[str] = Field(default=None, description="Günstigerer Mitgliederpreis an der Kasse, nur wenn es einen gibt")
+    bonus_credit: Optional[str] = Field(default=None, description="Nachträglich gutgeschriebenes Bonus-Guthaben, z. B. 0,20 € REWE Bonus")
+    price_after_credit: Optional[str] = Field(default=None, description="Effektiver Preis nach Abzug des Bonus-Guthabens, z. B. 0,79 €")
+    bonus_program: Optional[str] = Field(default=None, description="Welches Programm dafür nötig ist, z. B. Kaufland Card XTRA oder REWE Bonus")
     valid: str = Field(default="", description="Gültigkeit")
     image_url: Optional[str] = Field(default=None, description="Bild des Angebots (Adresse beim Händler)")
 
@@ -225,7 +227,12 @@ def _check_watches(plz: str, snapshot: dict[str, Any]) -> None:
         lines = []
         for key in fresh[:5]:
             offer = keys[key]
-            extra = f" mit {offer.bonus_program}" if offer.price_with_bonus else ""
+            if offer.price_with_bonus:
+                extra = f" mit {offer.bonus_program}"
+            elif offer.price_after_credit and offer.bonus_credit:
+                extra = f" (effektiv {offer.price_after_credit} mit {offer.bonus_credit} {_program_name(offer)} Guthaben)"
+            else:
+                extra = ""
             lines.append(f"{offer.retailer}: {offer.product} {offer.price_with_bonus or offer.price_without_bonus}{extra}")
         title = f"Korbuino: {watch['query']} im Angebot"
         try:
@@ -273,18 +280,24 @@ def _offers_from(snapshot: dict[str, Any], product: str, also_search: list[str] 
     result: list[Offer] = []
     for item in plain.get("offers", []):
         other = bonus_by_id.get(item["offer_id"], item)
-        cheaper = (
-            other.get("effective_price") is not None
-            and item.get("effective_price") is not None
-            and other["effective_price"] < item["effective_price"]
-        )
+        regular = item.get("effective_price")
+        discounted = other.get("effective_price")
+        cheaper = discounted is not None and regular is not None and discounted < regular
+        # Cashback (e.g. REWE Bonus) is credited after checkout, so it never
+        # lowers the checkout price or the ranking. It was dropped entirely
+        # before; surface it as a separate credit with the effective net price.
+        credit = other.get("cashback_credit") or 0.0
+        has_credit = credit > 0 and discounted is not None
         result.append(Offer(
             retailer=item["retailer"], product=item["product"], pack=item.get("pack", ""), unit_price=item.get("unit_price", ""),
             price_without_bonus=item["regular_price_text"],
             price_with_bonus=other["effective_price_text"] if cheaper else None,
-            bonus_program=(other.get("loyalty_benefit") or None) if cheaper else None,
+            bonus_credit=other.get("cashback_credit_text") if has_credit else None,
+            price_after_credit=format_euro(discounted - credit) if has_credit else None,
+            bonus_program=(other.get("loyalty_benefit") or None) if (cheaper or has_credit) else None,
             valid=item.get("validity", ""), image_url=item.get("image_url") or None,
         ))
+    # Ranking stays on the checkout price; cashback is deliberately excluded.
     result.sort(key=lambda offer: _euro(offer.price_with_bonus or offer.price_without_bonus))
     return result
 
@@ -317,12 +330,19 @@ def _valid_text(offer: Offer) -> str:
     return text[len(prefix):] if text.startswith(prefix) else text
 
 
+def _program_name(offer: Offer) -> str:
+    """Nur der Programmname ohne angehängten Betrag, z. B. „REWE Bonus“."""
+    return (offer.bonus_program or "").split(":", 1)[0].strip() or "Bonusprogramm"
+
+
 def _summary(result: OfferResult) -> str:
     lines = [f"{result.found} Treffer für „{result.query}“ (PLZ {result.postal_code}), günstigste zuerst:"]
     for offer in result.offers:
         line = f"- {offer.retailer}: {offer.product} {offer.pack}".rstrip() + f" – {offer.price_without_bonus} ohne Bonus"
         if offer.price_with_bonus:
             line += f", {offer.price_with_bonus} mit {offer.bonus_program or 'Bonusprogramm'}"
+        elif offer.price_after_credit and offer.bonus_credit:
+            line += f", effektiv {offer.price_after_credit} mit {offer.bonus_credit} {_program_name(offer)} Guthaben"
         if offer.unit_price:
             line += f" ({offer.unit_price})"
         valid = _valid_text(offer)
