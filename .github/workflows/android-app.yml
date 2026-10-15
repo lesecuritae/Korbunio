@@ -430,6 +430,7 @@ jobs:
         run: |
           set -euo pipefail
           SDK_BIN="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin | sort -V | tail -1)"
+          "$SDK_BIN/sdkmanager" --licenses < <(yes)
           "$SDK_BIN/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0" "emulator" "system-images;android-28;default;x86_64"
           echo no | "$SDK_BIN/avdmanager" create avd --force --name korbunio-ui --package "system-images;android-28;default;x86_64" --device pixel
           test -e /dev/kvm
