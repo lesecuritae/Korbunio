@@ -68,7 +68,8 @@ class UserDataMigrationTest {
                         val entity = entities.getJSONObject(index)
                         val table = entity.getString("tableName")
                         db.execSQL(entity.getString("createSql").replace("\${TABLE_NAME}", table))
-                        val indices = entity.getJSONArray("indices")
+                        // Older exported tables omit this optional field when no indexes exist.
+                        val indices = entity.optJSONArray("indices") ?: org.json.JSONArray()
                         for (i in 0 until indices.length()) db.execSQL(indices.getJSONObject(i).getString("createSql").replace("\${TABLE_NAME}", table))
                     }
                     db.execSQL("INSERT INTO products(id,name,brand,normalizedKey,gtin) VALUES('saved','Coca-Cola','','saved',NULL)")
