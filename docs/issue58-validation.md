@@ -1,7 +1,9 @@
 # Issue #58 — implementation and acceptance record
 
 This branch starts at `5357871e25bc587f1c9bb308797f85678b27ae66` (main,
-0.1.60). It prepares 0.1.61; it does not publish a release or move any tag.
+0.1.60). It prepares 0.1.61. The user subsequently requested the normal GitHub
+release with APK/Docker first, followed by a matching F-Droid submission; existing
+tags and historical artifacts must remain unchanged.
 The native Android application is the implementation target. The historical
 Flutter compatibility client is retained unchanged.
 
@@ -55,21 +57,39 @@ another store. Synthetic arithmetic tests are explicitly identified as such.
 
 ## Android final run
 
-**In progress; this section must be replaced with final counts, exact APK hashes,
-source commit, build results and instrumentation outcome before acceptance.**
+All **16 instrumentation tests passed**, with **zero failures, errors or skipped
+tests**, on a Google-free AOSP Android9/API28 emulator with hardware acceleration
+in [CI run38815767838](https://github.com/lesecuritae/Korbunio/actions/runs/38815767838/job/116699915666).
+Application branch at this gate: `e4237959b765b8534f4e5369e2cc0b56e2b6b029`.
+The published job artifact includes the actual JUnit XML, not just APK compilation.
 
-A dedicated Google-free AOSP Android9/API28 emulator is used, with software CPU
-because this host does not expose KVM. The original unscrollable implementation
-failed with `Semantic Node has no parent layout with a Scroll SemanticsAction`.
-An early replacement run was interrupted after the emulator/adb transport
-stalled; its one passed test does not mean its remaining tests passed.
-A subsequent Android9 run encountered a SystemUI ANR and system crash at test2;
-that is retained as a blocked environment result, not a successful UI suite.
-The suite is being repeated on an independent AOSP Android15/API35 test image. The
-selected transport was reconnected, rendering reduced to480×800, and subsequent
-installs use `--no-streaming`. Infrastructure aborts remain separate from product
-assertion failures. The CI workflow also runs actual AOSP instrumentation rather
-than merely compiling the test APK.
+Coverage: long-list scrolling with expanded matches and increased font scale,
+retailer subtotal/last-remove/undo, favorite create/edit/delete and selection,
+invalid ntfy setup, real schema6→7 migration validated by Room, duplicate-name
+backup roundtrip without credentials, week-partition retention, canonical product
+references, successful-empty-preview cleanup and concurrent/restarted receipts.
+
+The first complete instrument run passed15/16: the schema fixture loader required
+an optional `indices` field on tables without indexes. The loader now handles an
+absent list; all actual SQL migration validation and preservation assertions remain.
+Earlier local software-only emulator attempts hit SystemUI/boot failures. Those
+attempts are not counted as successful suites. The old production Column genuinely
+failed the missing-scroll regression before replacement.
+
+Final local Standard and F-Droid unsigned release builds succeeded. These local
+artifacts are not the upcoming signed publication/reference artifacts:
+
+| Variant | Local unsigned APK SHA-256 |
+| --- | --- |
+| Standard | `883de1f791ac05b0a12786b9181892f1943662ca8e14465b4a38eaf7be202c8f` |
+| F-Droid | `fed89448a8f19ecdc403fe96f0df766bc6b4b9fc1954e406dd1dbe6e89575cf2` |
+
+The new F-Droid APK retains exactly the previous permission set: INTERNET,
+ACCESS_COARSE_LOCATION, WAKE_LOCK, ACCESS_NETWORK_STATE, RECEIVE_BOOT_COMPLETED,
+FOREGROUND_SERVICE and the application DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION.
+No POST_NOTIFICATIONS or MANAGE_EXTERNAL_STORAGE permission was added. The final
+signed reference must additionally be compared with an independent build at its
+actual immutable publication commit; preliminary builds do not prove that match.
 
 ## Unperformed physical and monitored-network review
 
@@ -81,6 +101,8 @@ permission denial/manual postal entry, no Geocoder, optional integrations,
 background sync and an isolated ntfy topic separately. Record device/Android,
 release APK hash and commit, destinations, triggers and disable switches.
 
-No email, issue comment, GitLab comment, merge, tag move or release is authorized
-by this acceptance record. The PR should reference#58 and preserve any genuinely
+After explicit follow-up user authorization, the existing GitLab submission
+branch was updated with metadata-only commit `6544b5fcf` and a factual reviewer
+reply (linked in the maintainer record). No email or historical tag/artifact replacement was performed. The later release
+and factual GitHub issue reply are authorized after successful automated gates. The PR should reference#58 and preserve any genuinely
 open acceptance points instead of closing the issue automatically.

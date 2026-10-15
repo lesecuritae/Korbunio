@@ -1,4 +1,4 @@
-# 0.1.61 (in Vorbereitung)
+# 0.1.61
 
 - Native Einkaufsliste scrollt auch mit langen Listen und aufgeklappten Treffern.
   Händlerabschnitte, bearbeitbare Packungsmengen, Positions- und Händlersummen
@@ -15,7 +15,6 @@
 - Englische F-Droid-Beschreibung nennt die derzeit nur deutsche Oberfläche.
 
 Einrichtung und Preisregeln: [Benutzerhilfe](docs/einkaufen-und-beobachten.md).
-Die Version wird durch diesen PR nicht veröffentlicht.
 
 # 0.1.60
 

@@ -1,6 +1,6 @@
 DRAFT, NOT SUBMITTED: the new 0.1.61 signing/reference artifact is not published.
-Keeps historical 0.1.59 commit and artifacts intact. Replace placeholder only
-with the reviewed immutable application commit carrying the language notice.
+Keeps historical 0.1.59 commit and artifacts intact. The new source revision
+is immutable and includes the language notice; binary publication remains gated.
 
 --- a/metadata/de.korbunio.korbunio_app.yml
 +++ b/metadata/de.korbunio.korbunio_app.yml
