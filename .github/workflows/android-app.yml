@@ -432,7 +432,11 @@ jobs:
           SDK_BIN="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin | sort -V | tail -1)"
           "$SDK_BIN/sdkmanager" --licenses < <(yes)
           "$SDK_BIN/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0" "emulator" "system-images;android-28;default;x86_64"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/korbunio-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          printf 'ANDROID_AVD_HOME=%s\n' "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
           echo no | "$SDK_BIN/avdmanager" create avd --force --name korbunio-ui --package "system-images;android-28;default;x86_64" --device pixel
+          test -f "$ANDROID_AVD_HOME/korbunio-ui.ini"
           test -e /dev/kvm
           sudo chmod a+rw /dev/kvm
           nohup "$ANDROID_HOME/emulator/emulator" -avd korbunio-ui -accel on -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > "$RUNNER_TEMP/korbunio-emulator.log" 2>&1 &
