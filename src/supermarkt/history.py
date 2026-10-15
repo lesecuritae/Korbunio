@@ -6,6 +6,7 @@ und Artikel der niedrigste gesehene Preis. Nach einem Jahr wird aufgeräumt.
 """
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 import threading
@@ -42,6 +43,11 @@ def _connect() -> sqlite3.Connection:
     config.HISTORY_DB.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(config.HISTORY_DB, timeout=10)
     connection.executescript(_SCHEMA)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(watches)")}
+    if "retailer_ids" not in columns:
+        connection.execute("ALTER TABLE watches ADD COLUMN retailer_ids TEXT NOT NULL DEFAULT '[]'")
+    if "offer_week" not in columns:
+        connection.execute("ALTER TABLE watches ADD COLUMN offer_week TEXT NOT NULL DEFAULT 'current'")
     return connection
 
 
@@ -123,25 +129,39 @@ def retailer_status() -> list[dict[str, Any]]:
 # ---- Beobachtungen ------------------------------------------------------------------------
 
 
-def add_watch(query: str, max_cents: int | None, postal_code: str) -> dict[str, Any]:
+def add_watch(query: str, max_cents: int | None, postal_code: str,
+              retailer_ids: tuple[str, ...] = (), offer_week: str = "current") -> dict[str, Any]:
+    if offer_week not in {"current", "next", "all"}:
+        raise ValueError("Angebotszeitraum muss current, next oder all sein.")
+    selected = sorted(set(retailer_ids))
+    encoded = json.dumps(selected)
     with _LOCK, _connect() as db:
-        if db.execute("SELECT COUNT(*) FROM watches").fetchone()[0] >= MAX_WATCHES:
-            raise ValueError(f"Es sind höchstens {MAX_WATCHES} Beobachtungen möglich. Bitte erst eine entfernen.")
-        existing = db.execute("SELECT id FROM watches WHERE lower(query) = lower(?) AND plz = ?", (query, postal_code)).fetchone()
+        existing = db.execute(
+            "SELECT id FROM watches WHERE lower(query) = lower(?) AND plz = ? AND retailer_ids = ? AND offer_week = ?",
+            (query, postal_code, encoded, offer_week),
+        ).fetchone()
         if existing:
-            db.execute("UPDATE watches SET max_cents = ? WHERE id = ?", (max_cents, existing[0]))
-            return {"id": existing[0], "query": query, "max_cents": max_cents, "postal_code": postal_code}
-        cursor = db.execute("INSERT INTO watches(query, max_cents, plz, created) VALUES (?, ?, ?, ?)", (query, max_cents, postal_code, _today()))
-        return {"id": cursor.lastrowid, "query": query, "max_cents": max_cents, "postal_code": postal_code}
+            watch_id = existing[0]
+            db.execute("UPDATE watches SET max_cents = ? WHERE id = ?", (max_cents, watch_id))
+        else:
+            if db.execute("SELECT COUNT(*) FROM watches").fetchone()[0] >= MAX_WATCHES:
+                raise ValueError(f"Es sind höchstens {MAX_WATCHES} Beobachtungen möglich. Bitte erst eine entfernen.")
+            cursor = db.execute(
+                "INSERT INTO watches(query, max_cents, plz, created, retailer_ids, offer_week) VALUES (?, ?, ?, ?, ?, ?)",
+                (query, max_cents, postal_code, _today(), encoded, offer_week),
+            )
+            watch_id = cursor.lastrowid
+    return {"id": watch_id, "query": query, "max_cents": max_cents, "postal_code": postal_code,
+            "retailer_ids": selected, "offer_week": offer_week}
 
 
 def list_watches(postal_code: str | None = None) -> list[dict[str, Any]]:
     with _LOCK, _connect() as db:
-        if postal_code:
-            rows = db.execute("SELECT id, query, max_cents, plz FROM watches WHERE plz = ? ORDER BY id", (postal_code,)).fetchall()
-        else:
-            rows = db.execute("SELECT id, query, max_cents, plz FROM watches ORDER BY id").fetchall()
-    return [{"id": i, "query": q, "max_cents": m, "postal_code": p} for i, q, m, p in rows]
+        sql = "SELECT id, query, max_cents, plz, retailer_ids, offer_week FROM watches"
+        rows = db.execute(sql + (" WHERE plz = ?" if postal_code else "") + " ORDER BY id",
+                          (postal_code,) if postal_code else ()).fetchall()
+    return [{"id": i, "query": q, "max_cents": m, "postal_code": p,
+             "retailer_ids": json.loads(r), "offer_week": w} for i, q, m, p, r, w in rows]
 
 
 def remove_watch(watch_id: int) -> bool:

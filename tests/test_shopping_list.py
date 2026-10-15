@@ -158,3 +158,30 @@ def test_shopping_product_images_are_bounded_without_inline_layout():
     assert "imageBox.style.cssText" not in shopping and "image.style.cssText" not in shopping
     assert ".shoppingImage{" in styles and "flex:0 0 72px" in styles and "overflow:hidden" in styles
     assert ".shoppingImage img{" in styles and "height:100%" in styles and "object-fit:contain" in styles
+
+
+def test_multibuy_pack_quantities_preserve_unknown_remainders_and_export():
+    results = js("""[1,2,3,4,6].map(q=>{
+      const item=m.offerToItem({product:'Em-eukal',retailer:'Kaufland',regular_price:3,
+        multi_buy_quantity:3,multi_buy_total_price:3,multi_buy_condition:'3 Stück'});
+      item.quantity=q;
+      return {quote:m.quantityPrice(item),totals:m.totals([item]),label:m.itemPriceLabel(item),
+        restored:m.validateDocument(m.exportDocument([item]))[0]};
+    })""")
+    assert [x['quote']['total_cents'] for x in results] == [None, None, 300, None, 600]
+    assert results[3]['quote']['known_cents'] == 300
+    assert results[3]['quote']['unknown_quantity'] == 1
+    assert all('nur bei Mehrkauf' in x['label'] for x in results)
+    assert results[2]['restored']['multi_buy_quantity'] == 3
+    assert results[2]['restored']['price_cents'] is None
+
+
+def test_bundle_text_import_does_not_turn_bundle_into_single_price():
+    result=js("""(()=>{
+      const x=m.canonicalItem({name:'Salamistangen',quantity:4,retailer:'Kaufland',multi_buy_quantity:4,multi_buy_total_cents:400});
+      const restored=m.parseText(m.exportText([x])).valid[0];
+      return {item:restored,quote:m.quantityPrice(restored)};
+    })()""")
+    assert result['item']['price_cents'] is None
+    assert result['item']['multi_buy_quantity']==4
+    assert result['quote']['total_cents']==400

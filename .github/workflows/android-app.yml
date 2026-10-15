@@ -412,3 +412,57 @@ jobs:
             "korbuino-fdroid-${version}.apk" "korbuino-fdroid-${version}.apk.sha256" \
             --title "Korbuino ${version} — F-Droid reference" \
             --notes-file "$RUNNER_TEMP/fdroid-release-notes.md" --latest=false
+
+  native-ui-regressions:
+    name: Native Compose and migration tests (AOSP)
+    if: ${{ !startsWith(github.ref, 'refs/tags/fdroid-v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - name: Install Google-free emulator and build SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_BIN="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin | sort -V | tail -1)"
+          "$SDK_BIN/sdkmanager" --licenses < <(yes)
+          "$SDK_BIN/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0" "emulator" "system-images;android-28;default;x86_64"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/korbunio-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          printf 'ANDROID_AVD_HOME=%s\n' "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          echo no | "$SDK_BIN/avdmanager" create avd --force --name korbunio-ui --package "system-images;android-28;default;x86_64" --device pixel
+          test -f "$ANDROID_AVD_HOME/korbunio-ui.ini"
+          test -e /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nohup "$ANDROID_HOME/emulator/emulator" -avd korbunio-ui -accel on -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > "$RUNNER_TEMP/korbunio-emulator.log" 2>&1 &
+          timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          ready=0
+          for attempt in $(seq 1 120); do
+            if [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1
+          "$ANDROID_HOME/platform-tools/adb" shell settings put global window_animation_scale 0
+          "$ANDROID_HOME/platform-tools/adb" shell settings put global transition_animation_scale 0
+          "$ANDROID_HOME/platform-tools/adb" shell settings put global animator_duration_scale 0
+      - name: Run real UI, database and backup regressions
+        working-directory: android
+        run: ./gradlew --max-workers=2 -PfdroidOnly=true connectedFdroidDebugAndroidTest
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-aosp-instrumentation
+          path: |
+            android/app/build/reports/androidTests/
+            android/app/build/outputs/androidTest-results/
+            ${{ runner.temp }}/korbunio-emulator.log
+          if-no-files-found: warn

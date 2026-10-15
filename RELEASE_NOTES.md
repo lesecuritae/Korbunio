@@ -1,3 +1,21 @@
+# 0.1.61
+
+- Native Einkaufsliste scrollt auch mit langen Listen und aufgeklappten Treffern.
+  Händlerabschnitte, bearbeitbare Packungsmengen, Positions- und Händlersummen
+  behalten ihre konkrete Angebotszuordnung. Pfand und Bonusguthaben bleiben getrennt.
+- Favoriten und Beobachtungen mit Händler-, Preis- und Wochenfiltern funktionieren
+  unabhängig von optionalen ntfy-Meldungen. Empfang übernimmt der ntfy-Client.
+  Es gibt keinen zentralen Meldungsdienst und keine neue Push-Berechtigung.
+- Echte Vorschauen bleiben vom heutigen Einkauf getrennt. Aktuelle Angebote
+  werden nicht umdatiert; fehlende Vorschauen sind ein regulärer Zustand.
+- Kaufland-Mehrkaufaktionen zeigen Mindestmenge, Paketpreis und bedingten
+  Packungspreis. Unbelegte Einzel- und Restpreise bleiben offen.
+- Datenbankmigration erhält Einkaufslisten und Favoriten; Backup schließt
+  ntfy-Zugangsdaten aus. Serverseitige Watches markieren nur übermittelte Treffer.
+- Englische F-Droid-Beschreibung nennt die derzeit nur deutsche Oberfläche.
+
+Einrichtung und Preisregeln: [Benutzerhilfe](docs/einkaufen-und-beobachten.md).
+
 # 0.1.60
 
 ## Einkaufsplan, REWE Bonus im MCP und ehrliche Folgewoche

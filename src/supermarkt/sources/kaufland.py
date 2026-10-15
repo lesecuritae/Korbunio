@@ -9,7 +9,7 @@ import tempfile
 import threading
 import time
 from html.parser import HTMLParser
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
@@ -861,6 +861,33 @@ class OfficialKauflandSource:
             offers.append(offer)
         return offers
 
+    @staticmethod
+    def _multi_buy_fields(raw: dict[str, Any], price: float, pack: str) -> dict[str, Any]:
+        """Only explicit bbyMessage quantities identify bundle prices.
+
+        bonusbuy is also set for ordinary Card discounts; bbyNo alone does
+        not establish that different products can be combined.
+        """
+        message = raw.get("bbyMessage")
+        if not isinstance(message, list):
+            return {}
+        parts = [clean_text(part) for part in message if isinstance(part, str) and clean_text(part)]
+        if not parts:
+            return {}
+        restriction = clean_text(raw.get("detailTitle"))
+        restrictions = [restriction] if re.search(r"card|karte|coupon|kupon|aktivier|mitglied|xtra|\bapp\b", restriction, re.IGNORECASE) else []
+        condition = " · ".join(parts + restrictions)
+        matches = (re.fullmatch(r"(\d{1,3})\s+Stück", part, re.IGNORECASE) for part in parts)
+        match = next((match for match in matches if match), None)
+        if match is None or int(match.group(1)) < 2:
+            return {"offer_condition": condition, "comparison_eligible": False}
+        quantity = int(match.group(1))
+        condition = f"{quantity} Stück für insgesamt {price:.2f} €".replace(".", ",") + " · " + condition
+        return {"multi_buy_quantity": quantity, "multi_buy_total_price": price,
+                "single_price": None, "pack_size": pack, "multi_buy_condition": condition,
+                "multi_buy_mix_group": None, "minimum_quantity": quantity,
+                "offer_condition": condition, "comparison_eligible": False}
+
     def _load_structured_offers(self, store_url: str, offer_week: str = "current") -> list[Offer]:
         selector = self._store_selector(store_url)
         if not selector:
@@ -875,15 +902,21 @@ class OfficialKauflandSource:
         if not isinstance(availability, list):
             raise ToolError("Kaufland-Verfügbarkeitsdaten haben ein unerwartetes Format")
 
-        reference = offer_week_reference(offer_week).isoformat()
-        available_ids = {
-            clean_text(item.get("klNr"))
-            for item in availability
-            if isinstance(item, dict)
-            and clean_text(item.get("klNr"))
-            and clean_text(item.get("dateFrom")) <= reference <= clean_text(item.get("dateTo"))
-        }
-        overview_url = self._overview_url()
+        requested_next = str(offer_week).casefold() == "next"
+        reference_day = offer_week_reference(offer_week)
+        start_day = reference_day - timedelta(days=reference_day.weekday()) if requested_next else reference_day
+        end_day = start_day + timedelta(days=6) if requested_next else reference_day
+        requested_start, requested_end = start_day.isoformat(), end_day.isoformat()
+        availability_by_id: dict[str, list[tuple[str, str]]] = {}
+        for item in availability:
+            if not isinstance(item, dict):
+                continue
+            key = clean_text(item.get("klNr"))
+            start, end = clean_text(item.get("dateFrom")), clean_text(item.get("dateTo"))
+            if key and start and end and start <= requested_end and end >= requested_start:
+                availability_by_id.setdefault(key, []).append((start, end))
+        available_ids = set(availability_by_id)
+        overview_url = self.NEXT_OVERVIEW_URL if requested_next else self._overview_url()
         # Kaufland prices differ by region. The site renders the overview for the
         # store named in the "x-aem-variant" cookie (the store picker sets it in the
         # browser); without it the page shows the default region, so a store in
@@ -915,20 +948,28 @@ class OfficialKauflandSource:
                 for raw in category.get("offers", []):
                     if not isinstance(raw, dict) or clean_text(raw.get("klNr")) not in available_ids:
                         continue
-                    valid_from = clean_text(raw.get("dateFrom"))
-                    valid_until = clean_text(raw.get("dateTo"))
-                    if not valid_from or not valid_until or not (valid_from <= reference <= valid_until):
+                    starts = [clean_text(raw.get(field)) for field in ("dateFrom", "salesFrom") if raw.get(field)]
+                    ends = [clean_text(raw.get(field)) for field in ("dateTo", "salesTo") if raw.get(field)]
+                    if not starts or not ends:
                         continue
+                    valid_from, valid_until = max(starts), min(ends)
+                    periods = [(max(valid_from, start), min(valid_until, end))
+                               for start, end in availability_by_id[clean_text(raw.get("klNr"))]]
+                    periods = [(start, end) for start, end in periods
+                               if start <= end and start <= requested_end and end >= requested_start]
+                    if not periods:
+                        continue
+                    valid_from, valid_until = periods[0]
                     offer_id = clean_text(raw.get("offerId"))
                     if not offer_id or offer_id in seen:
                         continue
-                    seen.add(offer_id)
                     title = clean_text(raw.get("title"))
                     subtitle = clean_text(raw.get("subtitle"))
                     name = clean_text(f"{title} {subtitle}")
                     price = parse_number(raw.get("formattedPrice") or raw.get("price"))
                     if not name or price is None or price <= 0:
                         continue
+                    seen.add(offer_id)
                     unit = clean_text(raw.get("unit"))
                     description = clean_text(raw.get("detailDescription"))
                     base_text = clean_text(raw.get("formattedBasePrice") or raw.get("basePrice"))
@@ -942,6 +983,7 @@ class OfficialKauflandSource:
                     benefits = ()
                     if loyalty_price is not None and 0 < loyalty_price < price:
                         benefits = (LoyaltyBenefit("kaufland_xtra", "direct_price", loyalty_price, "Kaufland Card XTRA"),)
+                    multi_buy = self._multi_buy_fields(raw, price, pack)
                     result.append(Offer(
                         offer_id=f"kaufland-official:{offer_id}", retailer="Kaufland", category=category_name,
                         name=name, brand=title if subtitle else "", description=description, price=price,
@@ -950,9 +992,9 @@ class OfficialKauflandSource:
                         match_key=build_match_key(title if subtitle else "", name, pack, offer_id),
                         source_url=overview_url, image_url=image_url, retailer_url=store_url,
                         coverage_note=f"Offizielle Filialangebote für {selector}", benefits=benefits,
-                        valid_from=valid_from, valid_until=valid_until,
+                        valid_from=valid_from, valid_until=valid_until, **multi_buy,
                     ))
-        if len(result) < 100:
+        if len(result) < 100 and not requested_next:
             raise ToolError(f"Kaufland-Strukturdaten für {selector} lieferten nur {len(result)} Angebote")
         return result
 
@@ -962,6 +1004,9 @@ class OfficialKauflandSource:
         try:
             offers = self._load_structured_offers(store_url, offer_week)
         except ToolError:
+            if str(offer_week).casefold() == "next":
+                # The current HTML fallback cannot establish a genuine preview.
+                raise
             try:
                 overview_page, overview_url = self._load_full_overview(store_url, locality)
                 offers = self._parse_page(overview_page, overview_url)
@@ -971,7 +1016,7 @@ class OfficialKauflandSource:
                 self._drop_cached_store(postal_code)
                 store_url, _store_page, locality, store_postal = self._resolve_store_page(postal_code, retailer_context)
                 offers = self._load_structured_offers(store_url, offer_week)
-        if len(offers) < 100:
+        if len(offers) < 100 and str(offer_week).casefold() != "next":
             raise ToolError(
                 f"Kaufland-Angebotsübersicht für {store_url} lieferte nur "
                 f"{len(offers)} sicher parsebare Angebote"

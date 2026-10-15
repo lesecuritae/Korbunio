@@ -1,0 +1,1 @@
+Einkaufsliste mit Scrollen, Händlerabschnitten, Packungsmengen und korrekten Summen. Favoriten mit Händler-, Preis- und Wochenfiltern. Optionale Meldungen über einen selbst gewählten ntfy-Dienst und dessen Client. Echte Vorschauen bleiben getrennt; Mehrkaufaktionen nennen Mindestmengen. Einkaufslisten und Favoriten werden ohne Datenverlust migriert.

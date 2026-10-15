@@ -26,8 +26,8 @@ import java.util.Locale
  *
  * Kaufland prices differ by region (the same cheese costs 1.59 in Sachsen and 1.79 in
  * Essen). The offer overview renders for the store named in the `x-aem-variant` cookie,
- * so the store is looked up from the city first. Without a city, or when the lookup
- * fails, this provider fails and the caller falls back to the default-region page.
+ * so the store must match the requested postal code. An explicit market is
+ * validated against the public store details before requesting regional prices.
  */
 class KauflandProvider(
     private val http: OkHttpClient = OkHttpClient(),
@@ -41,34 +41,56 @@ class KauflandProvider(
     private val overviewUrl get() = "$baseUrl/angebote/uebersicht.html?kloffer-week=current"
     private val json = Json { ignoreUnknownKeys = true }
     private val berlin = ZoneId.of("Europe/Berlin")
+    private val storeCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    @Volatile private var sitemapCache: Pair<Long, List<Pair<String, String>>>? = null
+    private data class DateWindow(val from: LocalDate, val until: LocalDate) {
+        fun overlaps(other: DateWindow): Boolean = !from.isAfter(other.until) && !until.isBefore(other.from)
+    }
+    private fun weekWindow(today: LocalDate, week: OfferWeek): DateWindow {
+        val sunday = today.with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY))
+        return if (week == OfferWeek.NEXT) DateWindow(sunday.plusDays(1), sunday.plusDays(7)) else DateWindow(today, sunday)
+    }
+    private fun dates(obj: JsonObject): DateWindow? = runCatching {
+        val from = LocalDate.parse(text(obj, "dateFrom"))
+        val until = LocalDate.parse(text(obj, "dateTo"))
+        val salesFrom = text(obj, "salesFrom")?.let { LocalDate.parse(it) } ?: from
+        val salesTo = text(obj, "salesTo")?.let { LocalDate.parse(it) } ?: until
+        DateWindow(maxOf(from, salesFrom), minOf(until, salesTo))
+    }.getOrNull()?.takeIf { !it.from.isAfter(it.until) }
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
         val city = request.citySlug?.trim().orEmpty()
-        check(city.isNotBlank()) { "Für die regionalen Kaufland-Preise wird die Stadt benötigt" }
-        val store = findStore(request.postalCode, city) ?: error("Keine Kaufland-Filiale für $city gefunden")
+        val explicit = request.marketId?.trim()?.takeIf { it.isNotBlank() }
+        val store = if (explicit != null) {
+            require(Regex("DE\\d+").matches(explicit)) { "Ungültige Kaufland-Filiale" }
+            check(storePostalCode(explicit) == request.postalCode) { "Kaufland-Filiale passt nicht zur PLZ" }
+            explicit
+        } else {
+            check(city.isNotBlank()) { "Für die regionalen Kaufland-Preise wird die Stadt benötigt" }
+            findStore(request.postalCode, city) ?: error("Keine Kaufland-Filiale für die PLZ gefunden")
+        }
         val today = now().atZone(berlin).toLocalDate()
-        val available = availableArticles(store, today)
-        val page = get(overviewUrl, cookie = "x-aem-variant=$store")
-        val result = parse(page, available, today)
-        check(result.offers.size >= MIN_OFFERS) { "Kaufland-Angebote für $store lieferten nur ${result.offers.size} Treffer" }
-        result
+        val window = weekWindow(today, request.week)
+        val available = availableArticles(store, window)
+        val url = "$baseUrl/angebote/uebersicht.html?kloffer-week=${if (request.week == OfferWeek.NEXT) "next" else "current"}"
+        val page = get(url, cookie = "x-aem-variant=$store")
+        val result = parseWindow(page, available, window, url)
+        if (request.week == OfferWeek.CURRENT) {
+            check(result.offers.size >= MIN_OFFERS) { "Kaufland-Angebote für $store lieferten nur ${result.offers.size} Treffer" }
+        }
+        result.copy(storeId = store)
     }
 
     // ---- store lookup ------------------------------------------------------------
 
     private fun findStore(postalCode: String, city: String): String? {
-        val key = "$postalCode|${city.lowercase(Locale.GERMAN)}"
+        val key = "$baseUrl|$postalCode|${city.lowercase(Locale.GERMAN)}"
         storeCache[key]?.let { return it }
         val words = slugWords(city)
         if (words.isEmpty()) return null
         val candidates = storeIds().filter { (slug, _) -> slugWords(slug).containsAll(words) }.map { it.second }
-        val store = when {
-            candidates.isEmpty() -> return null
-            candidates.size == 1 -> candidates.single()
-            // Several stores share the city: the one whose own postal code is closest wins.
-            else -> candidates.take(MAX_CANDIDATES).maxByOrNull { storeScore(it, postalCode, city) }
-        }
+        val store = candidates.take(MAX_CANDIDATES).firstOrNull { storePostalCode(it) == postalCode }
         if (store != null) storeCache[key] = store
         return store
     }
@@ -84,30 +106,28 @@ class KauflandProvider(
         return stores
     }
 
-    private fun storeScore(store: String, postalCode: String, city: String): Int {
-        val info = runCatching { json.parseToJsonElement(get("$baseUrl/.klstorebygeo.storeName=$store.json")).jsonObject }
-            .getOrNull() ?: return 0
-        val postal = info["pc"]?.jsonPrimitive?.content.orEmpty()
-        val town = info["t"]?.jsonPrimitive?.content.orEmpty()
-        var score = postal.zip(postalCode).takeWhile { (a, b) -> a == b }.size * 10
-        if (postal == postalCode) score += 100
-        if (town.equals(city, ignoreCase = true)) score += 20
-        return score
-    }
+    private fun storePostalCode(store: String): String? = runCatching {
+        json.parseToJsonElement(get("$baseUrl/.klstorebygeo.storeName=$store.json", cookie = "x-aem-variant=$store")).jsonObject
+            .get("pc")?.jsonPrimitive?.content
+    }.getOrNull()
 
     // ---- offers ------------------------------------------------------------------
 
-    private fun availableArticles(store: String, today: LocalDate): Set<String> {
-        val list = json.parseToJsonElement(get("$baseUrl/.kloffers.storeName=$store.json")) as? JsonArray
+    private fun availableArticles(store: String, window: DateWindow): Map<String, List<DateWindow>> {
+        val list = json.parseToJsonElement(get("$baseUrl/.kloffers.storeName=$store.json", cookie = "x-aem-variant=$store")) as? JsonArray
             ?: error("Kaufland-Verfügbarkeitsdaten haben ein unerwartetes Format")
-        val day = today.toString()
-        return list.mapNotNull { it as? JsonObject }
-            .filter { item -> text(item, "dateFrom").orEmpty() <= day && day <= text(item, "dateTo").orEmpty() }
-            .mapNotNull { text(it, "klNr") }
-            .toSet()
+        return list.mapNotNull { it as? JsonObject }.mapNotNull { item ->
+            val interval = dates(item)?.takeIf { it.overlaps(window) } ?: return@mapNotNull null
+            text(item, "klNr")?.let { it to interval }
+        }.groupBy({ it.first }, { it.second })
     }
 
     internal fun parse(page: String, available: Set<String>, today: LocalDate): ProviderResult {
+        val window = DateWindow(today, today)
+        return parseWindow(page, available.associateWith { listOf(window) }, window, overviewUrl)
+    }
+
+    private fun parseWindow(page: String, available: Map<String, List<DateWindow>>, window: DateWindow, sourceUrl: String): ProviderResult {
         val start = page.indexOf(MARKER)
         check(start >= 0) { "Kaufland-Angebotsseite enthält keine strukturierten Angebotsdaten" }
         val end = objectEnd(page, start)
@@ -116,7 +136,6 @@ class KauflandProvider(
             ?.get("offerData")?.jsonObject?.get("cycles")?.jsonArray
             ?: error("Kaufland-Angebotsdaten haben ein unerwartetes Format")
 
-        val day = today.toString()
         val seen = HashSet<String>()
         val products = linkedMapOf<String, ProductEntity>()
         val offers = linkedMapOf<String, OfferEntity>()
@@ -129,18 +148,36 @@ class KauflandProvider(
                 for (raw in (category["offers"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }) {
                     val klNr = text(raw, "klNr") ?: continue
                     if (klNr !in available) continue
-                    val from = text(raw, "dateFrom") ?: continue
-                    val until = text(raw, "dateTo") ?: continue
-                    if (day < from || day > until) continue
+                    val rawWindow = dates(raw)?.takeIf { it.overlaps(window) } ?: continue
+                    val from = rawWindow.from.toString()
+                    val until = rawWindow.until.toString()
+                    if (available[klNr].orEmpty().none { availability ->
+                        val intersect = DateWindow(maxOf(rawWindow.from, window.from), minOf(rawWindow.until, window.until))
+                        availability.overlaps(intersect)
+                    }) continue
                     val offerId = text(raw, "offerId") ?: continue
-                    if (!seen.add(offerId)) continue
+                    if (offerId in seen) continue
                     val title = text(raw, "title").orEmpty()
                     val subtitle = text(raw, "subtitle").orEmpty()
                     val name = "$title $subtitle".trim().replace(Regex("\\s+"), " ")
                     val price = cents(text(raw, "formattedPrice") ?: text(raw, "price")) ?: continue
                     if (name.isBlank() || price <= 0) continue
+                    seen.add(offerId)
                     val loyalty = cents(text(raw, "loyaltyFormattedPrice")?.replace(Regex("[^\\d,.-]"), ""))
                         ?.takeIf { it in 1 until price }
+                    val messages = (raw["bbyMessage"] as? JsonArray).orEmpty()
+                        .mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
+                    // Verified public bbyMessage shape: ["3 Stück", "entspr. pro Stück 1.00"].
+                    // bonusbuy alone also identifies Card prices and is not quantity evidence.
+                    val bundleQuantity = messages.firstOrNull()?.let { MULTI_BUY_COUNT.matchEntire(it.trim()) }
+                        ?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it > 1 }
+                    val restriction = text(raw, "detailTitle")?.takeIf {
+                        Regex("card|karte|coupon|kupon|aktivier|mitglied|xtra|\\bapp\\b", RegexOption.IGNORE_CASE).containsMatchIn(it)
+                    }
+                    val bundleCondition = (messages + listOfNotNull(restriction)).joinToString(" · ")
+                    val requiresCard = messages.isNotEmpty() && restriction?.let {
+                        Regex("card|karte|xtra", RegexOption.IGNORE_CASE).containsMatchIn(it)
+                    } == true
                     val (baseCents, baseUnit) = basePrice(text(raw, "formattedBasePrice") ?: text(raw, "basePrice"))
                     val productId = "kaufland-product-" + normalize(name)
                     products[productId] = ProductEntity(productId, name, if (subtitle.isNotBlank()) title else "", normalize(name))
@@ -155,12 +192,19 @@ class KauflandProvider(
                         baseUnit = baseUnit,
                         validFrom = from,
                         validUntil = until,
-                        sourceUrl = overviewUrl,
+                        sourceUrl = sourceUrl,
                         imageUrl = image(text(raw, "listImage")),
-                        loyaltyProgram = if (loyalty != null) "kaufland_xtra" else null,
+                        loyaltyProgram = if (loyalty != null || requiresCard) "kaufland_xtra" else null,
                         loyaltyLabel = if (loyalty != null) "Kaufland Card XTRA" else null,
                         loyaltyPriceCents = loyalty,
                         cachedAt = now().toEpochMilli(),
+                        multiBuyQuantity = bundleQuantity,
+                        multiBuyTotalCents = price.takeIf { messages.isNotEmpty() },
+                        multiBuyCondition = bundleCondition.takeIf { messages.isNotEmpty() },
+                        // bbyNo identifies an action, not proof that different articles may mix.
+                        multiBuyMixGroup = null,
+                        singlePriceCents = null,
+                        packSize = PACK_SIZE.find(text(raw, "unit").orEmpty())?.let { "${it.groupValues[1]} ${it.groupValues[2].lowercase(Locale.ROOT)}" },
                     )
                 }
             }
@@ -240,8 +284,8 @@ class KauflandProvider(
         const val MAX_CANDIDATES = 10
         const val DAY_MS = 24L * 60 * 60 * 1000
         val STORE_URL = Regex("<loc>[^<]*/service/filiale/([^<]*?)-(\\d+)\\.html</loc>")
+        val MULTI_BUY_COUNT = Regex("(\\d+)\\s+Stück", RegexOption.IGNORE_CASE)
+        val PACK_SIZE = Regex("(\\d+(?:[.,]\\d+)?)[\\s-]*(kg|ml|g|l)\\b", RegexOption.IGNORE_CASE)
         val BASE_PRICE = Regex("1\\s*(kg|l|100\\s*g|100\\s*ml|st|m)\\s*=\\s*(\\d+[.,]\\d+)", RegexOption.IGNORE_CASE)
-        val storeCache = java.util.concurrent.ConcurrentHashMap<String, String>()
-        @Volatile var sitemapCache: Pair<Long, List<Pair<String, String>>>? = null
     }
 }

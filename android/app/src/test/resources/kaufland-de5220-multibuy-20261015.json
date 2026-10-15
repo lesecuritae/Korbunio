@@ -1,0 +1,38 @@
+{
+  "offerId": "ART.483431_KAV.3693303",
+  "dateFrom": "2026-10-11",
+  "dateTo": "2026-10-17",
+  "title": "K-WINTER EDITION",
+  "subtitle": "Adventskalender ",
+  "price": 3,
+  "discount": 22,
+  "detailAction": "Aktion",
+  "basePrice": "(1 kg = 13.34)",
+  "unit": "je 75-g-Packg.",
+  "detailDescription": "kleine Vollmilchschokoladen, versch. Designs",
+  "listImage": "https://kaufland.media.schwarz/is/image/schwarz/01468850_P_658214",
+  "listImageRenditions": {
+    "150": "JGstbGVnYWN5LW9uc2l0ZS0xJA==",
+    "322": "JGstbGVnYWN5LW9uc2l0ZS0yJA==",
+    "666": "JGstbGVnYWN5LW9uc2l0ZS0zJA=="
+  },
+  "detailImages": [
+    "https://kaufland.media.schwarz/is/image/schwarz/01468850_P_658214"
+  ],
+  "video": {},
+  "klNr": "01468850",
+  "salesFrom": "2026-10-12",
+  "salesTo": "2026-10-17",
+  "loyaltyDiscount": 0,
+  "bbyNo": "000003485006",
+  "bbyMessage": [
+    "3 Stück",
+    "entspr. pro Stück 1.00"
+  ],
+  "country": "DE",
+  "label": "limitedSupply",
+  "bonusbuy": true,
+  "formattedBasePrice": "(1 kg = 13.34)",
+  "formattedOldPrice": "3.87",
+  "formattedPrice": "3.00"
+}

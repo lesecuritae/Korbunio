@@ -1,5 +1,6 @@
 package de.lesecuritae.korbuino.work
 
+import androidx.room.withTransaction
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -17,9 +18,12 @@ import kotlinx.coroutines.coroutineScope
 
 class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val postalCode = inputData.getString("postal_code") ?: return Result.failure()
-        val citySlug = inputData.getString("city_slug") ?: return Result.failure()
-        val providerId = inputData.getString("provider_id") ?: "rewe"
+        val secureStore = de.lesecuritae.korbuino.security.SecureStore(applicationContext)
+        if (secureStore.get("daily_sync") != "true" || secureStore.get("server_mode") == "true") return Result.success()
+        val postalCode = secureStore.get("postal_code").orEmpty()
+        val citySlug = secureStore.get("city").orEmpty()
+        val providerId = secureStore.get("retailer_id") ?: inputData.getString("provider_id") ?: "all"
+        if (!postalCode.matches(Regex("\\d{5}"))) return Result.failure()
         return runCatching {
             val registry = ProviderRegistry.default(NetworkClientFactory.create(applicationContext))
             val chosen = RetailerSelection.parse(providerId, registry.all().map { it.id })
@@ -32,6 +36,7 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     }
                 }.awaitAll()
             }
+            if (secureStore.get("daily_sync") != "true" || secureStore.get("postal_code") != postalCode) return Result.success()
             val db = KorbuinoDatabase.create(applicationContext)
             try {
                 val successes = fetched.mapNotNull { (provider, result) ->
@@ -55,16 +60,27 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     if (rejection == null) provider to value else null
                 }
                 if (successes.isEmpty()) error("Keine Händlerangebote verfügbar")
-                val rawProducts = successes.flatMap { it.second.products }
-                val canonical = LinkedHashMap<String, de.lesecuritae.korbuino.data.ProductEntity>()
-                rawProducts.forEach { canonical.putIfAbsent(it.normalizedKey, it) }
-                val productIds = rawProducts.associate { it.id to canonical.getValue(it.normalizedKey).id }
-                val products = canonical.values.toList()
-                val offers = successes.flatMap { it.second.offers }.map { offer ->
-                    productIds[offer.productId]?.let { offer.copy(productId = it) } ?: offer
-                }.distinctBy { it.id }
-                db.productDao().upsertAll(products)
-                db.offerDao().storeRefresh(offers)
+                db.withTransaction {
+                    check(secureStore.get("daily_sync") == "true" && secureStore.get("postal_code") == postalCode) { "Aktualisierung inzwischen deaktiviert oder PLZ geändert" }
+                    val rawProducts = successes.flatMap { it.second.products }
+                    val canonical = LinkedHashMap<String, de.lesecuritae.korbuino.data.ProductEntity>()
+                    db.productDao().all().forEach { canonical.putIfAbsent(it.normalizedKey, it) }
+                    rawProducts.forEach { canonical.putIfAbsent(it.normalizedKey, it) }
+                    val productIds = rawProducts.associate { it.id to canonical.getValue(it.normalizedKey).id }
+                    val products = rawProducts.map { canonical.getValue(it.normalizedKey) }.distinctBy { it.id }
+                    val offers = successes.flatMap { it.second.offers }.map { offer ->
+                        productIds[offer.productId]?.let { offer.copy(productId = it) } ?: offer
+                    }.distinctBy { it.id }
+                    db.productDao().upsertAll(products)
+                    val previousPostalCode = secureStore.get("offer_postal_code").orEmpty()
+                    if (previousPostalCode.isNotBlank() && previousPostalCode != postalCode) db.offerDao().deleteAll()
+                    db.offerDao().storeRefresh(offers)
+                }
+                secureStore.put("offer_postal_code", postalCode)
+                de.lesecuritae.korbuino.notifications.NativeWatchSync.afterSuccessfulSync(
+                    db, secureStore, providers,
+                    postalCode, citySlug, NetworkClientFactory.create(applicationContext),
+                )
             } finally {
                 db.close()
             }
@@ -82,7 +98,7 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     )
                     db.close()
                 }
-                Result.retry()
+                if (runAttemptCount < 2) Result.retry() else Result.failure()
             },
         )
     }

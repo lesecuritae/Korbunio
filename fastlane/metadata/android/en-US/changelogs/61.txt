@@ -1,0 +1,1 @@
+Scrollable shopping lists with retailer groups, pack quantities and clear totals. Save favorite searches with retailer, price and week filters. Optional alerts use your chosen ntfy topic and the ntfy client. Genuine previews stay separate; multibuy offers show minimum quantities. Existing lists and favorites are migrated. The app interface is currently German only.

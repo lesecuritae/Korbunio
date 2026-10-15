@@ -13,9 +13,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CategoryEntity::class, OfferEntity::class, ShoppingListEntity::class,
         ShoppingListItemEntity::class, FavoriteEntity::class,
         ProviderCacheEntity::class, ProductImageEntity::class,
-        SettingEntity::class, SyncStateEntity::class,
+        SettingEntity::class, SyncStateEntity::class, WatchNotificationReceipt::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class KorbuinoDatabase : RoomDatabase() {
@@ -25,6 +25,8 @@ abstract class KorbuinoDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
     abstract fun shoppingListDao(): ShoppingListDao
     abstract fun imageDao(): ImageDao
+    abstract fun favoriteDao(): FavoriteDao
+    abstract fun watchNotificationDao(): WatchNotificationDao
 
     companion object {
         fun create(context: Context): KorbuinoDatabase = Room.databaseBuilder(
@@ -33,7 +35,31 @@ abstract class KorbuinoDatabase : RoomDatabase() {
             "korbuino.db",
         // Never erase user data on a downgrade. Future schema changes must ship
         // an explicit Room migration; otherwise startup fails safely.
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build()
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                listOf("multiBuyQuantity", "multiBuyTotalCents", "singlePriceCents").forEach {
+                    database.execSQL("ALTER TABLE offers ADD COLUMN $it INTEGER")
+                }
+                listOf("packSize", "multiBuyCondition", "multiBuyMixGroup").forEach {
+                    database.execSQL("ALTER TABLE offers ADD COLUMN $it TEXT")
+                }
+                database.execSQL("CREATE TABLE IF NOT EXISTS `watch_notification_receipts` (`receiptKey` TEXT NOT NULL, `leaseUntil` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `submittedAt` INTEGER, `owner` TEXT NOT NULL, PRIMARY KEY(`receiptKey`))")
+                database.execSQL("CREATE TABLE shopping_list_items_v7 (listId TEXT NOT NULL, productId TEXT NOT NULL, quantity INTEGER NOT NULL, checked INTEGER NOT NULL, note TEXT NOT NULL, itemId TEXT NOT NULL, retailerId TEXT, offerId TEXT, PRIMARY KEY(listId, itemId))")
+                database.execSQL("INSERT INTO shopping_list_items_v7 (listId, productId, quantity, checked, note, itemId) SELECT listId, productId, quantity, checked, note, productId FROM shopping_list_items")
+                database.execSQL("DROP TABLE shopping_list_items")
+                database.execSQL("ALTER TABLE shopping_list_items_v7 RENAME TO shopping_list_items")
+                database.execSQL("ALTER TABLE favorites ADD COLUMN query TEXT NOT NULL DEFAULT ''")
+                database.execSQL("UPDATE favorites SET query = COALESCE((SELECT name FROM products WHERE products.id = favorites.productId), productId)")
+                database.execSQL("ALTER TABLE favorites ADD COLUMN preferredRetailerIdsJson TEXT NOT NULL DEFAULT '[]'")
+                database.execSQL("ALTER TABLE favorites ADD COLUMN maxPriceCents INTEGER")
+                database.execSQL("ALTER TABLE favorites ADD COLUMN includeCurrentWeek INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE favorites ADD COLUMN includeNextWeek INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE favorites ADD COLUMN notificationsEnabled INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE favorites ADD COLUMN postalCode TEXT NOT NULL DEFAULT ''")
+            }
+        }
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {

@@ -57,6 +57,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -86,6 +87,7 @@ class MainActivity : ComponentActivity() {
     internal var lastViewModel: MainViewModel? = null
     private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         if (result.values.any { it }) resolveLocation()
+        else lastViewModel?.message("Standort nicht erlaubt. Bitte PLZ manuell eingeben.")
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -106,16 +108,22 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     private fun resolveLocation() {
         val viewModel = lastViewModel ?: return
+        if (!Geocoder.isPresent()) {
+            viewModel.message("Kein Geocoder verfügbar. Bitte PLZ manuell eingeben.")
+            return
+        }
         viewModel.message("Standort wird ermittelt …")
         val manager = getSystemService(LOCATION_SERVICE) as LocationManager
         val provider = listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
             .firstOrNull { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
         if (provider == null) {
-            viewModel.message("Kein Standortanbieter verfügbar")
+            viewModel.message("Kein Standortanbieter verfügbar. Bitte PLZ manuell eingeben.")
             return
         }
+        var resolved = false
         val listener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
+                resolved = true
                 manager.removeUpdates(this)
                 lifecycleScope.launch(Dispatchers.IO) {
                     val address = runCatching {
@@ -135,7 +143,13 @@ class MainActivity : ComponentActivity() {
             }
         }
         runCatching { manager.requestLocationUpdates(provider, 0L, 0f, listener, mainLooper) }
-            .onFailure { viewModel.message("Standort konnte nicht ermittelt werden") }
+            .onFailure { resolved = true; viewModel.message("Standort konnte nicht ermittelt werden. Bitte PLZ manuell eingeben.") }
+        lifecycleScope.launch {
+            try {
+                kotlinx.coroutines.delay(15_000)
+                if (!resolved) viewModel.message("Standort dauert zu lange. Bitte PLZ manuell eingeben.")
+            } finally { manager.removeUpdates(listener) }
+        }
     }
 }
 
@@ -196,6 +210,8 @@ private fun KorbuinoApp(
     val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importBackup) }
     var showOverview by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showShopping by rememberSaveable { mutableStateOf(false) }
+    var showFavorites by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.offers.size, state.loading) {
         if (!state.loading && state.offers.isNotEmpty()) showOverview = true
     }
@@ -221,7 +237,15 @@ private fun KorbuinoApp(
     MaterialTheme(colorScheme = if (dark) darkScheme else lightScheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
           Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            if (showOverview && state.offers.isNotEmpty()) {
+            if (showShopping || showFavorites) {
+                Column(Modifier.fillMaxSize().padding(16.dp)) {
+                    TextButton(onClick = { showShopping = false; showFavorites = false }) { Text("Zurück") }
+                    Box(Modifier.weight(1f)) {
+                        if (showShopping) ShoppingListOverview(state, viewModel)
+                        else FavoritesScreen(state, viewModel.retailers.toMap(), viewModel)
+                    }
+                }
+            } else if (showOverview && state.offers.isNotEmpty()) {
                 OfferOverview(
                     state = state,
                     viewModel = viewModel,
@@ -307,7 +331,8 @@ private fun KorbuinoApp(
                         Text("Update ${update.version} installieren")
                     }
                 }
-                ShoppingListOverview(state = state, viewModel = viewModel)
+                Button(onClick = { showShopping = true }) { Text("Einkaufsliste öffnen") }
+                Button(onClick = { showFavorites = true }) { Text("Favoriten öffnen") }
             }
           }
         }
@@ -320,7 +345,7 @@ private fun AppSettings(
     viewModel: MainViewModel,
     onBack: () -> Unit,
 ) {
-    var kitchenToken by rememberSaveable { mutableStateOf("") }
+    var kitchenToken by remember { mutableStateOf("") }
     Column(
         modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -329,6 +354,7 @@ private fun AppSettings(
             Button(onClick = onBack) { Text("Zurück") }
             Text("Einstellungen", style = MaterialTheme.typography.headlineMedium)
         }
+        NtfySettingsCard(state, viewModel)
         Text("Verbindungen", style = MaterialTheme.typography.titleLarge)
         Text("Eigener Korbuino-Server", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
@@ -385,6 +411,8 @@ private fun OfferOverview(
 ) {
     var offerFilter by rememberSaveable { mutableStateOf("") }
     var retailerFilter by rememberSaveable { mutableStateOf("all") }
+    var futureOnly by rememberSaveable { mutableStateOf(false) }
+    val today = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin")).toString()
     var sortMode by rememberSaveable { mutableStateOf("retailer") }
     var sortMenuOpen by remember { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -409,9 +437,14 @@ private fun OfferOverview(
     }
     // The product-group tabs count what the retailer chip and the text filter leave, but not the tab itself.
     val scopedOffers = shownOffers
+        .filter { display ->
+            val from = display.offer.validFrom.orEmpty().take(10)
+            val until = display.offer.validUntil.orEmpty().take(10)
+            (until.isBlank() || until >= today) && if (futureOnly) from > today else from <= today
+        }
         .filter { display -> retailerFilter == "all" || display.offer.retailerId == retailerFilter }
         .filter { display ->
-            offerFilter.isBlank() || display.productName.contains(offerFilter, ignoreCase = true) ||
+            offerFilter.isBlank() || OfferMatcher.matches(offerFilter, listOf(display)).isNotEmpty() ||
                 display.offer.retailerId.contains(offerFilter, ignoreCase = true)
         }
     val groupCounts = scopedOffers.groupingBy { groupOf[it.offer.id] ?: ProductGroups.OTHER }.eachCount()
@@ -451,17 +484,17 @@ private fun OfferOverview(
                 "product" -> row.productName.trim().firstOrNull()?.uppercaseChar()?.takeIf { it.isLetter() }?.toString() ?: "#"
                 "retailer" -> retailerNames[row.offer.retailerId] ?: row.offer.retailerId
                 "category" -> groupOf[row.offer.id] ?: ProductGroups.OTHER
-                else -> effectivePriceCents(row.offer, state.selectedLoyaltyPrograms).let { "${it / 100},${(it % 100).toString().padStart(2, '0')} €" }
+                else -> effectivePriceCents(row.offer, state.selectedLoyaltyPrograms).let { if (it == Int.MAX_VALUE) "Mehrkauf / Preis offen" else OfferMatcher.formatPrice(it) }
             }
             else -> ""
         }
     }
     Column(
-        modifier = Modifier.padding(24.dp).fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.padding(16.dp).fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = onBack) { Text("Zurück") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onBack) { Text("Zurück") }
             Text("Angebote", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.weight(1f))
             IconButton(onClick = openSettings) {
@@ -475,9 +508,12 @@ private fun OfferOverview(
         androidx.compose.material3.TabRow(selectedTabIndex = selectedTab) {
             androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Ergebnisse") })
             androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Einkauf") })
+            androidx.compose.material3.Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Favoriten") })
         }
         if (selectedTab == 1) {
-            ShoppingListOverview(state = state, viewModel = viewModel)
+            Box(Modifier.weight(1f)) { ShoppingListOverview(state = state, viewModel = viewModel) }
+        } else if (selectedTab == 2) {
+            FavoritesScreen(state, retailerNames, viewModel, Modifier.weight(1f))
         } else {
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
@@ -487,6 +523,11 @@ private fun OfferOverview(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
             ) {
                 item {
+                    Column {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = !futureOnly, onClick = { futureOnly = false }, label = { Text("Heute gültig") })
+                            FilterChip(selected = futureOnly, onClick = { futureOnly = true }, label = { Text("Zukünftig") })
+                        }
                     OutlinedTextField(
                         value = offerFilter,
                         onValueChange = { offerFilter = it.take(80) },
@@ -494,6 +535,7 @@ private fun OfferOverview(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    }
                 }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -613,7 +655,7 @@ private fun OfferOverview(
                                         Text(category, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                                     }
                                     offer.offer.basePriceCents?.let { base ->
-                                        Text("Grundpreis ${base / 100},${(base % 100).toString().padStart(2, '0')} €", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                                        Text("Grundpreis ${OfferMatcher.formatPrice(base)}/${offer.offer.baseUnit ?: "Einheit"}${if (offer.offer.multiBuyQuantity != null) " bei Mehrkauf" else if (effectivePriceCents(offer.offer, state.selectedLoyaltyPrograms) != offer.offer.priceCents) " zum regulären Preis" else ""}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                                     }
                                     LoyaltyBenefits.forOffer(offer.offer).filter {
                                         it.programId in state.selectedLoyaltyPrograms
@@ -630,14 +672,20 @@ private fun OfferOverview(
                                     }
                                 }
                                 Text(
-                                    "${offer.offer.priceCents / 100},${(offer.offer.priceCents % 100).toString().padStart(2, '0')} €",
-                                    style = MaterialTheme.typography.headlineSmall,
+                                    offerPriceLabel(offer, state.selectedLoyaltyPrograms),
+                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.weight(1f),
                                 )
                             }
+                            Text("Gültig: ${offer.offer.validFrom ?: "Beginn unbekannt"} bis ${offer.offer.validUntil ?: "Ende unbekannt"}")
+                            if (offer.offer.validFrom.orEmpty() > java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin")).toString()) {
+                                Text("Zukünftig ab ${offer.offer.validFrom}; nicht für den heutigen Einkauf.")
+                            }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                TextButton(onClick = { viewModel.addShoppingItem(offer.productName, retailerNames[offer.offer.retailerId] ?: offer.offer.retailerId) }) { Text("Zur Einkaufsliste") }
+                                TextButton(onClick = { viewModel.addOfferToShoppingList(offer) }) { Text("Zur Einkaufsliste") }
+                                TextButton(onClick = { viewModel.saveFavorite(offer.productName, setOf(offer.offer.retailerId), null, true, true, false) }) { Text("Favorit") }
                                 if (state.kitchenTargets.isNotEmpty()) {
                                     TextButton(onClick = { viewModel.syncKitchenOwl(state.kitchenTargets.first()) }) { Text("Auf KitchenOwl") }
                                 }
@@ -659,141 +707,17 @@ private fun OfferOverview(
 }
 
 internal fun effectivePriceCents(offer: OfferEntity, selectedPrograms: Set<String>): Int {
-    return LoyaltyBenefits.forOffer(offer).asSequence()
-        .filter { it.programId in selectedPrograms && it.kind == "direct_price" }
-        .map { it.cents }
-        .fold(offer.priceCents) { price, memberPrice -> minOf(price, memberPrice) }
+    return OfferPricing.quote(offer, 1, selectedPrograms).totalCents ?: Int.MAX_VALUE
 }
 
 @Composable
-private fun ShoppingListOverview(state: MainUiState, viewModel: MainViewModel) {
-    var itemText by rememberSaveable { mutableStateOf("") }
-    var expanded by rememberSaveable { mutableStateOf(setOf<String>()) }
-    val retailerNames = viewModel.retailers.toMap()
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("Einkaufsliste", style = MaterialTheme.typography.titleLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = itemText,
-                onValueChange = { itemText = it.take(120) },
-                label = { Text("Artikel hinzufügen") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Button(onClick = { viewModel.addShoppingItem(itemText); itemText = "" }) { Text("+") }
-        }
-        state.removedShoppingItem?.let { removed ->
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("„${removed.name}“ entfernt.", modifier = Modifier.weight(1f))
-                TextButton(onClick = viewModel::undoRemoveShoppingItem) { Text("Rückgängig") }
-            }
-        }
-        val plan = remember(state.shoppingItems, state.offers, state.selectedLoyaltyPrograms) {
-            ShoppingPlan.build(state.shoppingItems.map { it.name }, state.offers, state.selectedLoyaltyPrograms)
-        }
-        if (plan.hasPlan) ShoppingPlanCard(plan, retailerNames)
-        state.shoppingItems.forEach { item ->
-            val open = item.productId in expanded
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text(item.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                if (item.note.isNotBlank()) {
-                    Text(
-                        "Eingetragen bei ${item.note}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { expanded = if (open) expanded - item.productId else expanded + item.productId }) {
-                        Text(if (open) "Angebote ausblenden" else "Im Angebot?")
-                    }
-                    TextButton(onClick = { viewModel.removeShoppingItem(item) }) { Text("Entfernen") }
-                }
-                if (open) {
-                    val matches = OfferMatcher.matches(item.name, state.offers)
-                    if (matches.isEmpty()) {
-                        Text(
-                            if (state.offers.isEmpty()) "Noch keine Angebote geladen."
-                            else "Aktuell in keinem geladenen Angebot.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        matches.take(8).forEach { match ->
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        retailerNames[match.offer.retailerId] ?: match.offer.retailerId,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Text(match.productName, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                Text(
-                                    OfferMatcher.formatPrice(match.offer.priceCents),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                        if (matches.size > 8) Text("… und ${matches.size - 8} weitere", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-        }
-        if (state.shoppingItems.isEmpty()) {
-            Text("Noch keine Artikel in der Einkaufsliste.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun ShoppingPlanCard(plan: ShoppingPlan.Plan, retailerNames: Map<String, String>) {
-    fun shop(id: String) = retailerNames[id] ?: id
-    fun shops(ids: List<String>) = ids.joinToString(", ") { shop(it) }
-    fun laeden(n: Int) = if (n == 1) "einen Laden" else "$n Läden"
-    Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "Einkaufsplan",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            val total = OfferMatcher.formatPrice(plan.cheapestTotalCents)
-            Text(
-                if (plan.cheapestStores.size == 1) {
-                    "Alles am günstigsten bei ${shops(plan.cheapestStores)} – zusammen $total für ${plan.matchedCount} Artikel."
-                } else {
-                    "Für die günstigsten Preise bräuchtest du ${laeden(plan.cheapestStores.size)} (${shops(plan.cheapestStores)}) – zusammen $total."
-                },
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            if (plan.consolidations.isNotEmpty() && plan.savedTrips > 0 && plan.primaryStoreId != null) {
-                val extra = OfferMatcher.formatPrice(plan.consolidationExtraCents)
-                val items = plan.consolidations.joinToString(", ") { it.itemName }
-                Text(
-                    "Spartipp: $items ${if (plan.consolidations.size == 1) "ist" else "sind"} woanders nur $extra günstiger – " +
-                        "gibt es auch bei ${shop(plan.primaryStoreId)}. Dann reichen ${laeden(plan.consolidatedStores.size)} statt ${plan.cheapestStores.size}.",
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
-            if (plan.unmatchedItems.isNotEmpty()) {
-                Text(
-                    "Aktuell nicht im Angebot: ${plan.unmatchedItems.joinToString(", ")}.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
+internal fun ShoppingListOverview(state: MainUiState, viewModel: MainViewModel) {
+    ShoppingListContent(state, viewModel.retailers.toMap(), ShoppingActions(
+        add = { viewModel.addShoppingItem(it) }, remove = viewModel::removeShoppingItem,
+        undo = viewModel::undoRemoveShoppingItem, quantity = viewModel::shoppingQuantity,
+        checked = viewModel::shoppingChecked, choose = viewModel::selectShoppingOffer,
+        favorite = { viewModel.saveFavorite(it, emptySet(), null, true, true, false) },
+    ))
 }
 
 @Composable

@@ -1,0 +1,48 @@
+{
+  "description": "Unmodified selected offer objects and matching regional availability records extracted from captured JSON. Not an Em-eukal fixture or proof of a historical offer.",
+  "store": "DE1680",
+  "sources": [
+    {
+      "store": "DE1680",
+      "kind": "branch",
+      "url": "https://filiale.kaufland.de/service/filiale/konstanz-industriegebiet-1680.html",
+      "retrieved_at": "2026-10-15T16:33:23.173906+00:00",
+      "http_status": 200,
+      "sha256": "7cafe932c515fd27f113c0c32346752becdd41c8e23f228836c8c15d08fd0049",
+      "bytes": 341038,
+      "em_eukal_occurrences": 0
+    },
+    {
+      "store": "DE1680",
+      "kind": "availability",
+      "url": "https://filiale.kaufland.de/.kloffers.storeName=DE1680.json",
+      "retrieved_at": "2026-10-15T16:33:23.376522+00:00",
+      "http_status": 200,
+      "sha256": "c728ba292e1cba103a32ff7b65cc5b5db070f6d69a54d1afa0f0dd17cf2336d0",
+      "bytes": 43308,
+      "em_eukal_occurrences": 0
+    },
+    {
+      "store": "DE1680",
+      "kind": "store",
+      "url": "https://filiale.kaufland.de/.klstorebygeo.storeName=DE1680.json",
+      "retrieved_at": "2026-10-15T16:33:23.475638+00:00",
+      "http_status": 200,
+      "sha256": "aa77029b430e7634159581c9636a69924a0898f01c0b9fc6982f330b9517c178",
+      "bytes": 419,
+      "em_eukal_occurrences": 0
+    },
+    {
+      "store": "DE1680",
+      "kind": "offers",
+      "url": "https://filiale.kaufland.de/angebote/uebersicht.html?kloffer-week=current",
+      "retrieved_at": "2026-10-15T16:33:23.641512+00:00",
+      "http_status": 200,
+      "sha256": "9e6aafcd4dbd47648ef50412dfa24101845a278290c93b014b79ae9fa5d40863",
+      "bytes": 3243296,
+      "em_eukal_occurrences": 0
+    }
+  ],
+  "store_selection_header": "x-aem-variant=DE1680",
+  "fixture_sha256": "6ae5f9286de1a2d172215d18cb21f71e29e2320f4a2e770ca7f51e27c08d8a71"
+}

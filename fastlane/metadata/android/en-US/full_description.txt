@@ -1,10 +1,13 @@
 Korbuino compares regional supermarket offers using a German postal code. Search, filter and sort offers by retailer, and add products to a local shopping list.
 
+The app interface is currently German only.
+
 The app fetches public retailer data directly and does not require a Korbuino server. Saved offers and shopping lists remain available offline. Refreshing offers requires internet access; some retailers may require manual confirmation or may be temporarily unavailable.
 
 Features:
 • Manual postal code entry or optional location permission
 • Optional scheduled background refresh
+• Optional offer alerts through your own ntfy topic (public or self-hosted ntfy server; no central Korbuino account)
 • Local backup export and import
 • Optional connection to a self-hosted Korbuino server and KitchenOwl
 • Light and dark themes

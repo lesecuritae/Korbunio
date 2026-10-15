@@ -151,6 +151,12 @@ class Offer:
     deposit: Optional[float] = None
     container_deposit: Optional[float] = None
     packaging_deposit: Optional[float] = None
+    multi_buy_quantity: Optional[int] = None
+    multi_buy_total_price: Optional[float] = None
+    single_price: Optional[float] = None
+    pack_size: str = ""
+    multi_buy_condition: str = ""
+    multi_buy_mix_group: Optional[str] = None
     minimum_quantity: Optional[int] = None
     offer_condition: str = ""
     comparison_eligible: bool = True

@@ -134,10 +134,10 @@ class ReweProvider(
             val productId = "rewe-product-" + normalize(name)
             products += ProductEntity(productId, name, normalizedKey = normalize(name))
             offers += OfferEntity(
-                id = "rewe:$marketId:$index",
+                id = "rewe:$marketId:$from:$index",
                 retailerId = id,
                 productId = productId,
-                externalId = "$marketId:$index",
+                externalId = "$marketId:$from:$index",
                 priceCents = (price * 100).toInt(),
                 validFrom = from.toString(),
                 validUntil = until.toString(),

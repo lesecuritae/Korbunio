@@ -1,0 +1,48 @@
+{
+  "description": "Unmodified selected offer objects and matching regional availability records extracted from captured JSON. Not an Em-eukal fixture or proof of a historical offer.",
+  "store": "DE5220",
+  "sources": [
+    {
+      "store": "DE5220",
+      "kind": "branch",
+      "url": "https://filiale.kaufland.de/service/filiale/konstanz-petershausen-5220.html",
+      "retrieved_at": "2026-10-15T16:33:24.800151+00:00",
+      "http_status": 200,
+      "sha256": "c4b50b13356baadb7b404283c461b177e17ca56bf31dab32f2160a74be169fe6",
+      "bytes": 336641,
+      "em_eukal_occurrences": 0
+    },
+    {
+      "store": "DE5220",
+      "kind": "availability",
+      "url": "https://filiale.kaufland.de/.kloffers.storeName=DE5220.json",
+      "retrieved_at": "2026-10-15T16:33:23.069689+00:00",
+      "http_status": 200,
+      "sha256": "c728ba292e1cba103a32ff7b65cc5b5db070f6d69a54d1afa0f0dd17cf2336d0",
+      "bytes": 43308,
+      "em_eukal_occurrences": 0
+    },
+    {
+      "store": "DE5220",
+      "kind": "store",
+      "url": "https://filiale.kaufland.de/.klstorebygeo.storeName=DE5220.json",
+      "retrieved_at": "2026-10-15T16:33:23.043715+00:00",
+      "http_status": 200,
+      "sha256": "f60d3b5af778ec4f3b1731b4f76d8660bbabff83c0abe6c1997c4ce93b21e5c3",
+      "bytes": 452,
+      "em_eukal_occurrences": 0
+    },
+    {
+      "store": "DE5220",
+      "kind": "offers",
+      "url": "https://filiale.kaufland.de/angebote/uebersicht.html?kloffer-week=current",
+      "retrieved_at": "2026-10-15T16:33:24.722402+00:00",
+      "http_status": 200,
+      "sha256": "a37515e0587958752556fddc6599f1c6f283aaf84c805efa0ba01ae56571d166",
+      "bytes": 3233836,
+      "em_eukal_occurrences": 0
+    }
+  ],
+  "store_selection_header": "x-aem-variant=DE5220",
+  "fixture_sha256": "81863cbc1e85dd124fb96a17e3171d586f57741cebe5173807288ef978c1dbbb"
+}

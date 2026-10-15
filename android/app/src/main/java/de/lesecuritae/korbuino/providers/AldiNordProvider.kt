@@ -58,13 +58,13 @@ class AldiNordProvider(
             pair[1].jsonObject["res"]?.jsonObject
         } ?: error("ALDI Nord Angebotsblock fehlt")
 
-        val placements = placements(response["categories"]?.jsonArray.orEmpty())
+        val placements = placements(response["categories"]?.jsonArray.orEmpty(), request.week)
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
         response["algoliaDataMap"]?.jsonObject.orEmpty().forEach { (externalId, product) ->
             val item = product.jsonObject
             val placement = placements[externalId] ?: return@forEach
-            val price = currentPrice(item, placement) ?: return@forEach
+            val price = currentPrice(item, placement, request.week) ?: return@forEach
             val name = text(item, "name") ?: return@forEach
             val brand = text(item, "brandName").orEmpty()
             val displayName = if (brand.isBlank() || name.contains(brand, ignoreCase = true)) name else "$brand $name"
@@ -105,13 +105,15 @@ class AldiNordProvider(
 
     private data class Placement(val category: String, val from: LocalDate, val until: LocalDate)
 
-    private fun placements(groups: List<kotlinx.serialization.json.JsonElement>): Map<String, Placement> {
+    private fun placements(groups: List<kotlinx.serialization.json.JsonElement>, week: OfferWeek): Map<String, Placement> {
         val result = linkedMapOf<String, Placement>()
         groups.forEach { rawGroup ->
             val group = rawGroup.jsonObject
             val from = text(group, "startDate")?.let(LocalDate::parse) ?: return@forEach
             val until = text(group, "endDate")?.let(LocalDate::parse) ?: return@forEach
-            if (today() !in from..until) return@forEach
+            val nextMonday = today().with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).plusWeeks(1)
+            if (week == OfferWeek.CURRENT && today() !in from..until) return@forEach
+            if (week == OfferWeek.NEXT && (from < nextMonday || from > nextMonday.plusDays(6) || until < from)) return@forEach
             group["content"]?.jsonArray.orEmpty().forEach { rawCategory ->
                 val category = rawCategory.jsonObject
                 val label = text(category, "title", "teaserTitle") ?: "Weitere Angebote"
@@ -123,13 +125,15 @@ class AldiNordProvider(
         return result
     }
 
-    private fun currentPrice(item: JsonObject, placement: Placement): JsonObject? {
+    private fun currentPrice(item: JsonObject, placement: Placement, week: OfferWeek): JsonObject? {
         val active = item["promotionPrices"]?.jsonArray.orEmpty().firstOrNull { raw ->
             val price = raw.jsonObject
             val from = text(price, "validFromLocalDate")?.let(LocalDate::parse)
             val until = text(price, "validUntilLocalDate")?.let(LocalDate::parse)
-            from == null || until == null || today() in from..until
+            if (week == OfferWeek.NEXT) from != null && until != null && placement.from >= from && placement.from <= until
+            else from == null || until == null || today() in from..until
         }?.jsonObject
+        if (week == OfferWeek.NEXT) return active
         return active ?: item["currentPrice"]?.jsonObject
             ?.takeIf { placement.from <= today() && today() <= placement.until }
     }

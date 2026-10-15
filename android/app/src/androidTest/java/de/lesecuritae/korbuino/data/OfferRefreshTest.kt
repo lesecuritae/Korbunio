@@ -24,6 +24,24 @@ class OfferRefreshTest {
         } finally { db.close() }
     }
 
+    @Test fun currentAndFuturePartitionsSurviveEachOthersRefresh() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), KorbuinoDatabase::class.java).build()
+        try {
+            val monday = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin"))
+                .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+            val current = OfferEntity("today","kaufland","p",externalId="today",priceCents=300,
+                validFrom=monday.toString(),validUntil=monday.plusDays(6).toString(),sourceUrl="https://example.org",cachedAt=1)
+            val future = current.copy(id="future",externalId="future",validFrom=monday.plusWeeks(1).toString(),validUntil=monday.plusDays(13).toString())
+            db.offerDao().storeRefresh(listOf(current))
+            db.offerDao().storeWeekRefresh("kaufland",future.validFrom!!,future.validUntil!!,listOf(future))
+            assertEquals(setOf("today","future"),db.offerDao().all().map { it.id }.toSet())
+            db.offerDao().storeRefresh(listOf(current.copy(priceCents=200)))
+            assertEquals(setOf("today","future"),db.offerDao().all().map { it.id }.toSet())
+            db.offerDao().storeWeekRefresh("kaufland",future.validFrom!!,future.validUntil!!,emptyList())
+            assertEquals("today",db.offerDao().all().single().id)
+        } finally { db.close() }
+    }
+
     @Test fun productAndImageQueriesSupportLargeMultiRetailerImports() = runBlocking {
         val db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(), KorbuinoDatabase::class.java,

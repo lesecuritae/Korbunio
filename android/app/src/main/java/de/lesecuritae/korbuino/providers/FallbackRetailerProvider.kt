@@ -15,10 +15,21 @@ class FallbackRetailerProvider(
     override val challengeUrl: String? get() = primary.challengeUrl
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult {
-        val directAttempt = runCatching { primary.fetch(request) }
+        fun previewOnly(result: ProviderResult): ProviderResult {
+            if (request.week != OfferWeek.NEXT) return result
+            val from = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin"))
+                .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).plusWeeks(1)
+            val until = from.plusDays(6)
+            return result.copy(offers = result.offers.filter {
+                val start = runCatching { java.time.LocalDate.parse(it.validFrom) }.getOrNull()
+                val end = runCatching { java.time.LocalDate.parse(it.validUntil) }.getOrNull()
+                start != null && end != null && end >= start && start <= until && end >= from
+            })
+        }
+        val directAttempt = runCatching { previewOnly(primary.fetch(request)) }
         val direct = directAttempt.getOrNull()
         if (direct != null && direct.offers.isNotEmpty()) return direct
-        val regionalAttempt = runCatching { fallback.fetch(request) }
+        val regionalAttempt = runCatching { previewOnly(fallback.fetch(request)) }
         val regional = regionalAttempt.getOrElse { fallbackError ->
             // An empty result still proves that the primary source is
             // reachable. A secondary transport failure must not turn that

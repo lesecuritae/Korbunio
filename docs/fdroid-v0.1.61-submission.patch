@@ -1,0 +1,36 @@
+DRAFT, NOT SUBMITTED: the new 0.1.61 signing/reference artifact is not published.
+Keeps historical 0.1.59 commit and artifacts intact. The new source revision
+is immutable and includes the language notice; binary publication remains gated.
+
+--- a/metadata/de.korbunio.korbunio_app.yml
++++ b/metadata/de.korbunio.korbunio_app.yml
+@@ -6,2 +6,3 @@
+   - Shopping List
++  - Market & Price
+ License: BSD-3-Clause
+@@ -20,2 +21,19 @@
+ Builds:
++  # DRAFT: pinned application source for review; retain the publication gate below.
++  # Do not submit until fdroid-v0.1.61 and its new signed reference APK exist.
++  - versionName: 0.1.61
++    versionCode: 61
++    commit: 8b5f224df2830dccde83484b80a82221211803e6
++    subdir: android/app
++    gradle:
++      - fdroid
++    rm:
++      - app
++      - android/app/src/standard
++      - android/app/src/testStandard
++      - android/app/standard-dependencies.gradle
++    gradleprops:
++      - fdroidOnly=true
++      - org.gradle.workers.max=2
++
+   - versionName: 0.1.59
+@@ -39,3 +57,3 @@
+ UpdateCheckMode: Tags fdroid-v[0-9]+\.[0-9]+\.[0-9]+
+-CurrentVersion: 0.1.59
+-CurrentVersionCode: 59
++CurrentVersion: 0.1.61
++CurrentVersionCode: 61

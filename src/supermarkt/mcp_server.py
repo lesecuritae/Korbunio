@@ -23,6 +23,9 @@ import logging
 import os
 import re
 import time
+import threading
+import hashlib
+import json
 from typing import Any, Optional
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -110,6 +113,15 @@ class Offer(BaseModel):
     bonus_credit: Optional[str] = Field(default=None, description="Nachträglich gutgeschriebenes Bonus-Guthaben, z. B. 0,20 € REWE Bonus")
     price_after_credit: Optional[str] = Field(default=None, description="Effektiver Preis nach Abzug des Bonus-Guthabens, z. B. 0,79 €")
     bonus_program: Optional[str] = Field(default=None, description="Welches Programm dafür nötig ist, z. B. Kaufland Card XTRA oder REWE Bonus")
+    multi_buy_quantity: int | None = None
+    multi_buy_total_price: float | None = None
+    single_price: float | None = None
+    pack_size: str = ""
+    multi_buy_condition: str = ""
+    multi_buy_mix_group: str | None = None
+    conditional_unit_price: float | None = None
+    valid_from: str = ""
+    valid_until: str = ""
     valid: str = Field(default="", description="Gültigkeit")
     image_url: Optional[str] = Field(default=None, description="Bild des Angebots (Adresse beim Händler)")
 
@@ -132,6 +144,16 @@ _last_used: dict[str, float] = {}
 _warm_started = False
 _new_postal_codes: list[float] = []
 _shopping_adds: list[float] = []
+_WATCH_DELIVERY_LOCK = threading.Lock()
+# Persist IDs independently of labels and aliases.
+WATCH_RETAILERS = {
+    "rewe": "REWE", "aldi-nord": "ALDI Nord", "aldi-sued": "ALDI Süd", "lidl": "Lidl",
+    "penny": "PENNY", "netto": "Netto Marken-Discount", "netto-scottie": "Netto schwarz",
+    "kaufland": "Kaufland", "edeka": "EDEKA", "marktkauf": "Marktkauf", "globus": "Globus",
+    "famila-nordwest": "famila Nordwest", "aktiv-irma": "aktiv & irma", "combi": "Combi",
+    "rossmann": "Rossmann", "mueller": "Müller", "dm": "dm", "trinkgut": "trinkgut", "holab": "HOL’AB!",
+}
+
 
 
 # ---- laden -------------------------------------------------------------------------------
@@ -153,8 +175,8 @@ def _retailers(values: list[str] | None) -> tuple[str, ...]:
     return tuple(resolved)
 
 
-def _load_snapshot(plz: str, retailers: tuple[str, ...], refresh: bool = False) -> dict[str, Any]:
-    snapshot, _from_cache = runtime.get_engine().snapshot(plz, "auto", refresh, retailers=retailers)
+def _load_snapshot(plz: str, retailers: tuple[str, ...], refresh: bool = False, offer_week: str = "current") -> dict[str, Any]:
+    snapshot, _from_cache = runtime.get_engine().snapshot(plz, "auto", refresh, retailers=retailers, offer_week=offer_week)
     return snapshot
 
 
@@ -213,34 +235,61 @@ def _watch_postal_codes() -> list[str]:
 
 
 def _check_watches(plz: str, snapshot: dict[str, Any]) -> None:
-    """Meldet neue Treffer für die Beobachtungen dieser Postleitzahl (jeder Treffer nur einmal)."""
+    """Only acknowledge delivered batches; concurrent checks share a delivery lock."""
+    with _WATCH_DELIVERY_LOCK:
+        _deliver_watches(plz, snapshot)
+
+
+def _deliver_watches(plz: str, snapshot: dict[str, Any]) -> None:
+    week = snapshot.get("offer_week", "current")
     for watch in history.list_watches(plz):
-        matches = []
-        for offer in _offers_from(snapshot, watch["query"], None, ()):
-            shown = offer.price_with_bonus or offer.price_without_bonus
-            if watch["max_cents"] is None or _euro(shown) * 100 <= watch["max_cents"] + 0.5:
-                matches.append(offer)
-        keys = {f"{o.retailer}|{o.product}|{o.price_with_bonus or o.price_without_bonus}|{o.valid}": o for o in matches}
-        fresh = history.unnotified(watch["id"], list(keys))
-        if not fresh:
+        if watch["offer_week"] not in {week, "all"}:
             continue
-        lines = []
-        for key in fresh[:5]:
-            offer = keys[key]
-            if offer.price_with_bonus:
-                extra = f" mit {offer.bonus_program}"
-            elif offer.price_after_credit and offer.bonus_credit:
-                extra = f" (effektiv {offer.price_after_credit} mit {offer.bonus_credit} {_program_name(offer)} Guthaben)"
-            else:
-                extra = ""
-            lines.append(f"{offer.retailer}: {offer.product} {offer.price_with_bonus or offer.price_without_bonus}{extra}")
-        title = f"Korbuino: {watch['query']} im Angebot"
-        try:
-            notify.send(title, "\n".join(lines))
-        except notify.NotifyError:
-            log.warning("Benachrichtigung für Beobachtung %s fehlgeschlagen", watch["id"], exc_info=True)
+        if any(i not in WATCH_RETAILERS for i in watch["retailer_ids"]):
             continue
-        history.mark_notified(watch["id"], fresh)
+        selected = tuple(WATCH_RETAILERS[i] for i in watch["retailer_ids"])
+        keys = {}
+        for offer in _offers_from(snapshot, watch["query"], None, selected):
+            if selected and offer.retailer not in selected:
+                continue
+            # Server watches have no selected membership list; compare the regular
+            # checkout amount. Conditional member prices may only be shown alongside.
+            if offer.multi_buy_quantity and re.search(r"card|karte|coupon|kupon|aktivier|mitglied|xtra|\bapp\b", offer.multi_buy_condition, re.IGNORECASE):
+                continue  # No verified membership/coupon selection on server watches.
+            shown = offer.price_without_bonus
+            if watch["max_cents"] is not None and _euro(shown) * 100 > watch["max_cents"] + 0.5:
+                continue
+            # The same advertised validity retains its identity when preview becomes current.
+            # Legacy keys remain readable so an upgrade does not repeat delivered offers.
+            legacy = f"{offer.retailer}|{offer.product}|{shown}|{offer.valid}"
+            identity = [offer.retailer, offer.product, offer.pack, shown,
+                        offer.valid_from or offer.valid, offer.valid_until, offer.multi_buy_quantity]
+            stable = "v2:" + hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
+            keys[stable] = (offer, legacy)
+        fresh = set(history.unnotified(watch["id"], list(keys)))
+        old_fresh = set(history.unnotified(watch["id"], [legacy for _, legacy in keys.values()]))
+        pending = [key for key in keys if key in fresh and keys[key][1] in old_fresh]
+        for start in range(0, len(pending), 5):
+            batch = pending[start:start + 5]
+            lines = []
+            for key in batch:
+                offer = keys[key][0]
+                extra = f" (optional mit {offer.bonus_program}: {offer.price_with_bonus})" if offer.price_with_bonus else ""
+                if offer.bonus_credit:
+                    extra += f" (zusätzlich {offer.bonus_credit} {_program_name(offer)} Guthaben nach dem Kauf; nicht abgezogen)"
+                if offer.multi_buy_quantity and offer.multi_buy_total_price is not None:
+                    extra += f" · {offer.multi_buy_quantity} Stück für insgesamt {format_euro(offer.multi_buy_total_price)}"
+                    extra += f" ({format_euro(offer.multi_buy_total_price / offer.multi_buy_quantity)} je Stück nur im Mehrkauf)"
+                    extra += f" · {offer.multi_buy_condition}" if offer.multi_buy_condition else ""
+                validity = f" ({offer.valid})" if offer.valid else ""
+                lines.append(f"{offer.retailer}: {offer.product} {offer.price_without_bonus}{extra}{validity}")
+            try:
+                notify.send(f"Korbuino: {watch['query']} im Angebot", "\n".join(lines))
+            except notify.NotifyError:
+                # Exceptions can contain the secret topic URL or response body.
+                log.warning("Benachrichtigung für Beobachtung %s fehlgeschlagen", watch["id"])
+                break
+            history.mark_notified(watch["id"], batch)
 
 
 async def _warm_loop() -> None:
@@ -254,8 +303,13 @@ async def _warm_loop() -> None:
         recent = sorted((p for p, used in _last_used.items() if now - used < WARM_WHILE_USED_SECONDS), key=lambda p: -_last_used[p])
         for plz in dict.fromkeys([*recent[:MAX_WARM_POSTAL_CODES], *_watch_postal_codes()]):
             try:
-                snapshot = await asyncio.to_thread(_load_snapshot, plz, (), False)
-                await asyncio.to_thread(_check_watches, plz, snapshot)
+                weeks = {"current"}
+                for watch in history.list_watches(plz):
+                    if watch["offer_week"] in {"next", "all"}:
+                        weeks.add("next")
+                for week in sorted(weeks):
+                    snapshot = await asyncio.to_thread(_load_snapshot, plz, (), False, week)
+                    await asyncio.to_thread(_check_watches, plz, snapshot)
             except Exception:  # noqa: BLE001 - Vorwärmen darf nie stören
                 log.warning("Vorwärmen für %s fehlgeschlagen", plz, exc_info=True)
 
@@ -272,10 +326,17 @@ def _euro(text: str) -> float:
 
 def _offers_from(snapshot: dict[str, Any], product: str, also_search: list[str] | None, retailers: tuple[str, ...]) -> list[Offer]:
     engine = runtime.get_engine()
-    common = {"filter_text": product, "keywords": tuple(also_search or ()), "page": 1, "page_size": 100, "view": "all", "sort": "price", "include_image_urls": True}
-    plain = engine.page(snapshot, loyalty_programs=(), **common)
+    common = {"filter_text": product, "keywords": tuple(also_search or ()), "page": 1, "page_size": 100, "view": "all", "sort": "price", "include_image_urls": True, "retailer_filters": retailers}
+    def pages(programs):
+        first = engine.page(snapshot, loyalty_programs=programs, **common)
+        rows = list(first.get("offers", []))
+        for number in range(2, int(first.get("page_count", 1)) + 1):
+            rows.extend(engine.page(snapshot, loyalty_programs=programs, **{**common, "page": number}).get("offers", []))
+        return {**first, "offers": rows}
+
+    plain = pages(())
     programs = tuple(p["id"] for p in plain.get("available_loyalty_programs", []) if p.get("priced_offer_count"))
-    with_bonus = engine.page(snapshot, loyalty_programs=programs, **common) if programs else plain
+    with_bonus = pages(programs) if programs else plain
     bonus_by_id = {offer["offer_id"]: offer for offer in with_bonus.get("offers", [])}
     result: list[Offer] = []
     for item in plain.get("offers", []):
@@ -291,11 +352,15 @@ def _offers_from(snapshot: dict[str, Any], product: str, also_search: list[str] 
         result.append(Offer(
             retailer=item["retailer"], product=item["product"], pack=item.get("pack", ""), unit_price=item.get("unit_price", ""),
             price_without_bonus=item["regular_price_text"],
+            multi_buy_quantity=item.get("multi_buy_quantity"), multi_buy_total_price=item.get("multi_buy_total_price"),
+            single_price=item.get("single_price"), pack_size=item.get("pack_size") or "",
+            multi_buy_condition=item.get("multi_buy_condition") or "",
+            multi_buy_mix_group=item.get("multi_buy_mix_group"), conditional_unit_price=item.get("conditional_unit_price"),
             price_with_bonus=other["effective_price_text"] if cheaper else None,
             bonus_credit=other.get("cashback_credit_text") if has_credit else None,
             price_after_credit=format_euro(discounted - credit) if has_credit else None,
             bonus_program=(other.get("loyalty_benefit") or None) if (cheaper or has_credit) else None,
-            valid=item.get("validity", ""), image_url=item.get("image_url") or None,
+            valid=item.get("validity", ""), valid_from=item.get("valid_from") or "", valid_until=item.get("valid_until") or "", image_url=item.get("image_url") or None,
         ))
     # Ranking stays on the checkout price; cashback is deliberately excluded.
     result.sort(key=lambda offer: _euro(offer.price_with_bonus or offer.price_without_bonus))
@@ -343,6 +408,11 @@ def _summary(result: OfferResult) -> str:
             line += f", {offer.price_with_bonus} mit {offer.bonus_program or 'Bonusprogramm'}"
         elif offer.price_after_credit and offer.bonus_credit:
             line += f", effektiv {offer.price_after_credit} mit {offer.bonus_credit} {_program_name(offer)} Guthaben"
+        if offer.multi_buy_quantity and offer.multi_buy_total_price is not None:
+            line += f" · {offer.multi_buy_quantity} Stück für insgesamt {format_euro(offer.multi_buy_total_price)}"
+            line += f" ({format_euro(offer.multi_buy_total_price / offer.multi_buy_quantity)} je Stück nur im Mehrkauf)"
+            if offer.multi_buy_condition:
+                line += f" · {offer.multi_buy_condition}"
         if offer.unit_price:
             line += f" ({offer.unit_price})"
         valid = _valid_text(offer)
@@ -569,14 +639,21 @@ async def price_history(product: str, postal_code: str = "", days: int = 90) -> 
                           structured_content={"postal_code": plz, "history": rows})
 
 
-async def watch_product(product: str, max_price: str = "", postal_code: str = "") -> CallToolResult:
+async def watch_product(product: str, max_price: str = "", postal_code: str = "", retailer_ids: list[str] | None = None, offer_week: str = "current") -> CallToolResult:
     """Gib Bescheid, sobald ein Produkt im Angebot ist (optional nur unter einem Preis). Benachrichtigung per ntfy/Webhook.
 
     Args:
         product: Suchbegriff, z. B. "Kaffee".
-        max_price: Höchstpreis in Euro, z. B. "5,49". Leer = bei jedem Angebot.
+        max_price: Höchstpreis in Euro an der Kasse, bei Mehrkauf für das ganze Angebotspaket (nicht je Stück). Leer = jedes Angebot.
         postal_code: Deutsche Postleitzahl. Leer = Standard des Servers.
+        retailer_ids: Stabile Händler-IDs, z. B. rewe oder lidl; leer = alle.
+        offer_week: current, next oder all. Vorschau nur soweit vom Händler verfügbar.
     """
+    selected = tuple(sorted(set(retailer_ids or ())))
+    if any(i not in WATCH_RETAILERS for i in selected):
+        raise ValueError("Unbekannte Händler-ID. Gültig: " + ", ".join(WATCH_RETAILERS))
+    if offer_week not in {"current", "next", "all"}:
+        raise ValueError("Angebotszeitraum muss current, next oder all sein.")
     if not product.strip():
         raise ValueError("Bitte sage, welches Produkt beobachtet werden soll.")
     if notify.load() is None:
@@ -589,10 +666,10 @@ async def watch_product(product: str, max_price: str = "", postal_code: str = ""
         if euros == float("inf") or euros <= 0:
             raise ValueError("Der Höchstpreis ist keine Zahl, zum Beispiel 5,49.")
         limit = round(euros * 100)
-    watch = await asyncio.to_thread(history.add_watch, " ".join(product.split())[:80], limit, plz)
+    watch = await asyncio.to_thread(history.add_watch, " ".join(product.split())[:80], limit, plz, selected, offer_week)
     _last_used.setdefault(plz, time.time())
     _start_warmup()
-    price = f" unter {max_price.strip()} €" if limit is not None else ""
+    price = f" bis {format_euro(limit / 100)} Kassenpreis (bei Mehrkauf für das gesamte Paket)" if limit is not None else ""
     return CallToolResult(content=[TextContent(type="text", text=f"Ich gebe Bescheid, sobald „{watch['query']}“{price} im Angebot ist (PLZ {plz}, Nr. {watch['id']}).")],
                           structured_content=watch)
 
@@ -602,7 +679,7 @@ async def list_watches() -> CallToolResult:
     watches = await asyncio.to_thread(history.list_watches)
     if not watches:
         return CallToolResult(content=[TextContent(type="text", text="Es wird nichts beobachtet.")], structured_content={"watches": []})
-    lines = [f"- Nr. {w['id']}: {w['query']}" + (f" unter {w['max_cents'] / 100:.2f} €".replace(".", ",") if w["max_cents"] else "") + f" (PLZ {w['postal_code']})" for w in watches]
+    lines = [f"- Nr. {w['id']}: {w['query']}" + (f" unter {w['max_cents'] / 100:.2f} €".replace(".", ",") if w["max_cents"] else "") + f" (PLZ {w['postal_code']}; Händler: {', '.join(w['retailer_ids']) or 'alle'}; Zeitraum: {w['offer_week']})" for w in watches]
     return CallToolResult(content=[TextContent(type="text", text="\n".join(lines))], structured_content={"watches": watches})
 
 
