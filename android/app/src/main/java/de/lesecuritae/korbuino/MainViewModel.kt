@@ -1,5 +1,6 @@
 package de.lesecuritae.korbuino
 
+import androidx.room.withTransaction
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
@@ -11,6 +12,13 @@ import de.lesecuritae.korbuino.data.KorbuinoDatabase
 import de.lesecuritae.korbuino.data.OfferEntity
 import de.lesecuritae.korbuino.data.ProductEntity
 import de.lesecuritae.korbuino.data.ShoppingListItemEntity
+import de.lesecuritae.korbuino.data.FavoriteEntity
+import de.lesecuritae.korbuino.notifications.NtfySettings
+import de.lesecuritae.korbuino.notifications.NtfySender
+import de.lesecuritae.korbuino.notifications.NativeWatchSync
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.util.UUID
 import de.lesecuritae.korbuino.data.ShoppingListRow
 import de.lesecuritae.korbuino.data.ProviderCacheEntity
 import de.lesecuritae.korbuino.providers.NetworkClientFactory
@@ -49,6 +57,8 @@ data class MainUiState(
     val offers: List<OfferDisplay> = emptyList(),
     val shoppingItems: List<ShoppingListRow> = emptyList(),
     val removedShoppingItem: ShoppingListRow? = null,
+    val favorites: List<FavoriteEntity> = emptyList(),
+    val ntfySettings: NtfySettings = NtfySettings(),
     /** Retailers that answered without offers for [emptyRetailersPostal]; hidden in the picker for that code. */
     val emptyRetailers: Set<String> = emptySet(),
     val emptyRetailersPostal: String = "",
@@ -96,6 +106,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             _state.value = _state.value.copy(
+                ntfySettings = secureStore.loadNtfySettings(),
                 postalCode = saved.first,
                 city = saved.second,
                 retailerId = saved.third,
@@ -122,6 +133,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
+            database.favoriteDao().observeAll().collect { values -> _state.value = _state.value.copy(favorites = values) }
+        }
+        viewModelScope.launch {
             database.offerDao().observeAll().collect { offers ->
                 rebuildOfferDisplay(offers)
             }
@@ -130,6 +144,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             database.shoppingListDao().observeDefault().collect { items ->
                 _state.value = _state.value.copy(shoppingItems = items)
             }
+        }
+    }
+
+    private fun itemEntity(item: ShoppingListRow, quantity: Int = item.quantity, checked: Boolean = item.checked,
+                           retailerId: String? = item.retailerId, offerId: String? = item.offerId) =
+        ShoppingListItemEntity("default", item.productId, quantity, checked, item.note, item.itemId, retailerId, offerId)
+
+    fun shoppingQuantity(item: ShoppingListRow, quantity: Int) {
+        if (quantity !in 1..999) return
+        viewModelScope.launch { database.shoppingListDao().upsertAll(listOf(itemEntity(item, quantity = quantity))) }
+    }
+
+    fun shoppingChecked(item: ShoppingListRow, checked: Boolean) {
+        viewModelScope.launch { database.shoppingListDao().upsertAll(listOf(itemEntity(item, checked = checked))) }
+    }
+
+    fun selectShoppingOffer(item: ShoppingListRow, offer: OfferDisplay?) {
+        viewModelScope.launch {
+            database.shoppingListDao().upsertAll(listOf(itemEntity(item, retailerId = offer?.offer?.retailerId, offerId = offer?.offer?.id)))
+        }
+    }
+
+    fun addOfferToShoppingList(display: OfferDisplay) {
+        viewModelScope.launch {
+            val itemId = "offer:${display.offer.retailerId}:${display.offer.id}"
+            val existing = database.shoppingListDao().allItems().firstOrNull { it.listId == "default" && it.itemId == itemId }
+            database.shoppingListDao().upsertAll(listOf(existing?.copy(quantity = (existing.quantity + 1).coerceAtMost(999), checked = false)
+                ?: ShoppingListItemEntity("default", display.offer.productId, itemId = itemId,
+                    retailerId = display.offer.retailerId, offerId = display.offer.id)))
+            _state.value = _state.value.copy(message = "Zur Einkaufsliste hinzugefügt")
+        }
+    }
+
+    fun saveFavorite(query: String, retailerIds: Set<String>, maxPriceCents: Int?, currentWeek: Boolean,
+                     nextWeek: Boolean, notifications: Boolean, existingId: String? = null) {
+        val clean = query.trim().take(120)
+        if (clean.isBlank() || (maxPriceCents != null && maxPriceCents <= 0) || (!currentWeek && !nextWeek)) {
+            message("Suchbegriff, Preis und mindestens einen Wochenbereich prüfen")
+            return
+        }
+        val known = retailers.map { it.first }.filterNot { it == "all" }.toSet()
+        if (!known.containsAll(retailerIds)) { message("Unbekannte Händlerauswahl"); return }
+        viewModelScope.launch {
+            val previous = _state.value.favorites.firstOrNull { it.productId == existingId }
+            database.favoriteDao().upsert(FavoriteEntity(existingId ?: UUID.randomUUID().toString(),
+                previous?.createdAt ?: System.currentTimeMillis(), clean, Json.encodeToString(retailerIds.sorted()),
+                maxPriceCents, currentWeek, nextWeek, notifications, _state.value.postalCode))
+            message("Favorit gespeichert. Meldungen benötigen zusätzlich eine aktivierte ntfy-Verbindung.")
+        }
+    }
+
+    fun removeFavorite(favorite: FavoriteEntity) {
+        viewModelScope.launch { database.favoriteDao().remove(favorite.productId) }
+    }
+
+    fun saveNtfy(settings: NtfySettings) {
+        NtfySender.validationError(settings)?.let { message(it); return }
+        // Topic and token live exclusively in the existing encrypted preferences.
+        secureStore.saveNtfySettings(settings)
+        _state.value = _state.value.copy(ntfySettings = settings,
+            message = "ntfy-Einstellungen gespeichert; die Hintergrundaktualisierung bleibt unverändert")
+    }
+
+    fun testNtfy(settings: NtfySettings) {
+        viewModelScope.launch {
+            val result = NtfySender(NetworkClientFactory.create(getApplication())).test(settings)
+            message(result.message)
         }
     }
 
@@ -181,17 +262,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val clean = name.trim().take(120)
         if (clean.isBlank()) return
         viewModelScope.launch {
-            // One entry per product and retailer, so the same item from two shops stays visible twice.
-            fun slug(value: String) = value.lowercase().replace("[^a-z0-9]+".toRegex(), "-")
-            val id = "manual:" + slug(clean) + if (retailer.isBlank()) "" else "@" + slug(retailer)
-            database.productDao().upsertAll(listOf(ProductEntity(id, clean, normalizedKey = id)))
-            database.shoppingListDao().upsertAll(listOf(ShoppingListItemEntity("default", id, note = retailer.take(60))))
+            // Product wishes have their own identity. Free notes are never retailer IDs.
+            val existing = _state.value.shoppingItems.firstOrNull {
+                it.name.equals(clean, ignoreCase = true) && it.retailerId == null &&
+                    it.offerId == null && !it.checked && it.note == retailer.take(60)
+            }
+            if (existing != null) {
+                database.shoppingListDao().upsertAll(listOf(itemEntity(existing, quantity = (existing.quantity + 1).coerceAtMost(999))))
+            } else {
+                val id = "manual:" + UUID.randomUUID().toString()
+                database.productDao().upsertAll(listOf(ProductEntity(id, clean, normalizedKey = id)))
+                database.shoppingListDao().upsertAll(listOf(ShoppingListItemEntity("default", id, note = retailer.take(60))))
+            }
         }
     }
 
     fun removeShoppingItem(item: ShoppingListRow) {
         viewModelScope.launch {
-            database.shoppingListDao().remove(item.productId)
+            database.shoppingListDao().remove(item.itemId)
             _state.value = _state.value.copy(removedShoppingItem = item)
         }
     }
@@ -200,7 +288,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val item = _state.value.removedShoppingItem ?: return
         viewModelScope.launch {
             database.shoppingListDao().upsertAll(
-                listOf(ShoppingListItemEntity("default", item.productId, item.quantity, item.checked, item.note)),
+                listOf(itemEntity(item)),
             )
             _state.value = _state.value.copy(removedShoppingItem = null)
         }
@@ -287,10 +375,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val product = database.productDao().find(listOf(item.productId)).firstOrNull()
                         val name = product?.name?.trim().orEmpty()
                         if (name.isBlank()) return@forEach
-                        // The retailer the article was entered for travels in the note.
-                        val note = listOf("Menge: ${item.quantity}", item.note.takeIf { it.isNotBlank() }?.let { "bei $it" })
-                            .filterNotNull().joinToString(" · ")
-                        notes.putIfAbsent(name.lowercase(), name to note)
+                        val retailer = item.retailerId?.let { id -> retailers.toMap()[id] ?: id }
+                        val offer = item.offerId?.let { id -> database.offerDao().all().firstOrNull { it.id == id } }
+                        val displayName = "${item.quantity}× $name" + retailer?.let { " ($it)" }.orEmpty() +
+                            offer?.packSize?.let { " · $it" }.orEmpty()
+                        val note = listOfNotNull(item.note.takeIf { it.isNotBlank() },
+                            offer?.let { offerPriceLabel(OfferDisplay(it, name), _state.value.selectedLoyaltyPrograms) }).joinToString(" · ")
+                        notes.putIfAbsent(displayName.lowercase(), displayName to note)
                     }
                     val syncedKey = "kitchenowl_synced_${target.id}"
                     val previous = secureStore.get(syncedKey).orEmpty().split('\n').filter(String::isNotBlank).toSet()
@@ -353,6 +444,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             var emptySources = 0
             var rejectedSources = 0
             var failedSources = 0
+            if (_state.value.postalCode != current.postalCode) {
+                _state.value = _state.value.copy(loading = false, message = "PLZ geändert. Bitte Angebote erneut laden.")
+                return@launch
+            }
             fetched.forEach { (provider, result) ->
                 val previous = database.providerDao().get(provider.id)
                 result.onSuccess { value ->
@@ -409,21 +504,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Room normalized key prevents a multi-retailer refresh from
                 // violating the unique product index while retaining every
                 // retailer offer through a stable product reference.
-                val rawProducts = successes.flatMap { it.second.products }
-                val canonicalProducts = LinkedHashMap<String, ProductEntity>()
-                rawProducts.forEach { product -> canonicalProducts.putIfAbsent(product.normalizedKey, product) }
-                val productIds = rawProducts.associate { it.id to canonicalProducts.getValue(it.normalizedKey).id }
-                val products = canonicalProducts.values.toList()
-                val offers = successes.flatMap { it.second.offers }.map { offer ->
-                    productIds[offer.productId]?.let { canonicalId -> offer.copy(productId = canonicalId) } ?: offer
-                }.distinctBy { it.id }
-                database.productDao().upsertAll(products)
-                val previousOfferPostal = secureStore.get("offer_postal_code").orEmpty()
-                if (previousOfferPostal.isNotBlank() && previousOfferPostal != current.postalCode) {
-                    database.offerDao().deleteAll()
+                val imported = database.withTransaction {
+                    if (secureStore.get("postal_code") != current.postalCode) return@withTransaction null
+                    val rawProducts = successes.flatMap { it.second.products }
+                    val canonicalProducts = LinkedHashMap<String, ProductEntity>()
+                    database.productDao().all().forEach { canonicalProducts.putIfAbsent(it.normalizedKey, it) }
+                    rawProducts.forEach { product -> canonicalProducts.putIfAbsent(product.normalizedKey, product) }
+                    val productIds = rawProducts.associate { it.id to canonicalProducts.getValue(it.normalizedKey).id }
+                    val products = rawProducts.map { canonicalProducts.getValue(it.normalizedKey) }.distinctBy { it.id }
+                    val offers = successes.flatMap { it.second.offers }.map { offer ->
+                        productIds[offer.productId]?.let { canonicalId -> offer.copy(productId = canonicalId) } ?: offer
+                    }.distinctBy { it.id }
+                    database.productDao().upsertAll(products)
+                    val previousOfferPostal = secureStore.get("offer_postal_code").orEmpty()
+                    if (previousOfferPostal.isNotBlank() && previousOfferPostal != current.postalCode) {
+                        database.offerDao().deleteAll()
+                    }
+                    database.offerDao().storeRefresh(offers)
+                    products to offers
                 }
-                database.offerDao().storeRefresh(offers)
+                if (imported == null) {
+                    _state.value = _state.value.copy(loading = false, message = "PLZ geändert. Bitte Angebote erneut laden.")
+                    return@launch
+                }
+                val (products, offers) = imported
                 secureStore.put("offer_postal_code", current.postalCode)
+                NativeWatchSync.afterSuccessfulSync(database, secureStore, providers, current.postalCode, current.city, http)
                 // Cards download their first-party image on demand. Optional
                 // GTIN enrichment remains a background task and must never
                 // hold the offer overview behind dozens of image requests.

@@ -55,6 +55,8 @@ def offer_sort_key(offer: Offer, sort: str) -> tuple[Any, ...]:
     if sort == "product":
         return (offer.name.casefold(), normalized_price, offer.retailer.casefold())
     if sort == "unit_price":
+        if offer.multi_buy_quantity:
+            return (float("inf"), normalized_price, offer.name.casefold(), offer.retailer.casefold())
         unit = calculate_unit_price(offer, price)
         unit_value = unit[0] if unit is not None else float("inf")
         return (unit_value, normalized_price, offer.name.casefold())
@@ -62,6 +64,12 @@ def offer_sort_key(offer: Offer, sort: str) -> tuple[Any, ...]:
 
 
 def _unit_price_label(offer: Offer, total_price: float | None) -> str:
+    if offer.multi_buy_quantity:
+        # The source's base price is conditional; do not calculate it from a
+        # bundle total and the size of one pack.
+        if offer.base_price is not None and offer.base_unit:
+            return format_unit_price(offer.base_price, offer.base_unit) + " (nur Mehrkauf)"
+        return ""
     unit = calculate_unit_price(offer, total_price)
     if unit is not None:
         return format_unit_price(unit[0], unit[1])
@@ -178,6 +186,16 @@ def offer_for_response(
         "packaging_deposit": offer.packaging_deposit,
         "deposit_text": format_euro(offer.deposit) if offer.deposit is not None else "",
         "deposit_note": _deposit_note(offer),
+        "multi_buy_quantity": offer.multi_buy_quantity,
+        "multi_buy_total_price": offer.multi_buy_total_price,
+        "single_price": offer.single_price,
+        "pack_size": offer.pack_size,
+        "multi_buy_condition": offer.multi_buy_condition,
+        "multi_buy_mix_group": offer.multi_buy_mix_group,
+        "conditional_unit_price": (
+            round(offer.multi_buy_total_price / offer.multi_buy_quantity, 4)
+            if offer.multi_buy_quantity and offer.multi_buy_total_price is not None else None
+        ),
         "minimum_quantity": offer.minimum_quantity,
         "offer_condition": offer.offer_condition,
         "coverage_note": offer.coverage_note,

@@ -49,7 +49,7 @@ class MarktguruProvider(
         var offset = 0
         for (pageIndex in 0 until 50) {
             val root = fetchPage(request.postalCode, offset, credentials)
-            val page = parse(root)
+            val page = parse(root, request.week)
             page.products.forEach { products[it.id] = it }
             page.offers.forEach { offers[it.id] = it }
             val count = root["results"]?.jsonArray?.size ?: 0
@@ -92,7 +92,7 @@ class MarktguruProvider(
         return api to client
     }
 
-    private fun parse(root: JsonObject): ProviderResult {
+    private fun parse(root: JsonObject, week: OfferWeek = OfferWeek.CURRENT): ProviderResult {
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
         root["results"]?.jsonArray.orEmpty().forEachIndexed { index, raw ->
@@ -103,7 +103,7 @@ class MarktguruProvider(
                         ?.equals(advertiserUniqueName, ignoreCase = true) == true
                 }
             ) return@forEachIndexed
-            val validity = activeValidity(item) ?: return@forEachIndexed
+            val validity = activeValidity(item, week) ?: return@forEachIndexed
             val product = item["product"]?.jsonObject ?: item
             val name = text(product, "name", "title", "productName") ?: return@forEachIndexed
             val advertisedPrice = number(item, "price", "currentPrice", "regularPrice")
@@ -137,8 +137,8 @@ class MarktguruProvider(
     }
 
     /** Missing validity is retained for compatibility; explicit future or expired ranges are rejected. */
-    private fun activeValidity(item: JsonObject): Pair<String?, String?>? {
-        val rawRanges = item["validityDates"] ?: return null to null
+    private fun activeValidity(item: JsonObject, week: OfferWeek): Pair<String?, String?>? {
+        val rawRanges = item["validityDates"] ?: return if (week == OfferWeek.CURRENT) null to null else null
         val ranges = runCatching { rawRanges.jsonArray }.getOrNull() ?: return null
         val current = now().atZone(ZoneId.of("Europe/Berlin")).toLocalDate()
         val active = ranges.firstNotNullOfOrNull { raw ->
@@ -151,7 +151,10 @@ class MarktguruProvider(
             val until = runCatching { Instant.parse(untilText).atZone(ZoneId.of("Europe/Berlin")).toLocalDate() }
                 .getOrElse { runCatching { LocalDate.parse(untilText.take(10)) }.getOrNull() }
                 ?: return@firstNotNullOfOrNull null
-            if (current < from || current > until) return@firstNotNullOfOrNull null
+            val nextMonday = current.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).plusWeeks(1)
+            val selected = if (week == OfferWeek.NEXT) from < nextMonday.plusWeeks(1) && until >= nextMonday
+                else current >= from && current <= until
+            if (!selected) return@firstNotNullOfOrNull null
             from.toString() to until.toString()
         }
         return active

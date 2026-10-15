@@ -26,7 +26,13 @@ class NotifyError(ValueError):
 
 def normalize_url(value: str) -> str:
     url = str(value or "").strip()
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+        _ = parts.port
+    except ValueError:
+        raise NotifyError("Bitte eine gültige Benachrichtigungsadresse angeben.") from None
+    if any(ord(char) < 33 or ord(char) == 127 for char in url):
+        raise NotifyError("Die Adresse darf keine Leer- oder Steuerzeichen enthalten.")
     local = parts.hostname in {"localhost", "127.0.0.1", "::1"}
     if not parts.hostname or parts.username or parts.password or parts.fragment:
         raise NotifyError("Bitte eine Adresse ohne Zugangsdaten angeben, zum Beispiel https://ntfy.sh/mein-thema")
@@ -87,6 +93,7 @@ def send(title: str, text: str, url: str | None = None) -> None:
     target = url or load()
     if not target:
         raise NotifyError("Es ist keine Benachrichtigungsadresse eingerichtet.")
+    target = normalize_url(target)
     request = urllib.request.Request(target, data=text.encode("utf-8"), method="POST", headers={
         "Title": _header(title),
         "Content-Type": "text/plain; charset=utf-8",
@@ -95,6 +102,6 @@ def send(title: str, text: str, url: str | None = None) -> None:
         with _OPENER.open(request, timeout=15):
             return
     except urllib.error.HTTPError as exc:
-        raise NotifyError(f"Die Benachrichtigungsadresse antwortete mit HTTP {exc.code}.") from exc
-    except (urllib.error.URLError, OSError) as exc:
-        raise NotifyError("Die Benachrichtigungsadresse ist nicht erreichbar.") from exc
+        raise NotifyError(f"Die Benachrichtigungsadresse antwortete mit HTTP {exc.code}.") from None
+    except (urllib.error.URLError, OSError):
+        raise NotifyError("Die Benachrichtigungsadresse ist nicht erreichbar.") from None

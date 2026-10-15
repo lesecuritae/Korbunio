@@ -53,22 +53,41 @@ data class OfferEntity(
     @ColumnInfo(defaultValue = "'[]'")
     val loyaltyBenefitsJson: String = "[]",
     val cachedAt: Long,
+    val multiBuyQuantity: Int? = null,
+    val multiBuyTotalCents: Int? = null,
+    val singlePriceCents: Int? = null,
+    val packSize: String? = null,
+    val multiBuyCondition: String? = null,
+    val multiBuyMixGroup: String? = null,
 )
 
 @Entity(tableName = "shopping_lists")
 data class ShoppingListEntity(@PrimaryKey val id: String, val name: String, val updatedAt: Long)
 
-@Entity(tableName = "shopping_list_items", primaryKeys = ["listId", "productId"])
+@Entity(tableName = "shopping_list_items", primaryKeys = ["listId", "itemId"])
 data class ShoppingListItemEntity(
     val listId: String,
     val productId: String,
     val quantity: Int = 1,
     val checked: Boolean = false,
     val note: String = "",
+    val itemId: String = productId,
+    val retailerId: String? = null,
+    val offerId: String? = null,
 )
 
 @Entity(tableName = "favorites", primaryKeys = ["productId"])
-data class FavoriteEntity(val productId: String, val createdAt: Long)
+data class FavoriteEntity(
+    val productId: String,
+    val createdAt: Long,
+    @ColumnInfo(defaultValue = "''") val query: String = "",
+    @ColumnInfo(defaultValue = "'[]'") val preferredRetailerIdsJson: String = "[]",
+    val maxPriceCents: Int? = null,
+    @ColumnInfo(defaultValue = "1") val includeCurrentWeek: Boolean = true,
+    @ColumnInfo(defaultValue = "1") val includeNextWeek: Boolean = true,
+    @ColumnInfo(defaultValue = "0") val notificationsEnabled: Boolean = false,
+    @ColumnInfo(defaultValue = "''") val postalCode: String = "",
+)
 
 @Entity(tableName = "provider_cache")
 data class ProviderCacheEntity(

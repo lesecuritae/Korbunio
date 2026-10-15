@@ -193,7 +193,9 @@ class OfferComparator:
 
         groups: dict[str, list[Offer]] = defaultdict(list)
         for offer in prepared:
-            groups[offer.match_key].append(offer)
+            # Conditional bundles cannot win or hide an unconditional single-pack offer.
+            key = offer.match_key if offer.comparison_eligible and not offer.multi_buy_quantity else f"conditional:{id(offer)}"
+            groups[key].append(offer)
 
         visible: list[Offer] = []
         hidden_count = 0

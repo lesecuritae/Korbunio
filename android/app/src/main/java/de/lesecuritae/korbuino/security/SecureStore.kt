@@ -13,6 +13,17 @@ class SecureStore(context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )
 
+    fun loadNtfySettings() = de.lesecuritae.korbuino.notifications.NtfySettings(
+        get("ntfy_enabled") == "true", get("ntfy_topic_url").orEmpty(), get("ntfy_bearer_token").orEmpty(),
+    )
+
+    fun saveNtfySettings(settings: de.lesecuritae.korbuino.notifications.NtfySettings) {
+        prefs.edit().putBoolean("ntfy_configured", true)
+            .putString("ntfy_enabled", settings.enabled.toString())
+            .putString("ntfy_topic_url", settings.topicUrl.trim())
+            .putString("ntfy_bearer_token", settings.bearerToken.trim()).apply()
+    }
+
     fun get(key: String): String? = prefs.getString(key, null)
     fun put(key: String, value: String) = prefs.edit().putString(key, value).apply()
     fun remove(key: String) = prefs.edit().remove(key).apply()

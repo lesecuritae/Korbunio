@@ -120,7 +120,10 @@ def normalize_view(value: Any) -> str:
     return "all" if clean_text(value).casefold() in {"all", "alle", "comparison", "vergleich"} else "best_only"
 
 def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
-    query = clean_text(filter_text).casefold()
+    def spelling(value: str) -> str:
+        return re.sub(r"\bem[\s\-‐‑–]*eukal\b", "emeukal", value.casefold())
+
+    query = spelling(clean_text(filter_text))
     if not query:
         return list(offers)
     # Die Warengruppe zählt nicht zur Suche: Wer „Dessert“ sucht, will keine Fleischangebote, nur weil die
@@ -128,7 +131,7 @@ def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
     return [
         offer
         for offer in offers
-        if query in f"{offer.name} {offer.brand} {offer.description} {offer.retailer}".casefold()
+        if query in spelling(f"{offer.name} {offer.brand} {offer.description} {offer.retailer}")
     ]
 
 

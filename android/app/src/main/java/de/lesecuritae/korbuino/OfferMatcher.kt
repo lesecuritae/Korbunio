@@ -25,5 +25,6 @@ object OfferMatcher {
         Normalizer.normalize(value.lowercase().replace("ß", "ss"), Normalizer.Form.NFD)
             .replace("\\p{M}+".toRegex(), "")
             .replace("[^a-z0-9]+".toRegex(), " ")
+            .replace("\\bem\\s+eukal\\b".toRegex(), "emeukal")
             .trim()
 }

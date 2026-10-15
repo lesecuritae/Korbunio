@@ -1,0 +1,178 @@
+{
+  "offers": [
+    {
+      "offerId": "ART.882910_KAV.3693303",
+      "dateFrom": "2026-10-11",
+      "dateTo": "2026-10-17",
+      "title": "SNACK IT",
+      "subtitle": "Salamistangen ",
+      "price": 4,
+      "discount": 32,
+      "basePrice": "(1 kg = 12.50)",
+      "unit": "je 80-g-Packg.",
+      "detailDescription": "zum Snacken, Classic, Cheddar oder Chili",
+      "listImage": "https://kaufland.media.schwarz/is/image/schwarz/5908230539329_DE_P-1",
+      "listImageRenditions": {
+        "150": "JGstbGVnYWN5LW9uc2l0ZS0xJA==",
+        "322": "JGstbGVnYWN5LW9uc2l0ZS0yJA==",
+        "666": "JGstbGVnYWN5LW9uc2l0ZS0zJA=="
+      },
+      "detailImages": [
+        "https://kaufland.media.schwarz/is/image/schwarz/5908230539329_DE_P-1"
+      ],
+      "video": {},
+      "klNr": "20872523",
+      "salesFrom": "2026-10-12",
+      "salesTo": "2026-10-17",
+      "loyaltyDiscount": 0,
+      "bbyNo": "000003496272",
+      "bbyMessage": [
+        "4 Stück",
+        "entspr. pro Packg. 1.00"
+      ],
+      "country": "DE",
+      "label": "reducedPrice",
+      "bonusbuy": true,
+      "formattedBasePrice": "(1 kg = 12.50)",
+      "formattedOldPrice": "5.96",
+      "formattedPrice": "4.00"
+    },
+    {
+      "offerId": "ART.61801_KAV.3693303",
+      "dateFrom": "2026-10-11",
+      "dateTo": "2026-10-17",
+      "title": "BAUER",
+      "subtitle": "Der Große Bauer oder Yo&Go ",
+      "price": 0.49,
+      "discount": 50,
+      "basePrice": "(1 kg = 1.96 - 2.18)",
+      "unit": "je 225 - 250-g-Becher",
+      "detailTitle": "*Mit Kaufland Card",
+      "detailDescription": "Fruchtjoghurt, 3,5 % Fett im Milchanteil, oder Joghurt-Drink, versch. Sorten, gekühlt",
+      "listImage": "https://kaufland.media.schwarz/is/image/schwarz/00412320",
+      "listImageRenditions": {
+        "150": "JGstbGVnYWN5LW9uc2l0ZS0xJA==",
+        "322": "JGstbGVnYWN5LW9uc2l0ZS0yJA==",
+        "666": "JGstbGVnYWN5LW9uc2l0ZS0zJA=="
+      },
+      "detailImages": [
+        "https://kaufland.media.schwarz/is/image/schwarz/00412320"
+      ],
+      "video": {},
+      "klNr": "00412320",
+      "salesFrom": "2026-10-12",
+      "salesTo": "2026-10-17",
+      "loyaltyDiscount": 60,
+      "loyaltyBasePrice": "(1 kg = 1.56 - 1.74)",
+      "showPriceOnly": true,
+      "bbyNo": "000003584879",
+      "country": "DE",
+      "label": "euPriceQuotation",
+      "bonusbuy": true,
+      "formattedBasePrice": "(1 kg = 1.96 - 2.18)",
+      "formattedOldPrice": "0.99",
+      "formattedPrice": "0.49",
+      "loyaltyFormattedPrice": "0.39*",
+      "loyaltyFormattedBasePrice": "(1 kg = 1.56 - 1.74)*",
+      "loyaltyFormattedOldPrice": "0.99"
+    },
+    {
+      "offerId": "ART.734426_KAV.3693303",
+      "dateFrom": "2026-10-11",
+      "dateTo": "2026-10-17",
+      "title": "K-CLASSIC",
+      "subtitle": "Emmentaler am Stück 45 % Fett i. Tr.",
+      "price": 5,
+      "discount": 16,
+      "basePrice": "(1 kg = 6.25)",
+      "unit": "je 400-g-Packg.",
+      "detailDescription": "Hartkäse, am Stück, 45 % Fett i. Tr., gekühlt",
+      "listImage": "https://kaufland.media.schwarz/is/image/schwarz/DE00500740-P-4337185626104",
+      "listImageRenditions": {
+        "150": "JGstbGVnYWN5LW9uc2l0ZS0xJA==",
+        "322": "JGstbGVnYWN5LW9uc2l0ZS0yJA==",
+        "666": "JGstbGVnYWN5LW9uc2l0ZS0zJA=="
+      },
+      "detailImages": [
+        "https://kaufland.media.schwarz/is/image/schwarz/DE00500740-P-4337185626104"
+      ],
+      "video": {},
+      "klNr": "00500740",
+      "salesFrom": "2026-10-12",
+      "salesTo": "2026-10-17",
+      "loyaltyDiscount": 0,
+      "showPriceOnly": true,
+      "bbyNo": "000003484878",
+      "bbyMessage": [
+        "2 Stück",
+        "entspr. pro Packg. 2.50"
+      ],
+      "country": "DE",
+      "label": "euPriceQuotation",
+      "bonusbuy": true,
+      "formattedBasePrice": "(1 kg = 6.25)",
+      "formattedOldPrice": "5.98",
+      "formattedPrice": "5.00"
+    },
+    {
+      "offerId": "ART.483431_KAV.3693303",
+      "dateFrom": "2026-10-11",
+      "dateTo": "2026-10-17",
+      "title": "K-WINTER EDITION",
+      "subtitle": "Adventskalender ",
+      "price": 3,
+      "discount": 22,
+      "detailAction": "Aktion",
+      "basePrice": "(1 kg = 13.34)",
+      "unit": "je 75-g-Packg.",
+      "detailDescription": "kleine Vollmilchschokoladen, versch. Designs",
+      "listImage": "https://kaufland.media.schwarz/is/image/schwarz/01468850_P_658214",
+      "listImageRenditions": {
+        "150": "JGstbGVnYWN5LW9uc2l0ZS0xJA==",
+        "322": "JGstbGVnYWN5LW9uc2l0ZS0yJA==",
+        "666": "JGstbGVnYWN5LW9uc2l0ZS0zJA=="
+      },
+      "detailImages": [
+        "https://kaufland.media.schwarz/is/image/schwarz/01468850_P_658214"
+      ],
+      "video": {},
+      "klNr": "01468850",
+      "salesFrom": "2026-10-12",
+      "salesTo": "2026-10-17",
+      "loyaltyDiscount": 0,
+      "bbyNo": "000003485006",
+      "bbyMessage": [
+        "3 Stück",
+        "entspr. pro Stück 1.00"
+      ],
+      "country": "DE",
+      "label": "limitedSupply",
+      "bonusbuy": true,
+      "formattedBasePrice": "(1 kg = 13.34)",
+      "formattedOldPrice": "3.87",
+      "formattedPrice": "3.00"
+    }
+  ],
+  "availability": [
+    {
+      "dateFrom": "2026-10-12",
+      "dateTo": "2026-10-17",
+      "klNr": "20872523"
+    },
+    {
+      "dateFrom": "2026-10-12",
+      "dateTo": "2026-10-17",
+      "klNr": "00412320"
+    },
+    {
+      "dateFrom": "2026-10-12",
+      "dateTo": "2026-10-17",
+      "klNr": "00500740"
+    },
+    {
+      "dateFrom": "2026-10-12",
+      "dateTo": "2026-10-17",
+      "klNr": "01468850"
+    }
+  ]
+}
