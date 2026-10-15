@@ -18,7 +18,7 @@ The application changes and the future F-Droid metadata follow-up must remain se
 
 After application integration, record the full immutable application commit SHA below. Prepare a **new** build entry against that full SHA or a newly created, immutable version tag, with matching new versionName/versionCode. Keep the previous build entry and signing fingerprint. Do not publish a release as part of review preparation. A binary URL must refer to a newly produced artifact for that new version; a previous successful pipeline cannot be reused as its verification.
 
-Application commit: **PENDING parent integration**
+Application commit: `8b5f224df2830dccde83484b80a82221211803e6`
 
 Reviewable recipe template (placeholders deliberately make this unsuitable for submission):
 
@@ -44,7 +44,7 @@ Reviewable recipe template (placeholders deliberately make this unsuitable for s
 
 Thank you for reviewing Korbuino. The English description now states explicitly: “The app interface is currently German only.” It also discloses that offer notifications are optional, require a topic chosen by the user on a public or self-hosted ntfy server, and do not require a central Korbuino account.
 
-The follow-up application changes will be linked at `https://github.com/lesecuritae/Korbunio/commit/<FULL_NEW_SHA>` after integration. The F-Droid recipe will pin that new immutable source revision in a separate patch. The previous 0.1.59 tag and its historical artifacts remain untouched. The standard and F-Droid product flavors retain their existing separation; no proprietary notification dependency has been introduced by the application changes.
+The follow-up application changes will be linked at [application commit](https://github.com/lesecuritae/Korbunio/commit/8b5f224df2830dccde83484b80a82221211803e6) after integration. The F-Droid recipe will pin that new immutable source revision in a separate patch. The previous 0.1.59 tag and its historical artifacts remain untouched. The standard and F-Droid product flavors retain their existing separation; no proprietary notification dependency has been introduced by the application changes.
 
 The earlier successful pipeline 2925446190 (job 17022680666) tested source c0cbcc4 / 0.1.59. Verification of this follow-up is listed separately below. This reply is a draft and has not been posted.
 
@@ -88,3 +88,10 @@ for unexpected tracking/font/icon/connectivity requests using the capture,
 rather than inferring their absence from source code. Review APK permissions;
 no MANAGE_EXTERNAL_STORAGE or POST_NOTIFICATIONS was introduced.
 A software AOSP emulator result is not a physical-device or PCAPdroid result.
+
+
+Exact language disclosure: [English description at the pinned source](https://github.com/lesecuritae/Korbunio/blob/8b5f224df2830dccde83484b80a82221211803e6/fastlane/metadata/android/en-US/full_description.txt).
+The prepared recipe patch pins `8b5f224df2830dccde83484b80a82221211803e6` as its application review target. If a
+future authorized release uses another immutable source commit, update the new
+recipe entry and produce its matching new reference APK; never move an existing
+release tag or replace historical artifacts.

@@ -10,11 +10,11 @@ with the reviewed immutable application commit carrying the language notice.
  License: BSD-3-Clause
 @@ -20,2 +21,19 @@
  Builds:
-+  # DRAFT: replace commit below with final immutable application SHA after review.
++  # DRAFT: pinned application source for review; retain the publication gate below.
 +  # Do not submit until fdroid-v0.1.61 and its new signed reference APK exist.
 +  - versionName: 0.1.61
 +    versionCode: 61
-+    commit: REPLACE_WITH_REVIEWED_APPLICATION_COMMIT
++    commit: 8b5f224df2830dccde83484b80a82221211803e6
 +    subdir: android/app
 +    gradle:
 +      - fdroid
