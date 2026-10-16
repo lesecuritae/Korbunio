@@ -64,7 +64,8 @@ Builds:
       - fdroidOnly=true
       - org.gradle.workers.max=2
 
-AllowedAPKSigningKeys: 02302c699db0156825b85cf1748a4648941b2b47a58c0177aafdd037d77e53e8
+AllowedAPKSigningKeys:
+  - 02302c699db0156825b85cf1748a4648941b2b47a58c0177aafdd037d77e53e8
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags fdroid-v[0-9]+\.[0-9]+\.[0-9]+
