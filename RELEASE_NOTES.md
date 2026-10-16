@@ -1,3 +1,16 @@
+# 0.1.62
+
+- Produktbilder in der nativen Einkaufsliste und bei den aufgeklappten
+  Angebotsalternativen helfen, die konkrete Packung zu erkennen (#60).
+- Ausgewählte Angebote behalten ihr Bild auch nach dem Abhaken. Bei manuellen
+  Wünschen und fehlenden Bildern gibt es einen Platzhalter; Bilder ähnlicher
+  Produkte werden nicht ungefragt übernommen.
+- Suchergebnisse und Einkaufsliste verwenden denselben begrenzten Bildcache.
+  Keine neue Bildbibliothek, kein Serverzwang und keine Datenbankmigration.
+- Die bereits begrenzten parallelen Händlerabrufe und die Absicherung gegen
+  fehlerhafte Bilder bleiben erhalten (#47). Händlergruppen, Mengen,
+  Preisregeln, Favoriten und optionale ntfy-Meldungen aus 0.1.61 bleiben erhalten (#58).
+
 # 0.1.61
 
 - Native Einkaufsliste scrollt auch mit langen Listen und aufgeklappten Treffern.

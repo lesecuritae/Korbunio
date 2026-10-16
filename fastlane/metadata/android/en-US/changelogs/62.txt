@@ -1,0 +1,1 @@
+Product pictures in the shopping list and its offer alternatives. Missing pictures show a placeholder; existing image caching is reused. Retailer groups, quantities, favourites and optional notifications remain available. The app interface is currently German only.

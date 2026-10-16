@@ -100,7 +100,20 @@ internal fun ShoppingListContent(
                     val position = positions[row.itemId]
                     Surface(tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth().testTag("shopping-item:${row.itemId}")) {
                         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(row.name, style = MaterialTheme.typography.titleMedium)
+                            // Only show the assigned pack, never an arbitrary similar search result.
+                            val picturedOffer = position?.chosenOffer ?: row.offerId?.let { id ->
+                                state.offers.firstOrNull { it.offer.id == id &&
+                                    (row.retailerId == null || it.offer.retailerId == row.retailerId) }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                OfferThumbnail(
+                                    picturedOffer?.imagePath, picturedOffer?.imageUrl,
+                                    picturedOffer?.offer?.sourceUrl.orEmpty(),
+                                    modifier = Modifier.testTag("shopping-image:${row.itemId}"),
+                                    contentDescription = picturedOffer?.let { "Produktbild: ${it.productName}" },
+                                )
+                                Text(row.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            }
                             Text("Menge: ${row.quantity} Packung(en)")
                             Row {
                                 TextButton(onClick = { actions.quantity(row, row.quantity - 1) }, enabled = row.quantity > 1) { Text("−") }
@@ -136,9 +149,18 @@ internal fun ShoppingListContent(
                                 if (matches.isEmpty()) Text("Aktuell in keinem geladenen Angebot.")
                                 matches.take(8).forEach { display ->
                                     val future = display.offer.validFrom?.let { runCatching { LocalDate.parse(it.take(10)) > today }.getOrDefault(true) } ?: false
-                                    Text("${retailerNames[display.offer.retailerId] ?: display.offer.retailerId}: ${display.productName} · ${offerPriceLabel(display, state.selectedLoyaltyPrograms)}")
-                                    if (future) Text("Zukünftig ab ${display.offer.validFrom}; nicht im heutigen Gesamtpreis.")
-                                    else TextButton(onClick = { actions.choose(row, display) }) { Text("Dieses Angebot auswählen") }
+                                    key(display.offer.id) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            OfferThumbnail(display.imagePath, display.imageUrl, display.offer.sourceUrl,
+                                                modifier = Modifier.testTag("shopping-match-image:${row.itemId}:${display.offer.id}"),
+                                                contentDescription = "Produktbild: ${display.productName}")
+                                            Column(Modifier.weight(1f)) {
+                                                Text("${retailerNames[display.offer.retailerId] ?: display.offer.retailerId}: ${display.productName} · ${offerPriceLabel(display, state.selectedLoyaltyPrograms)}")
+                                                if (future) Text("Zukünftig ab ${display.offer.validFrom}; nicht im heutigen Gesamtpreis.")
+                                                else TextButton(onClick = { actions.choose(row, display) }) { Text("Dieses Angebot auswählen") }
+                                            }
+                                        }
+                                    }
                                 }
                                 if (matches.size > 8) Text("${matches.size - 8} weitere Treffer in der Angebotssuche.")
                                 if (row.offerId != null) TextButton(onClick = { actions.choose(row, null) }) { Text("Zuordnung aufheben") }

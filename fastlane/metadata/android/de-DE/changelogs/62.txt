@@ -1,0 +1,1 @@
+Produktbilder in der Einkaufsliste und bei Angebotsalternativen. Platzhalter statt falscher oder fehlender Bilder; vorhandener Cache wird wiederverwendet. Händlergruppen, Mengen, Favoriten und optionale Meldungen bleiben erhalten.

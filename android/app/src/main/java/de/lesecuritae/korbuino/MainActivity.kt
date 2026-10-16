@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.Image
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -59,9 +58,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.unit.dp
@@ -70,7 +66,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.lifecycleScope
@@ -718,27 +713,4 @@ internal fun ShoppingListOverview(state: MainUiState, viewModel: MainViewModel) 
         checked = viewModel::shoppingChecked, choose = viewModel::selectShoppingOffer,
         favorite = { viewModel.saveFavorite(it, emptySet(), null, true, true, false) },
     ))
-}
-
-@Composable
-private fun OfferThumbnail(path: String?, url: String?, referer: String) {
-    val context = LocalContext.current.applicationContext
-    val cache = remember(context) { de.lesecuritae.korbuino.images.ImageCache.shared(context) }
-    val bitmapState = remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    LaunchedEffect(path, url, referer) {
-        bitmapState.value = null
-        bitmapState.value = cache.thumbnail(path, url, referer)
-    }
-    val bitmap = bitmapState.value
-    Box(
-        modifier = Modifier.size(68.dp).background(MaterialTheme.colorScheme.background, RoundedCornerShape(10.dp)),
-        contentAlignment = androidx.compose.ui.Alignment.Center,
-    ) {
-        if (bitmap != null) Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.size(62.dp).padding(3.dp),
-        ) else Text("🛒", style = MaterialTheme.typography.titleLarge)
-    }
 }
