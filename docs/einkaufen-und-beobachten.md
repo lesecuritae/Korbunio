@@ -1,10 +1,12 @@
 # Einkaufen und Angebote beobachten
 
-Die Oberfläche ist derzeit deutsch. Diese Anleitung beschreibt die für #58 vorbereiteten Änderungen. Der Stand ist noch keine veröffentlichte Version und keine Geräteabnahme.
+Die Oberfläche ist derzeit deutsch. Einkaufsliste, Favoriten und optionale Meldungen sind seit 0.1.61 enthalten. Automatisierte Prüfungen ersetzen keine Abnahme auf jedem physischen Gerät.
 
 ## Einkaufsliste
 
 Im Tab **Einkaufen** lässt sich die Liste bis zum letzten Eintrag scrollen. Positionen sind nach Händler gruppiert; ohne Händler erscheinen sie in einer eigenen Gruppe. Ein Eintrag enthält Produkt, Packung, Menge, bekannten Angebots- und Grundpreis sowie seine Preisbedingungen. Gleiche Produkte aus verschiedenen Händlerangeboten bleiben als eigene Positionen erhalten.
+
+Ab 0.1.62 zeigt die Liste das Produktbild des zugeordneten Angebots und eigene Bilder bei den aufgeklappten Treffern. So lassen sich etwa Käsechips und ein Stück Käse besser unterscheiden. Manuelle Produktwünsche erhalten erst nach einer konkreten Zuordnung deren Bild; ein ähnlich benannter Treffer wird nicht automatisch übernommen. Fehlt ein Bild oder ist es offline nicht im Cache, erscheint ein Einkaufswagen. Bereits geladene Bilder verwenden denselben lokalen Cache wie die Ergebnisliste.
 
 Ändere die Menge an der jeweiligen Position. Fehlende Preise bleiben unbekannt; die angezeigte bekannte Teilsumme schließt diese Positionen nicht als kostenlose Artikel ein. Pfand und Warenwert werden getrennt ausgewiesen. Ein gespeichertes Angebot kann abgelaufen sein; seine Gültigkeit und sein Preisstand helfen, das zu erkennen. Prüfe den aktuellen Preis beim Händler.
 
