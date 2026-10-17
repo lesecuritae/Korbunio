@@ -51,7 +51,10 @@ fallback when the public HTML page exposes only a short subset.
 The overview includes an `Alle Händler` selector, individual retailer filters
 and stable retailer/product sorting to match the Docker result flow.
 The optional self-hosted server and KitchenOwl connections are managed from
-the gear icon in the home and offers screens.
+the gear icon in the home and offers screens. KitchenOwl supports username/email
+and password (exchanged for an encrypted long-lived token), or a manually supplied
+token for SSO-only accounts. Hosted and self-hosted instances use the same direct
+HTTPS connection. See [KitchenOwl setup](kitchenowl-login.md).
 
 ## Prices, loyalty programmes, and product images
 

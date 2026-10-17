@@ -6,6 +6,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.contentOrNull
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -13,24 +15,32 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 data class KitchenOwlTarget(val id: String, val label: String, val householdId: String)
 
-/** Direct, optional KitchenOwl API access. The token never enters Korbuino. */
+/** Direct, optional KitchenOwl API access; credentials stay on the Android device. */
 class KitchenOwlClient(
     private val baseUrl: String,
     private val token: String,
     private val http: OkHttpClient = OkHttpClient(),
 ) {
+    // Do not forward credentials or replay login POSTs through redirects.
+    private val transport = http.newBuilder().followRedirects(false).followSslRedirects(false)
+        .retryOnConnectionFailure(false).callTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build()
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
-    private fun checkSecure() {
-        check(baseUrl.startsWith("https://")) { "KitchenOwl benötigt HTTPS" }
-        check(token.isNotBlank()) { "KitchenOwl-Token fehlt" }
+    private fun checkedBase(): String {
+        val url = baseUrl.trim().toHttpUrlOrNull()
+        check(url != null && url.isHttps) { "KitchenOwl benötigt eine gültige HTTPS-Adresse" }
+        check(url.username.isEmpty() && url.password.isEmpty() && url.query == null && url.fragment == null) {
+            "KitchenOwl-Adresse ohne Zugangsdaten, Suchparameter oder Fragment eingeben"
+        }
+        return url.toString().trimEnd('/').removeSuffix("/api")
     }
 
-    private fun call(path: String, body: JsonObject? = null, method: String = if (body != null) "POST" else "GET"): JsonElement {
-        checkSecure()
-        val request = Request.Builder().url(baseUrl.trimEnd('/') + path)
-            .header("Authorization", "Bearer $token")
+    private fun call(path: String, body: JsonObject? = null, method: String = if (body != null) "POST" else "GET", authenticated: Boolean = true): JsonElement {
+        val base = checkedBase()
+        if (authenticated) check(token.isNotBlank()) { "KitchenOwl-Token fehlt" }
+        val request = Request.Builder().url(base + path)
+            .apply { if (authenticated) header("Authorization", "Bearer $token") }
             .header("Accept", "application/json")
             .apply {
                 val payload = body?.let { json.encodeToString(JsonObject.serializer(), it).toRequestBody(mediaType) }
@@ -40,9 +50,40 @@ class KitchenOwlClient(
                 }
             }
             .build()
-        http.newCall(request).execute().use { response ->
-            check(response.isSuccessful) { "KitchenOwl HTTP ${response.code}" }
-            return json.parseToJsonElement(response.body?.string().orEmpty())
+        transport.newCall(request).execute().use { response ->
+            check(response.isSuccessful) {
+                when (response.code) {
+                    401, 403 -> "KitchenOwl-Anmeldung abgelehnt. Zugangsdaten oder Token prüfen."
+                    404 -> "KitchenOwl-Funktion nicht verfügbar. Adresse prüfen; bei reinem SSO einen Token verwenden."
+                    else -> "KitchenOwl HTTP ${response.code}"
+                }
+            }
+            // Never echo a server response containing credentials into the UI or diagnostics.
+            return try { json.parseToJsonElement(response.body?.string().orEmpty()) }
+            catch (_: IllegalArgumentException) { error("Ungültige KitchenOwl-Antwort") }
+        }
+    }
+
+    companion object {
+        /** Exchange a password for a revocable, device-specific long-lived token. Never persist the password. */
+        fun login(baseUrl: String, username: String, password: String, http: OkHttpClient = OkHttpClient()): String {
+            require(username.isNotBlank() && password.isNotEmpty()) { "Benutzername und Passwort eingeben" }
+            val login = KitchenOwlClient(baseUrl, "", http).call("/api/auth", buildJsonObject {
+                put("username", username.trim())
+                put("password", password)
+                put("device", "Korbuino Android")
+            }, authenticated = false) as? JsonObject ?: error("Ungültige KitchenOwl-Anmeldung")
+            val access = (login["access_token"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                ?.takeIf(String::isNotBlank) ?: error("KitchenOwl-Zugangstoken fehlt")
+            val client = KitchenOwlClient(baseUrl, access, http)
+            try {
+                val response = client.call("/api/auth/llt", buildJsonObject { put("device", "Korbuino Android") }) as? JsonObject
+                return (response?.get("longlived_token") as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+                    ?.takeIf(String::isNotBlank) ?: error("Dauerhafter KitchenOwl-Token fehlt")
+            } finally {
+                // Revoke the temporary login session, independently of the new long-lived token.
+                runCatching { client.call("/api/auth", method = "DELETE") }
+            }
         }
     }
 

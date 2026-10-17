@@ -388,7 +388,7 @@ Korbuino erfindet keine fehlenden Preise und schätzt keine unbekannten Bonusvor
 
 Der Bereich **Einkauf** speichert die persönliche Liste ausschließlich im IndexedDB-Speicher des jeweiligen Browserprofils. Es gibt keine Konten, serverseitigen persönlichen Listen, Tracker oder automatische Gerätesynchronisation. Angebote und manuelle Artikel lassen sich hinzufügen, bearbeiten, abhaken und nach Händler gruppieren. Warenwert und Pfand werden getrennt berechnet; fehlen Preise, zeigt Korbuino nur die bekannte Gesamtsumme.
 
-Für die allgemeine Geräteübergabe stehen Textkopie, Web Share, TXT sowie ein versioniertes JSON-Backup mit lokaler Importvorschau bereit. Korbuino enthält keine app-spezifische Bring- oder KitchenOwl-Verbindung.
+Für die allgemeine Geräteübergabe stehen Textkopie, Web Share, TXT sowie ein versioniertes JSON-Backup mit lokaler Importvorschau bereit. Die Browseroberfläche enthält keine app-spezifische Bring-Verbindung. Die native Android-App bietet zusätzlich die unten beschriebene direkte KitchenOwl-Anbindung.
 
 ## Roadmap
 
@@ -413,3 +413,8 @@ Der Quellcode steht unter der [BSD-3-Clause-Lizenz](LICENSE).
 Copyright © 2026 lesecuritae für Tarnkappe.info.
 
 Korbuino ist unabhängig und steht in keiner Verbindung zu den genannten Händlern oder Bonusprogrammen. Marken-, Händler- und Produktnamen gehören den jeweiligen Rechteinhabern.
+
+
+## KitchenOwl (native Android)
+
+Die native Android-App unterstützt KitchenOwl direkt mit Benutzername/E-Mail und Passwort oder mit einem bestehenden Token. Offizieller Dienst, AdminForge und eigene Instanzen sind über ihre HTTPS-Adresse wählbar; SSO-Konten können einen KitchenOwl-Token verwenden. [Einrichtung und Sicherheit](docs/kitchenowl-login.md).

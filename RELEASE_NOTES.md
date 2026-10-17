@@ -1,3 +1,11 @@
+# Unreleased
+
+- Native Android-App: KitchenOwl lässt sich mit Benutzername/E-Mail und Passwort
+  verbinden. Der dauerhafte Token wird verschlüsselt gespeichert, das Passwort
+  nicht. Die Token-Anmeldung bleibt für bestehende und reine SSO-Konten erhalten.
+- Frei wählbare HTTPS-Instanz: offizieller Dienst, AdminForge oder eigener Server.
+  Keine zusätzliche Server-, MCP- oder proprietäre Abhängigkeit.
+
 # 0.1.62
 
 - Produktbilder in der nativen Einkaufsliste und bei den aufgeklappten

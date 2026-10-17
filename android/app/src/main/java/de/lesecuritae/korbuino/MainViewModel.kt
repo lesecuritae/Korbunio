@@ -63,6 +63,7 @@ data class MainUiState(
     val emptyRetailers: Set<String> = emptySet(),
     val emptyRetailersPostal: String = "",
     val kitchenOwlUrl: String = "",
+    val kitchenConnecting: Boolean = false,
     val kitchenTargets: List<KitchenOwlTarget> = emptyList(),
     val update: UpdateInfo? = null,
     val dailySync: Boolean = false,
@@ -346,17 +347,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun connectKitchenOwl(url: String, token: String) {
+    fun connectKitchenOwl(url: String, token: String) = connectKitchenOwlWith(url) { token.trim() }
+
+    fun loginKitchenOwl(url: String, username: String, password: String) = connectKitchenOwlWith(url) {
+        KitchenOwlClient.login(url.trim(), username, password)
+    }
+
+    private fun connectKitchenOwlWith(url: String, getToken: () -> String) {
+        if (_state.value.kitchenConnecting) return
+        _state.value = _state.value.copy(kitchenConnecting = true, message = "KitchenOwl wird geprüft …")
         viewModelScope.launch {
-            _state.value = _state.value.copy(message = "KitchenOwl wird geprüft …")
             runCatching {
-                val targets = withContext(Dispatchers.IO) { KitchenOwlClient(url.trim(), token.trim()).targets() }
+                val (token, targets) = withContext(Dispatchers.IO) {
+                    val token = getToken()
+                    token to KitchenOwlClient(url.trim(), token).targets()
+                }
                 secureStore.put("kitchenowl_url", url.trim())
-                secureStore.put("kitchenowl_token", token.trim())
+                secureStore.put("kitchenowl_token", token)
                 targets
             }.onSuccess { targets ->
                 _state.value = _state.value.copy(kitchenOwlUrl = url.trim(), kitchenTargets = targets, message = "${targets.size} KitchenOwl-Liste(n) verbunden")
             }.onFailure { error -> _state.value = _state.value.copy(message = "KitchenOwl: ${error.message}") }
+            _state.value = _state.value.copy(kitchenConnecting = false)
         }
     }
 
