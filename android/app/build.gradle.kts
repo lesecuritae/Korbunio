@@ -16,8 +16,8 @@ android {
         applicationId = "de.korbunio.korbunio_app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 62
-        versionName = "0.1.62"
+        versionCode = 63
+        versionName = "0.1.63"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
