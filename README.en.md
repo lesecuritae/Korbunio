@@ -376,7 +376,7 @@ Korbuino does not invent missing prices or estimate unknown loyalty benefits. Co
 
 The **Einkauf** area stores the personal list exclusively in IndexedDB in the current browser profile. There are no accounts, server-side personal lists, trackers, or automatic device synchronisation. Offers and manual items can be added, edited, checked, and grouped by retailer. Goods and deposits are calculated separately; when prices are missing, Korbuino shows only the known total.
 
-General transfer options include text copy, Web Share, TXT, and a versioned JSON backup with a local import preview. Korbuino has no app-specific Bring or KitchenOwl connection.
+General transfer options include text copy, Web Share, TXT, and a versioned JSON backup with a local import preview. The browser UI has no app-specific Bring connection. The native Android app additionally provides the direct KitchenOwl integration described below.
 
 ## Roadmap
 
@@ -401,3 +401,8 @@ The source code is available under the [BSD 3-Clause License](LICENSE).
 Copyright © 2026 lesecuritae for Tarnkappe.info.
 
 Korbuino is independent and is not affiliated with any retailer or loyalty program mentioned. Brand, retailer, and product names belong to their respective owners.
+
+
+## KitchenOwl (native Android)
+
+The native Android app connects directly to KitchenOwl with username/email and password or an existing token. Choose the HTTPS URL of the official service, AdminForge or your own instance; SSO-only accounts can use a KitchenOwl token. [Setup and security](docs/kitchenowl-login.md).

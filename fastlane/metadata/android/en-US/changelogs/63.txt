@@ -1,0 +1,1 @@
+Connect KitchenOwl using username/email and password. Long-lived tokens are stored encrypted; passwords are never saved. Supports the official service, AdminForge and custom HTTPS instances. Existing token login remains available for SSO-only accounts.

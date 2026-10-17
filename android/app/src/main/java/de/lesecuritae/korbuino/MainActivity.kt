@@ -62,6 +62,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -341,6 +343,9 @@ private fun AppSettings(
     onBack: () -> Unit,
 ) {
     var kitchenToken by remember { mutableStateOf("") }
+    var kitchenUsername by remember { mutableStateOf("") }
+    var kitchenPassword by remember { mutableStateOf("") }
+    var kitchenPasswordLogin by rememberSaveable { mutableStateOf(true) }
     Column(
         modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -378,17 +383,41 @@ private fun AppSettings(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = kitchenToken,
-                onValueChange = { kitchenToken = it },
-                label = { Text("Token") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Button(onClick = { viewModel.connectKitchenOwl(state.kitchenOwlUrl, kitchenToken) }) { Text("Verbinden") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = kitchenPasswordLogin, onClick = { kitchenPasswordLogin = true; kitchenToken = "" }, label = { Text("Benutzerkonto") })
+            FilterChip(selected = !kitchenPasswordLogin, onClick = { kitchenPasswordLogin = false; kitchenPassword = "" }, label = { Text("Token") })
         }
+        if (kitchenPasswordLogin) {
+            OutlinedTextField(
+                value = kitchenUsername, onValueChange = { kitchenUsername = it },
+                label = { Text("KitchenOwl-Benutzername oder E-Mail") }, singleLine = true,
+                enabled = !state.kitchenConnecting, modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = kitchenPassword, onValueChange = { kitchenPassword = it },
+                label = { Text("KitchenOwl-Passwort") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = PasswordVisualTransformation(),
+                enabled = !state.kitchenConnecting, modifier = Modifier.fillMaxWidth(),
+            )
+            Text("Das Passwort wird nicht gespeichert. Ein dauerhafter Zugangstoken wird verschlüsselt auf diesem Gerät abgelegt. Bei reinem SSO bitte einen Token verwenden.")
+        } else {
+            OutlinedTextField(
+                value = kitchenToken, onValueChange = { kitchenToken = it },
+                label = { Text("KitchenOwl-Token") }, visualTransformation = PasswordVisualTransformation(),
+                singleLine = true, enabled = !state.kitchenConnecting, modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Button(
+            enabled = !state.kitchenConnecting && state.kitchenOwlUrl.isNotBlank() &&
+                (if (kitchenPasswordLogin) kitchenUsername.isNotBlank() && kitchenPassword.isNotEmpty() else kitchenToken.isNotBlank()),
+            onClick = {
+                if (kitchenPasswordLogin) viewModel.loginKitchenOwl(state.kitchenOwlUrl, kitchenUsername, kitchenPassword)
+                else viewModel.connectKitchenOwl(state.kitchenOwlUrl, kitchenToken)
+                kitchenPassword = ""
+                kitchenToken = ""
+            },
+        ) { Text(if (state.kitchenConnecting) "Verbinde …" else "Verbinden") }
         state.kitchenTargets.forEach { target ->
             Button(onClick = { viewModel.syncKitchenOwl(target) }) { Text("Zu ${target.label} übertragen") }
         }

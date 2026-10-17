@@ -1,0 +1,1 @@
+KitchenOwl direkt mit Benutzername/E-Mail und Passwort verbinden. Dauerhafte Zugangstokens werden verschlüsselt gespeichert, Passwörter nicht. Offizieller Dienst, AdminForge und eigene HTTPS-Instanzen werden unterstützt; die Token-Option für SSO-Konten bleibt erhalten.

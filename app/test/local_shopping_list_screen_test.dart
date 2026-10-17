@@ -91,6 +91,14 @@ Future<void> _pump(
   await _settle(tester);
 }
 
+// Tooltips can temporarily outlive a removed row in an overlay (e.g. after a
+// synthetic touch/hover on small displays). Assert and tap the actual controls;
+// the persistent-store assertions below still verify that removal succeeded.
+Finder get _removeButtons => find.byWidgetPredicate(
+  (widget) => widget is IconButton && widget.tooltip == 'Entfernen',
+  description: 'shopping-list remove IconButton',
+);
+
 void main() {
   setUpAll(_loadRealFonts);
 
@@ -115,7 +123,7 @@ void main() {
       expect(find.text('REWE'), findsWidgets);
       expect(find.text('Lidl'), findsWidgets);
       // Every entry has a reachable delete control.
-      expect(find.byTooltip('Entfernen'), findsNWidgets(2));
+      expect(_removeButtons, findsNWidgets(2));
     });
 
     testWidgets('an entry can be deleted at ${scenario.name}', (tester) async {
@@ -127,12 +135,12 @@ void main() {
         textScale: scenario.scale,
       );
 
-      await tester.ensureVisible(find.byTooltip('Entfernen').first);
-      await tester.tap(find.byTooltip('Entfernen').first);
+      await tester.ensureVisible(_removeButtons.first);
+      await tester.tap(_removeButtons.first);
       await _settle(tester);
 
       expect(tester.takeException(), isNull);
-      expect(find.byTooltip('Entfernen'), findsOneWidget);
+      expect(_removeButtons, findsOneWidget);
       final remaining = await tester.runAsync(store.loadEntries);
       expect(remaining, hasLength(1));
     });
@@ -156,14 +164,14 @@ void main() {
     final store = await _store(tester);
     await _pump(tester, store);
 
-    await tester.tap(find.byTooltip('Entfernen').first);
+    await tester.tap(_removeButtons.first);
     await _settle(tester);
     expect(find.text('Rückgängig'), findsOneWidget);
 
     await tester.tap(find.text('Rückgängig'));
     await _settle(tester);
 
-    expect(find.byTooltip('Entfernen'), findsNWidgets(2));
+    expect(_removeButtons, findsNWidgets(2));
     expect(await tester.runAsync(store.loadEntries), hasLength(2));
   });
 }
