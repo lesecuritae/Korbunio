@@ -105,7 +105,9 @@ class MarktguruProvider(
             ) return@forEachIndexed
             val validity = activeValidity(item, week) ?: return@forEachIndexed
             val product = item["product"]?.jsonObject ?: item
-            val name = text(product, "name", "title", "productName") ?: return@forEachIndexed
+            val rawName = text(product, "name", "title", "productName") ?: return@forEachIndexed
+            val brand = item["brand"]?.let { runCatching { text(it.jsonObject, "name") }.getOrNull() }.orEmpty()
+            val name = if (brand.isBlank() || rawName.contains(brand, ignoreCase = true)) rawName else "$brand $rawName"
             val advertisedPrice = number(item, "price", "currentPrice", "regularPrice")
                 ?: number(product, "price", "currentPrice") ?: return@forEachIndexed
             val pricing = pricing(item, advertisedPrice)
@@ -115,7 +117,7 @@ class MarktguruProvider(
             val loyalty = pricing.loyalty
             // REWE Bonus steht bei Marktguru als „MIT APP 0.20 € REWE BONUS“ in der Beschreibung: Guthaben, kein Preis.
             val cashback = if (loyalty == null) reweBonusCents(text(item, "description").orEmpty()) else null
-            products += ProductEntity(productId, name, normalizedKey = slug(name))
+            products += ProductEntity(productId, name, brand = brand, normalizedKey = slug(name))
             offers += OfferEntity(
                 id = "$id:$external", retailerId = id, productId = productId,
                 externalId = external,
@@ -136,7 +138,7 @@ class MarktguruProvider(
         return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
     }
 
-    /** Missing validity is retained for compatibility; explicit future or expired ranges are rejected. */
+    /** Keep published previews later this week with their real dates; reject expired and other weeks. */
     private fun activeValidity(item: JsonObject, week: OfferWeek): Pair<String?, String?>? {
         val rawRanges = item["validityDates"] ?: return if (week == OfferWeek.CURRENT) null to null else null
         val ranges = runCatching { rawRanges.jsonArray }.getOrNull() ?: return null
@@ -153,7 +155,7 @@ class MarktguruProvider(
                 ?: return@firstNotNullOfOrNull null
             val nextMonday = current.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).plusWeeks(1)
             val selected = if (week == OfferWeek.NEXT) from < nextMonday.plusWeeks(1) && until >= nextMonday
-                else current >= from && current <= until
+                else from < nextMonday && until >= current && from <= until
             if (!selected) return@firstNotNullOfOrNull null
             from.toString() to until.toString()
         }

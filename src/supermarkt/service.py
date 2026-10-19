@@ -567,9 +567,9 @@ class SourceLoader:
         }
 
 class SupermarketEngine:
-    # v11 separates offer weeks and invalidates snapshots with old ALDI brand
-    # and multipack-deposit semantics.
-    SNAPSHOT_SCHEMA = 11
+    # v12 includes published offers starting later in the selected week.
+    # Old snapshots already discarded those rows and must be fetched again.
+    SNAPSHOT_SCHEMA = 12
     def __init__(self) -> None:
         self.store = PersistentSnapshotStore(CACHE_DB, CACHE_TTL_MINUTES, RESULT_RETENTION_HOURS, CACHE_MAX_SNAPSHOTS)
         self.loader = SourceLoader()

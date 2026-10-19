@@ -1,3 +1,13 @@
+# 0.1.64
+
+- Bereits veröffentlichte Angebote späterer Wochentage erscheinen jetzt in der
+  aktuellen Woche, etwa Lidl-Aktionen ab Donnerstag. Abgelaufene Angebote und
+  Angebote der Folgewoche bleiben getrennt; die tatsächlichen Gültigkeitsdaten
+  werden beibehalten.
+- Korrektur im Docker-/MCP-Server und im direkten Android-Händleradapter.
+  Marken wie Coca-Cola bleiben bei der nativen Suche erhalten. Die App übernimmt
+  auch im Servermodus die Gültigkeitsdaten für die Trennung vom heutigen Einkauf.
+
 # 0.1.63
 
 - Native Android-App: KitchenOwl lässt sich mit Benutzername/E-Mail und Passwort

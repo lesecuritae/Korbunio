@@ -221,4 +221,29 @@ class MarktguruProviderTest {
         assertEquals(listOf("famila Brot"), result.products.map { it.name })
         assertEquals(149, result.offers.single().priceCents)
     }
+    @Test fun `Lidl Thursday Coca-Cola preview keeps brand price and Berlin dates`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        server.enqueue(MockResponse().setBody("""
+            {"results":[
+              {"id":"thursday","advertisers":[{"uniqueName":"lidl"}],
+               "brand":{"name":"Coca-Cola"},"product":{"name":"Cola"},"price":3.99,
+               "description":"6x0.33l 1.98l +1.50 Pfand, Standardpackung 0.33l",
+               "validityDates":[{"from":"2026-10-21T22:00:00Z","to":"2026-10-24T21:59:00Z"}]},
+              {"id":"expired","product":{"name":"Gestern"},"price":1.0,
+               "validityDates":[{"from":"2026-10-19","to":"2026-10-19"}]},
+              {"id":"next-week","product":{"name":"Folgewoche"},"price":0.99,
+               "validityDates":[{"from":"2026-10-25T23:00:00Z","to":"2026-10-31T22:59:00Z"}]}
+            ]}
+        """))
+        val result = MarktguruProvider(
+            "Lidl", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString(),
+            now = { Instant.parse("2026-10-20T10:00:00Z") },
+        ).fetch(RetailerRequest("26122"))
+        assertEquals("Coca-Cola Cola", result.products.single().name)
+        assertEquals("Coca-Cola", result.products.single().brand)
+        assertEquals(399, result.offers.single().priceCents)
+        assertEquals("2026-10-22", result.offers.single().validFrom)
+        assertEquals("2026-10-24", result.offers.single().validUntil)
+    }
+
 }

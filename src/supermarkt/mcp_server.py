@@ -442,7 +442,10 @@ async def find_offers(
     max_images: int = 1,
     ctx: Context | None = None,
 ) -> CallToolResult:
-    """Wo ist ein Produkt gerade im Angebot? Liefert Händler und Preis ohne und, falls vorhanden, mit Bonusprogramm.
+    """Welche Angebote gibt es in der aktuellen Woche? Liefert Händler und Preis ohne und, falls vorhanden, mit Bonusprogramm.
+
+    Auch bereits veröffentlichte Angebote späterer Wochentage sind enthalten.
+    Ihre Gültigkeit unbedingt nennen; ein Vorschaupreis gilt noch nicht heute.
 
     Args:
         product: Suchbegriff, z. B. "Kaffee" oder "Hochland Schmelzkäse".

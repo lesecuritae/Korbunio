@@ -82,4 +82,16 @@ class ServerProviderTest {
         assertEquals(276, result.offers.single().priceCents)
         assertEquals("${server.url("/").toString().trimEnd('/')}/image?src=https%3A%2F%2Fcdn.example%2Fiphone.jpg", result.offers.single().imageUrl)
     }
+    @Test fun `server preview keeps dates so it is excluded from todays shopping`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            {"offers":[{"offer_id":"cola","retailer":"Lidl","product":"Coca-Cola Cola",
+              "regular_price":3.99,"valid_from":"2026-10-22","valid_until":"2026-10-24"}]}
+        """))
+        val offer = ServerProvider(server.url("/").toString(), "", OkHttpClient())
+            .fetch(RetailerRequest("26122")).offers.single()
+        assertEquals("2026-10-22", offer.validFrom)
+        assertEquals("2026-10-24", offer.validUntil)
+        assertEquals(399, offer.priceCents)
+    }
+
 }

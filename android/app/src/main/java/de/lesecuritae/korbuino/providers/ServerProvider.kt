@@ -82,6 +82,7 @@ class ServerProvider(
             offers += OfferEntity(
                 id = "${localId ?: "server"}:$external", retailerId = retailer, productId = productId,
                 externalId = external, priceCents = Math.round(price * 100).toInt(),
+                validFrom = item.text("valid_from"), validUntil = item.text("valid_until"),
                 loyaltyBenefitsJson = LoyaltyBenefits.encode(benefits),
                 basePriceCents = item.number("base_price")?.let { (it * 100).toInt() },
                 categoryId = item.text("category"), sourceUrl = item.text("source_url").orEmpty(),

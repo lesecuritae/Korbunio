@@ -1,0 +1,1 @@
+Angebote ab Donnerstag werden schon in der aktuellen Woche angezeigt. Gültigkeitsdaten bleiben erhalten; Marken wie Coca-Cola sind direkt suchbar. Korrektur auch für Docker und MCP.

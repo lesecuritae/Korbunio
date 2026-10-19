@@ -20,6 +20,7 @@ from .common import (
     normalize_pack,
     offer_validity,
     parse_deposit_text,
+    parse_iso_date,
     parse_number,
 )
 from .loyalty import apply_selected_programs, parse_public_loyalty_prices
@@ -74,6 +75,15 @@ class OfferMapper:
         is_current, validity_label = offer_validity(raw, reference_date)
         if retailer is None or not is_current:
             return None
+
+        selected_period = next(
+            period for period in raw["validityDates"]
+            if isinstance(period, dict)
+            and offer_validity({"validityDates": [period]}, reference_date)[0]
+        )
+        start = parse_iso_date(selected_period.get("from"))
+        end = parse_iso_date(selected_period.get("to"))
+        _, validity_label = offer_validity({"validityDates": [selected_period]}, reference_date)
 
         product = raw.get("product") if isinstance(raw.get("product"), dict) else {}
         brand_data = raw.get("brand") if isinstance(raw.get("brand"), dict) else {}
@@ -155,6 +165,8 @@ class OfferMapper:
             base_unit=clean_text(unit_data.get("shortName") or unit_data.get("name")),
             pack_signature=pack_signature,
             validity_label=validity_label,
+            valid_from=start.isoformat() if start else "",
+            valid_until=end.isoformat() if end else "",
             match_key=match_key,
             source_url=source_url,
             product_url=product_url,
