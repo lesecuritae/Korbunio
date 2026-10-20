@@ -33,7 +33,7 @@ from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 
 from . import history, kitchenowl, notify, runtime
-from .common import format_euro, validate_postal_code
+from .common import format_euro, normalize_keywords, validate_postal_code
 from .images import ImageServiceError
 from .loyalty import PROGRAMS
 from .models import RETAILER_SPECS, ToolError, resolve_retailer_names
@@ -326,13 +326,27 @@ def _euro(text: str) -> float:
 
 def _offers_from(snapshot: dict[str, Any], product: str, also_search: list[str] | None, retailers: tuple[str, ...]) -> list[Offer]:
     engine = runtime.get_engine()
-    common = {"filter_text": product, "keywords": tuple(also_search or ()), "page": 1, "page_size": 100, "view": "all", "sort": "price", "include_image_urls": True, "retailer_filters": retailers}
+    common = {"page": 1, "page_size": 100, "view": "all", "sort": "price", "include_image_urls": True, "retailer_filters": retailers}
+    # The page engine ANDs filter_text with keywords. Synonyms/variants are
+    # alternatives, so query them independently with the same full-text rules
+    # (including brand/description), then merge IDs rather than intersecting.
+    queries = [product, *(query for query in normalize_keywords(also_search or ()) if query.casefold() != product.casefold())]
     def pages(programs):
-        first = engine.page(snapshot, loyalty_programs=programs, **common)
-        rows = list(first.get("offers", []))
-        for number in range(2, int(first.get("page_count", 1)) + 1):
-            rows.extend(engine.page(snapshot, loyalty_programs=programs, **{**common, "page": number}).get("offers", []))
-        return {**first, "offers": rows}
+        rows = {}
+        available = {}
+        for query in queries:
+            selected = {**common, "filter_text": query, "keywords": ()}
+            first = engine.page(snapshot, loyalty_programs=programs, **selected)
+            matches = list(first.get("offers", []))
+            for number in range(2, int(first.get("page_count", 1)) + 1):
+                matches.extend(engine.page(snapshot, loyalty_programs=programs, **{**selected, "page": number}).get("offers", []))
+            for offer in matches:
+                rows.setdefault(offer["offer_id"], offer)
+            for program in first.get("available_loyalty_programs", []):
+                previous = available.get(program["id"])
+                if previous is None or program.get("priced_offer_count", 0) > previous.get("priced_offer_count", 0):
+                    available[program["id"]] = program
+        return {"offers": list(rows.values()), "available_loyalty_programs": list(available.values())}
 
     plain = pages(())
     programs = tuple(p["id"] for p in plain.get("available_loyalty_programs", []) if p.get("priced_offer_count"))
