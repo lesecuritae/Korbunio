@@ -12,7 +12,7 @@ class OfferRefreshTest {
         try {
             val old = OfferEntity("old", "aldi-nord", "p", externalId = "old", priceCents = 129,
                 sourceUrl = "https://www.aldi-nord.de/", cachedAt = 1)
-            val future = old.copy(id = "future", validFrom = "2099-01-01")
+            val future = old.copy(id = "future", externalId = "future", validFrom = "2099-01-01")
             val other = old.copy(id = "south", retailerId = "aldi-sued")
             val product = ProductEntity("p", "Butter", normalizedKey = "butter")
             db.productDao().upsertAll(listOf(product))
