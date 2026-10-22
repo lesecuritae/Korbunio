@@ -1,5 +1,8 @@
 # 0.1.65
 
+- Der bereits lokal verwendete MCP-Suchfix ist enthalten: alternative
+  Suchphrasen ergänzen Treffer, statt sie mit der Originalphrase zu schneiden.
+
 - ALDI Nord und Süd werden in der nativen App anhand offizieller Filialdaten
   im 15-km-Umkreis der PLZ geprüft. Grenzregionen können beide Ketten behalten.
   Fehlt die PLZ in beiden Filiallisten, wird ihre Position über Nominatim
