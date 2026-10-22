@@ -5,6 +5,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProviderRegistryTest {
+    @Test fun `regional national flyers must check for a local market first`() {
+        val registry = ProviderRegistry.default(OkHttpClient())
+        listOf("aldi-nord", "aldi-sued", "aktiv-irma").forEach { id ->
+            assertTrue("$id needs the regional market gate", registry.byId(id) is MarketGateProvider)
+        }
+    }
+
     @Test fun `default registry restores Aldi Nord and includes Combi`() {
         val ids = ProviderRegistry.default(OkHttpClient()).all().map { it.id }.toSet()
         assertTrue("ALDI Nord must remain selectable", "aldi-nord" in ids)

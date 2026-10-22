@@ -1,5 +1,9 @@
 """aktiv & irma weekly offers from the retailer's own HTML page (issue #48)."""
 
+import json
+
+import pytest
+
 from supermarkt.compare import MARKTGURU_RETAILER_SLUGS
 from supermarkt.diagnostics import OPTIONAL_RETAILERS
 from supermarkt.models import AGGREGATOR_RETAILERS, SPEC_BY_NAME
@@ -101,3 +105,58 @@ def test_partner_supplier_is_kept_in_the_coverage_note():
 
 def test_own_brand_offer_has_no_partner_supplier_note():
     assert _offers()[0].coverage_note == "Wochenprospekt aktiv & irma"
+
+
+class MarketHttp:
+    def __init__(self, rows):
+        self.rows = rows
+        self.urls = []
+
+    def get_bytes(self, url, headers):
+        self.urls.append(url)
+        if "/xhr/" in url:
+            return json.dumps(self.rows).encode()
+        return FIXTURE.encode()
+
+
+def test_munich_does_not_fetch_or_return_oldenburg_offers():
+    http = MarketHttp([])
+    assert OfficialAktivIrmaSource(http).load("80331") == []
+    assert len(http.urls) == 1
+    assert "q=80331" in http.urls[0]
+    assert "/angebote/" not in http.urls[0]
+
+
+def test_only_a_supermarket_in_the_requested_postal_code_allows_offers():
+    http = MarketHttp([
+        {"standort_art": "verwaltung", "standort_plz": "26127"},
+        {"standort_art": "aktivirma", "standort_plz": "26127"},
+    ])
+    assert len(OfficialAktivIrmaSource(http).load("26127")) == 2
+    assert len(http.urls) == 2
+    assert http.urls[1].endswith("/angebote/")
+
+
+@pytest.mark.parametrize("row", [
+    {"standort_art": "verwaltung", "standort_plz": "80331"},
+    {"standort_art": "plopp", "standort_plz": "80331"},
+    {"standort_art": "aktivirma", "standort_plz": "26127"},
+])
+def test_other_store_types_or_postal_codes_are_not_local_supermarkets(row):
+    http = MarketHttp([row])
+    assert OfficialAktivIrmaSource(http).load("80331") == []
+
+
+def test_market_failure_is_not_treated_as_confirmed_absence():
+    class BrokenHttp:
+        def get_bytes(self, url, headers):
+            raise RuntimeError("market lookup unavailable")
+    with pytest.raises(RuntimeError, match="market lookup unavailable"):
+        OfficialAktivIrmaSource(BrokenHttp()).load("26127")
+
+
+def test_storefinder_explicit_not_found_response_confirms_absence():
+    class Http:
+        def get_bytes(self, _url, _headers):
+            return b'{"error":"Kein Eintrag gefunden"}'
+    assert not OfficialAktivIrmaSource(Http()).has_market("80331")

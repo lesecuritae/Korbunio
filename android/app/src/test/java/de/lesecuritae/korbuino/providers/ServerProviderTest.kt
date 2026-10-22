@@ -94,4 +94,26 @@ class ServerProviderTest {
         assertEquals(399, offer.priceCents)
     }
 
+    @Test fun `confirmed absence survives combined mode and direct fallback`() = runTest {
+        val body = """{"offers":[],"unavailable_retailers":["ALDI Nord","aktiv & irma"]}"""
+        server.enqueue(MockResponse().setBody(body))
+        val combined = ServerProvider(server.url("/").toString(), "", OkHttpClient())
+            .fetch(RetailerRequest("80331"))
+        assertEquals(setOf("ALDI Nord", "aldi-nord", "aktiv & irma", "aktiv-irma"), combined.unavailableRetailerIds.toSet())
+        server.enqueue(MockResponse().setBody(body))
+        val direct = ServerProvider(server.url("/").toString(), "", OkHttpClient(), "ALDI Nord", "aldi-nord")
+            .fetch(RetailerRequest("80331"))
+        org.junit.Assert.assertTrue(direct.noLocalMarket)
+        assertNull(ProviderImportPolicy.rejectionReason("aldi-nord", direct, 100))
+    }
+
+    @Test fun `older empty response cannot claim confirmed market absence`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"offers":[]}"""))
+        val direct = ServerProvider(server.url("/").toString(), "", OkHttpClient(), "ALDI Nord", "aldi-nord")
+            .fetch(RetailerRequest("80331"))
+        org.junit.Assert.assertFalse(direct.noLocalMarket)
+        org.junit.Assert.assertNotNull(ProviderImportPolicy.rejectionReason("aldi-nord", direct, 100))
+        assertEquals(emptyList<String>(), direct.unavailableRetailerIds)
+    }
+
 }

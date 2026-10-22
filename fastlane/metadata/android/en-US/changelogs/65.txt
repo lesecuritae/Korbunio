@@ -1,0 +1,1 @@
+ALDI North and South now check nearby stores, including border areas. aktiv & irma requires a confirmed local supermarket. Confirmed non-local offers are removed from cache; network errors preserve offline offers. Shopping lists and favorites remain unchanged.

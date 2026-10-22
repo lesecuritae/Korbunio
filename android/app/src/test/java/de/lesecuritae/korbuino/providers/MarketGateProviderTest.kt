@@ -19,8 +19,22 @@ class MarketGateProviderTest {
     @Test
     fun skipsTheRetailerWhenThereIsNoMarket() = runBlocking {
         val inner = Counting()
-        MarketGateProvider(inner) { false }.fetch(RetailerRequest("45127"))
+        val result = MarketGateProvider(inner) { false }.fetch(RetailerRequest("45127"))
         assertEquals(0, inner.calls)
+        assertTrue(result.noLocalMarket)
+    }
+
+    @Test
+    fun lookupFailureDoesNotBecomeConfirmedMarketAbsence() = runBlocking {
+        val inner = Counting()
+        val result = runCatching { MarketGateProvider(inner) { error("lookup failed") }.fetch(RetailerRequest("80331")) }
+        assertTrue(result.isFailure)
+        assertEquals(0, inner.calls)
+    }
+
+    @Test fun legacyGateWithoutConfirmedAbsencePreservesOfflineCache() = runBlocking {
+        val result = MarketGateProvider(Counting(), confirmsAbsence = false) { false }.fetch(RetailerRequest("45127"))
+        assertFalse(result.noLocalMarket)
     }
 
     @Test

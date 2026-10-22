@@ -42,7 +42,7 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 val successes = fetched.mapNotNull { (provider, result) ->
                     val value = result.getOrNull() ?: return@mapNotNull null
                     val previous = db.providerDao().get(provider.id)
-                    val rejection = ProviderImportPolicy.rejectionReason(provider.id, value.offers.size, previous?.offerCount ?: 0)
+                    val rejection = ProviderImportPolicy.rejectionReason(provider.id, value, previous?.offerCount ?: 0)
                     db.providerDao().upsert(
                         ProviderCacheEntity(
                             providerId = provider.id,
@@ -74,7 +74,7 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     db.productDao().upsertAll(products)
                     val previousPostalCode = secureStore.get("offer_postal_code").orEmpty()
                     if (previousPostalCode.isNotBlank() && previousPostalCode != postalCode) db.offerDao().deleteAll()
-                    db.offerDao().storeRefresh(offers)
+                    db.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) })
                 }
                 secureStore.put("offer_postal_code", postalCode)
                 de.lesecuritae.korbuino.notifications.NativeWatchSync.afterSuccessfulSync(

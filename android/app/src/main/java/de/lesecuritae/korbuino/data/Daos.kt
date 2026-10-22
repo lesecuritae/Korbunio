@@ -19,7 +19,8 @@ interface OfferDao {
     suspend fun upsertAll(offers: List<OfferEntity>)
 
     @Transaction
-    suspend fun storeRefresh(offers: List<OfferEntity>) {
+    suspend fun storeRefresh(offers: List<OfferEntity>, unavailableRetailers: List<String> = emptyList()) {
+        unavailableRetailers.distinct().forEach { deleteProvider(it) }
         val sunday = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin")).with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY)).toString()
         offers.map { it.retailerId }.distinct().forEach { deleteCurrentPartition(it, sunday) }
         upsertAll(offers)

@@ -1,0 +1,1 @@
+ALDI Nord und Süd werden anhand lokaler Filialen geprüft, auch in Grenzregionen. aktiv & irma nur bei bestätigtem Markt. Unpassende Angebote verschwinden aus dem Cache; bei Abruffehlern bleiben Offline-Angebote erhalten. Einkaufsliste und Favoriten bleiben unverändert.

@@ -15,6 +15,7 @@ import org.jsoup.Jsoup
  */
 class MarketGateProvider(
     private val inner: RetailerProvider,
+    private val confirmsAbsence: Boolean = true,
     private val hasMarket: suspend (String) -> Boolean,
 ) : RetailerProvider {
     override val id: String = inner.id
@@ -22,7 +23,8 @@ class MarketGateProvider(
     override val challengeUrl: String? get() = inner.challengeUrl
 
     override suspend fun fetch(request: RetailerRequest): ProviderResult =
-        if (hasMarket(request.postalCode)) inner.fetch(request) else ProviderResult(emptyList(), emptyList())
+        if (hasMarket(request.postalCode)) inner.fetch(request)
+        else ProviderResult(emptyList(), emptyList(), noLocalMarket = confirmsAbsence)
 }
 
 /** HOL'AB! lists its stores per postal code; an offer list is only relevant near one. */

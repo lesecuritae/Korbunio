@@ -284,6 +284,12 @@ class AldiRegionResolver:
             return evidence[0] if len(evidence) == 1 else "auto"
         cached = self._cache.get(code)
         if cached in {"nord", "sued"}:
+            # Other postal-code lookups can overwrite these mutable diagnostics.
+            self.last_regions = (cached,)
+            self.last_provider = "Nominatim (Cache)"
+            self.last_distance_km = None
+            self.last_error = ""
+            self.last_confidence = "mittel"
             return cached
 
         self.last_provider = ""

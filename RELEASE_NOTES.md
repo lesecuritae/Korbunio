@@ -1,3 +1,20 @@
+# 0.1.65
+
+- Der bereits lokal verwendete MCP-Suchfix ist enthalten: alternative
+  Suchphrasen ergänzen Treffer, statt sie mit der Originalphrase zu schneiden.
+
+- ALDI Nord und Süd werden in der nativen App anhand offizieller Filialdaten
+  im 15-km-Umkreis der PLZ geprüft. Grenzregionen können beide Ketten behalten.
+  Fehlt die PLZ in beiden Filiallisten, wird ihre Position über Nominatim
+  ermittelt; GPS und Android-Geocoder werden dafür nicht benötigt.
+- aktiv & irma wird nur mit einem bestätigten Supermarkt in der PLZ geladen.
+  Verwaltung und Getränkemärkte zählen nicht als Supermarkt-Nachweis.
+- Der Server beachtet die automatische ALDI-Region auch bei ausgewählten
+  Händlern. Bestätigt fehlende Händler werden an die App übermittelt.
+- Nur bestätigt unpassende Händlerangebote werden aus dem Cache entfernt.
+  Netzwerk-/Formatfehler erhalten den Offlinebestand; Einkaufsliste,
+  Favoriten und Produktdaten bleiben erhalten. Keine Datenbankmigration.
+
 # 0.1.64
 
 - Bereits veröffentlichte Angebote späterer Wochentage erscheinen jetzt in der
