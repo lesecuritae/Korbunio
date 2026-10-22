@@ -40,6 +40,7 @@ class ServerProvider(
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(request.postalCode.matches(Regex("^\\d{5}$"))) { "Ungültige PLZ" }
         val offerItems = mutableListOf<JsonObject>()
+        val unavailableNames = mutableSetOf<String>()
         var page = 1
         var pageCount = 1
         do {
@@ -65,6 +66,10 @@ class ServerProvider(
                 },
             ).jsonObject
             val resultRoot = if (root["offers"]?.jsonArray?.isNotEmpty() == true) root else fetchResult(root)
+            resultRoot["unavailable_retailers"]?.jsonArray.orEmpty().forEach { value ->
+                val name = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
+                if (name in setOf("ALDI Nord", "ALDI Süd", "aktiv & irma")) unavailableNames += name!!
+            }
             resultRoot["offers"]?.jsonArray.orEmpty().forEach { offerItems += it.jsonObject }
             pageCount = (resultRoot.number("page_count")?.toInt() ?: 1).coerceAtLeast(1)
             page++
@@ -93,7 +98,13 @@ class ServerProvider(
                 }, cachedAt = System.currentTimeMillis(),
             )
         }
-        ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
+        val unavailableIds = unavailableNames.flatMap { name ->
+            val directId = mapOf("ALDI Nord" to "aldi-nord", "ALDI Süd" to "aldi-sued", "aktiv & irma" to "aktiv-irma").getValue(name)
+            listOf(name, directId)
+        }
+        ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id },
+            noLocalMarket = retailerName in unavailableNames && offers.isEmpty(),
+            unavailableRetailerIds = unavailableIds)
     }
 
     private fun fetchResult(compare: JsonObject): JsonObject {

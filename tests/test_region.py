@@ -123,3 +123,15 @@ def test_leverkusen_is_aldi_sued_without_geocoding():
         assert resolver.last_provider.startswith("Offizielle ALDI")
         assert resolver.last_confidence == "hoch"
     assert http.calls == 0
+
+
+def test_cached_region_restores_diagnostics_after_another_postal_code():
+    http = FakeHttp()
+    resolver = AldiRegionResolver(http)
+    resolver.http = http
+    assert resolver.detect("01100") == "nord"
+    assert resolver.detect("80331") == "sued"
+    assert resolver.last_regions == ("sued",)
+    assert resolver.detect("01100") == "nord"
+    assert resolver.last_regions == ("nord",)
+    assert http.calls == 2

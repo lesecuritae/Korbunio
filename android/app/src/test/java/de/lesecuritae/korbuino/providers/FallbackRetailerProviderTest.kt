@@ -52,6 +52,14 @@ class FallbackRetailerProviderTest {
         assertTrue(result.offers.isEmpty())
     }
 
+    @Test fun `confirmed market absence must not be bypassed by server fallback`() = runTest {
+        val primary = MarketGateProvider(fake("aldi-nord", "ALDI Nord")) { false }
+        val result = FallbackRetailerProvider(primary, fake("aldi-nord", "Wrong nonlocal catalogue"))
+            .fetch(RetailerRequest("80331"))
+        assertTrue(result.noLocalMarket)
+        assertTrue(result.offers.isEmpty())
+    }
+
     private fun fake(id: String, name: String, error: Throwable? = null, empty: Boolean = false) = object : RetailerProvider {
         override val id = id
         override val displayName = name

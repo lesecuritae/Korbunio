@@ -7,15 +7,17 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
     fun byId(id: String): RetailerProvider? = all().firstOrNull { it.id == id }
 
     companion object {
-        fun default(http: okhttp3.OkHttpClient): ProviderRegistry = ProviderRegistry(
+        fun default(http: okhttp3.OkHttpClient): ProviderRegistry {
+            val aldiMarkets = AldiMarkets(http)
+            return ProviderRegistry(
             listOf(
                 ReweProvider(http, fallback = MarktguruProvider("REWE", http)),
                 FallbackRetailerProvider(GlobusProvider(http), MarktguruProvider("Globus", http)),
-                AldiNordProvider(http),
-                HtmlFlyerProvider(
+                MarketGateProvider(AldiNordProvider(http)) { aldiMarkets.hasMarket(it, "nord") },
+                MarketGateProvider(HtmlFlyerProvider(
                     "aldi-sued", "ALDI Süd", "https://www.aldi-sued.de/angebote", http,
                     renderedHtmlProvider = { RenderedPageStore.consume("https://www.aldi-sued.de/angebote") },
-                ),
+                )) { aldiMarkets.hasMarket(it, "sued") },
                 // Regional store identity must survive both failures and empty future weeks.
                 KauflandProvider(http),
                 FallbackRetailerProvider(
@@ -49,7 +51,7 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                     ),
                     surfacePrimaryFailureWhenFallbackEmpty = true,
                 ),
-                MarketGateProvider(HtmlFlyerProvider("holab", "HOL'AB!", "https://holab.de/angebote", http), HolabMarkets(http)::hasMarket),
+                MarketGateProvider(HtmlFlyerProvider("holab", "HOL'AB!", "https://holab.de/angebote", http), confirmsAbsence = false, hasMarket = HolabMarkets(http)::hasMarket),
                 // trinkgut has no public API the app can use. Marktguru lists its offers
                 // per postal code and simply has none where no store is nearby, which
                 // is the right answer there; KaufDA is the fallback.
@@ -70,10 +72,11 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                 DmProvider(http),
                 MarktguruProvider("famila Nordwest", http),
                 MarktguruProvider("Combi", http),
-                AktivIrmaProvider(http),
+                MarketGateProvider(AktivIrmaProvider(http), hasMarket = AktivIrmaMarkets(http)::hasMarket),
                 MarktguruProvider("Lidl", http),
                 MarktguruProvider("PENNY", http),
             ),
         )
+        }
     }
 }

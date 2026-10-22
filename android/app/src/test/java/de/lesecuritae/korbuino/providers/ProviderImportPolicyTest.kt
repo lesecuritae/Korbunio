@@ -5,6 +5,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProviderImportPolicyTest {
+    @Test fun `confirmed absence may clear stale offers but ordinary empty responses may not`() {
+        assertNull(ProviderImportPolicy.rejectionReason("aldi-nord", ProviderResult(emptyList(), emptyList(), noLocalMarket = true), 276))
+        assertTrue(ProviderImportPolicy.rejectionReason("aldi-nord", ProviderResult(emptyList(), emptyList()), 276) != null)
+    }
+
     @Test fun `accepts verified Kaufland week-start assortment above 600 offers`() {
         // Leipzig-Reudnitz (DE7923), 2026-10-06: 618 dated, locally available
         // offers, including 57 week-start offers. The old 600 cap rejected all.

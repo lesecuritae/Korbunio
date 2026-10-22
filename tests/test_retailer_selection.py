@@ -1,6 +1,7 @@
 from supermarkt.service import SupermarketEngine
 from supermarkt.models import Offer
 from supermarkt.service import SourceLoader
+import pytest
 
 
 def test_retailer_selection_has_separate_deterministic_cache_keys():
@@ -18,6 +19,34 @@ def test_retailer_selection_has_separate_deterministic_cache_keys():
 
 def _offer(retailer: str) -> Offer:
     return Offer(f"{retailer}:1", retailer, "Test", f"{retailer} Produkt", "", "", 1.0, None, "", "", "Aktuell", f"{retailer}:key", "https://example.invalid")
+
+
+@pytest.mark.parametrize("postal_code,regions,expected", [
+    ("80331", ("sued",), {"ALDI Süd"}),
+    ("04205", ("nord",), {"ALDI Nord"}),
+    ("51643", ("nord", "sued"), {"ALDI Nord", "ALDI Süd"}),
+])
+def test_selecting_aldi_retailers_still_respects_the_postal_region(postal_code, regions, expected):
+    from supermarkt.models import LoadResult
+
+    calls = []
+    class Region:
+        last_error = ""
+        last_regions = regions
+        def detect(self, code):
+            assert code == postal_code
+            return regions[0] if len(regions) == 1 else "auto"
+    class Aldi:
+        def load(self, retailer):
+            calls.append(retailer)
+            return LoadResult([_offer(retailer)], [])
+    loader = SourceLoader.__new__(SourceLoader)
+    loader.aldi_region = Region()
+    loader.official_aldi = Aldi()
+    result = loader.load(postal_code, "auto", retailers=("ALDI Nord", "ALDI Süd"))
+    assert set(result["unavailable_retailers"]) == {"ALDI Nord", "ALDI Süd"} - expected
+    assert set(calls) == expected
+    assert {item["retailer"] for item in result["offers"]} == expected
 
 
 def test_source_loader_executes_only_selected_retailers():
@@ -125,3 +154,54 @@ def test_next_week_without_marktguru_preview_falls_back_to_current_offers(monkey
         "Lidl: Noch keine Angebote der Folgewoche verfügbar" in warning
         for warning in result["store_warnings"]
     )
+
+
+@pytest.mark.parametrize("selected,regions,missing", [
+    (("ALDI Nord",), ("sued",), ["ALDI Nord"]),
+    (("ALDI Nord",), ("nord", "sued"), []),
+])
+def test_aldi_absence_is_based_on_verified_region_not_selection(selected, regions, missing):
+    from supermarkt.models import LoadResult
+
+    class Region:
+        last_error = ""
+        last_regions = regions
+        def detect(self, _code):
+            return regions[0] if len(regions) == 1 else "auto"
+    class Aldi:
+        def load(self, name):
+            return LoadResult([_offer(name)], [])
+    loader = SourceLoader.__new__(SourceLoader)
+    loader.aldi_region = Region()
+    loader.official_aldi = Aldi()
+    result = loader.load("80331", "auto", retailers=selected)
+    assert result["unavailable_retailers"] == missing
+
+
+def test_confirmed_irma_absence_is_not_a_failed_source_or_aggregator_fallback():
+    from supermarkt.sources.aktiv_irma import NoLocalMarketOffers
+
+    class Irma:
+        def load(self, _code):
+            return NoLocalMarketOffers()
+    loader = SourceLoader.__new__(SourceLoader)
+    loader.aldi_region = type("Region", (), {"last_error": ""})()
+    loader.official_aktiv_irma = Irma()
+    result = loader.load("80331", "auto", retailers=("aktiv & irma",))
+    assert result["offers"] == []
+    assert result["unavailable_retailers"] == ["aktiv & irma"]
+    assert result["source_states"]["aktiv & irma"] == "kein Markt"
+    assert not result["request_errors"]
+
+
+def test_unresolved_aldi_region_does_not_claim_confirmed_absence():
+    from supermarkt.models import ToolError
+    class Region:
+        last_error = "lookup failed"
+        last_regions = ()
+        def detect(self, _code):
+            return "auto"
+    loader = SourceLoader.__new__(SourceLoader)
+    loader.aldi_region = Region()
+    with pytest.raises(ToolError, match="Keine Supermarktangebote"):
+        loader.load("80331", "auto", retailers=("ALDI Süd",))

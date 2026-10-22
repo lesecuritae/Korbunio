@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import copy
+import json
 import re
 from datetime import date, datetime
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin
 
 from ..common import (
     build_match_key,
@@ -12,6 +13,7 @@ from ..common import (
     normalize_pack,
     parse_base_price_text,
     parse_number,
+    validate_postal_code,
 )
 from ..http import HttpClient
 from ..models import Offer, ToolError
@@ -21,6 +23,13 @@ _VALIDITY = re.compile(
     r"(?P<start>\d{2}\.\d{2}\.\d{4})\s+bis\s+zum\s+(?P<end>\d{2}\.\d{2}\.\d{4})",
     re.IGNORECASE,
 )
+
+
+class NoLocalMarketOffers(list[Offer]):
+    """Empty catalogue with confirmed market absence, rather than a fetch error."""
+
+    def __init__(self) -> None:
+        super().__init__()
 # Price nodes live inside the product card and must not bleed into the
 # description text; they are read on their own and stripped from the copy.
 _PRICE_NODES = (".fr-price-box", ".fr-price-angebot", ".fr-price-statt", ".fr-price-app", ".fr-produktButton")
@@ -45,6 +54,7 @@ class OfficialAktivIrmaSource:
 
     BASE = "https://www.aktiv-irma.de"
     OFFERS_URL = BASE + "/angebote/"
+    MARKETS_URL = BASE + "/xhr/"
     MAX_RESPONSE = 4_000_000
 
     def __init__(self, http: HttpClient) -> None:
@@ -56,9 +66,33 @@ class OfficialAktivIrmaSource:
             raise ToolError("aktiv-&-irma-Antwort überschreitet das Größenlimit")
         return data.decode("utf-8", errors="replace")
 
+    def has_market(self, postal_code: str) -> bool:
+        code = validate_postal_code(postal_code)
+        if not code:
+            raise ToolError("Ungültige PLZ")
+        # The public store finder's autocomplete also includes offices and
+        # plopp beverage stores. Neither proves a local aktiv & irma market.
+        url = self.MARKETS_URL + "?" + urlencode({
+            "xhr": "getStandorte", "format": "autocomplete", "q": code,
+        })
+        try:
+            rows = json.loads(self._html(url))
+        except (ValueError, TypeError) as exc:
+            raise ToolError("aktiv & irma Marktsuche lieferte ungültiges JSON") from exc
+        if rows == {"error": "Kein Eintrag gefunden"}:
+            return False
+        if not isinstance(rows, list) or any(
+            not isinstance(row, dict)
+            or not isinstance(row.get("standort_art"), str)
+            or not isinstance(row.get("standort_plz"), str)
+            for row in rows
+        ):
+            raise ToolError("aktiv & irma Marktsuche: unbekanntes Antwortformat")
+        return any(row["standort_art"] == "aktivirma" and row["standort_plz"] == code for row in rows)
+
     def load(self, postal_code: str = "") -> list[Offer]:
-        # The weekly flyer is identical across all aktiv & irma stores; the
-        # postal code is accepted for a uniform source interface but unused.
+        if not self.has_market(postal_code):
+            return NoLocalMarketOffers()
         return self.parse(self._html(self.OFFERS_URL))
 
     def parse(self, html: str) -> list[Offer]:

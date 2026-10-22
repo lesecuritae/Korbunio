@@ -28,7 +28,7 @@ class FallbackRetailerProvider(
         }
         val directAttempt = runCatching { previewOnly(primary.fetch(request)) }
         val direct = directAttempt.getOrNull()
-        if (direct != null && direct.offers.isNotEmpty()) return direct
+        if (direct != null && (direct.noLocalMarket || direct.offers.isNotEmpty())) return direct
         val regionalAttempt = runCatching { previewOnly(fallback.fetch(request)) }
         val regional = regionalAttempt.getOrElse { fallbackError ->
             // An empty result still proves that the primary source is

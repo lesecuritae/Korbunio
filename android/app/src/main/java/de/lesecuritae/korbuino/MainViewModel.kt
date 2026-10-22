@@ -463,7 +463,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             fetched.forEach { (provider, result) ->
                 val previous = database.providerDao().get(provider.id)
                 result.onSuccess { value ->
-                    val rejection = ProviderImportPolicy.rejectionReason(provider.id, value.offers.size, previous?.offerCount ?: 0)
+                    val rejection = ProviderImportPolicy.rejectionReason(provider.id, value, previous?.offerCount ?: 0)
                     if (rejection == null) {
                         successes += provider to value
                     } else if (value.offers.isEmpty()) {
@@ -532,7 +532,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (previousOfferPostal.isNotBlank() && previousOfferPostal != current.postalCode) {
                         database.offerDao().deleteAll()
                     }
-                    database.offerDao().storeRefresh(offers)
+                    database.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) })
                     products to offers
                 }
                 if (imported == null) {

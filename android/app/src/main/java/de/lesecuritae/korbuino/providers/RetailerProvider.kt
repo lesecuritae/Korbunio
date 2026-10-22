@@ -10,9 +10,23 @@ data class RetailerRequest(
     val week: OfferWeek = OfferWeek.CURRENT,
 )
 enum class OfferWeek { CURRENT, NEXT }
-data class ProviderResult(val products: List<ProductEntity>, val offers: List<OfferEntity>, val storeId: String? = null)
+data class ProviderResult(
+    val products: List<ProductEntity>, val offers: List<OfferEntity>, val storeId: String? = null,
+    val noLocalMarket: Boolean = false,
+    val unavailableRetailerIds: List<String> = emptyList(),
+) {
+    init {
+        require(!noLocalMarket || (products.isEmpty() && offers.isEmpty()))
+        require(offers.none { it.retailerId in unavailableRetailerIds })
+    }
+    fun unavailableRetailers(providerId: String): List<String> =
+        unavailableRetailerIds + if (noLocalMarket) listOf(providerId) else emptyList()
+}
 
 object ProviderImportPolicy {
+    fun rejectionReason(providerId: String, result: ProviderResult, previousCount: Int = 0): String? =
+        if (result.noLocalMarket) null else rejectionReason(providerId, result.offers.size, previousCount)
+
     private val maximumCurrentOffers = mapOf(
         "aldi-nord" to 350,
         "aldi-sued" to 300,

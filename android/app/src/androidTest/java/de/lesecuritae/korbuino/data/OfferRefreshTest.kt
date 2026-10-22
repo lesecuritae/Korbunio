@@ -7,6 +7,31 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class OfferRefreshTest {
+    @Test fun confirmedMarketAbsenceRemovesOnlyThatRetailersCacheIncludingPreviews() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), KorbuinoDatabase::class.java).build()
+        try {
+            val old = OfferEntity("old", "aldi-nord", "p", externalId = "old", priceCents = 129,
+                sourceUrl = "https://www.aldi-nord.de/", cachedAt = 1)
+            val future = old.copy(id = "future", validFrom = "2099-01-01")
+            val other = old.copy(id = "south", retailerId = "aldi-sued")
+            val product = ProductEntity("p", "Butter", normalizedKey = "butter")
+            db.productDao().upsertAll(listOf(product))
+            db.offerDao().upsertAll(listOf(old, future, other))
+            val item = ShoppingListItemEntity("list", "p", offerId = old.id)
+            val favorite = FavoriteEntity("p", createdAt = 1)
+            db.shoppingListDao().upsertAll(listOf(item))
+            db.favoriteDao().upsert(favorite)
+            // An ordinary empty response remains harmless to offline data.
+            db.offerDao().storeRefresh(emptyList())
+            assertEquals(3, db.offerDao().all().size)
+            repeat(2) { db.offerDao().storeRefresh(emptyList(), listOf("aldi-nord")) }
+            assertEquals(listOf(other), db.offerDao().all())
+            assertEquals(listOf(product), db.productDao().all())
+            assertEquals(listOf(item), db.shoppingListDao().allItems())
+            assertEquals(listOf(favorite), db.favoriteDao().all())
+        } finally { db.close() }
+    }
+
     @Test fun successfulProviderRefreshReplacesOnlyThatProvidersOffers() = runBlocking {
         val db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(), KorbuinoDatabase::class.java,
