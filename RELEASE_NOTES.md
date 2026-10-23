@@ -1,3 +1,15 @@
+# 0.1.66
+
+- Absturz beim Laden und Gruppieren von Angeboten behoben (#64): Die
+  Unicode-Normalisierung kompiliert keinen neuen ICU-Regulärausdruck pro
+  Angebot mehr. Normalisierte Warengruppen werden einmalig vorbereitet.
+- Umlaute, Unicode-Buchstaben und -Zahlen sowie Produktgrenzen bleiben erhalten.
+  Einkaufsliste, Einstellungen und bestehende Datenbanken bleiben unverändert.
+- Regression geprüft mit 381 JVM-Tests und zwei echten Android-17-Tests,
+  einschließlich 20.000 Angebotszuordnungen auf dem Android-Hauptthread.
+  Kein physischer Pixel-8-Pro-Test; die ursprüngliche Speichersituation wurde
+  nicht vollständig nachgestellt.
+
 # 0.1.65
 
 - Der bereits lokal verwendete MCP-Suchfix ist enthalten: alternative
