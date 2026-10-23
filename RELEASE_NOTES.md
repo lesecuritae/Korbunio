@@ -1,3 +1,14 @@
+# 0.1.67
+
+- ALDI Süd: Prospektseiten mit der Überschrift „Aus unserem Sortiment“ werden
+  beim Serverimport nicht mehr als Sonderangebote übernommen (#66).
+- Auf gemischten Doppelseiten bleiben die Angebote der anderen Seite erhalten.
+  Zeilenumbrüche und unterschiedliche Großschreibung im Titel werden erkannt.
+  Normale Angebotsseiten ohne Streichpreis werden weiterhin berücksichtigt.
+- Mit dem aktuellen offiziellen Prospekt geprüft: 24 Sortimentsartikel
+  ausgeschlossen, die übrigen 144 Einträge unverändert erhalten. 498 lokale
+  Regressionstests bestanden. Keine Änderung an Datenbank oder App-Einstellungen.
+
 # 0.1.66
 
 - Absturz beim Laden und Gruppieren von Angeboten behoben (#64): Die
