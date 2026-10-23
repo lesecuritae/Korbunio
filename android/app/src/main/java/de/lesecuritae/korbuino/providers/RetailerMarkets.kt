@@ -19,7 +19,7 @@ private val postalCodePattern = Regex("^[0-9]{5}$")
 
 private fun marketPage(http: OkHttpClient, url: String): String =
     http.newCall(Request.Builder().url(url).header("Accept", "text/html,application/json")
-        .header("User-Agent", "Korbuino/0.1.65 (+https://github.com/lesecuritae/Korbunio)").build()).execute().use { response ->
+        .header("User-Agent", "Korbuino/0.1.66 (+https://github.com/lesecuritae/Korbunio)").build()).execute().use { response ->
         check(response.isSuccessful) { "Marktsuche HTTP ${response.code}" }
         val source = response.body?.source() ?: error("Marktsuche lieferte keine Antwort")
         check(!source.request(4_000_001)) { "Marktsuche überschreitet das Größenlimit" }
