@@ -573,9 +573,16 @@ class OfficialAldiSource:
         for spread in spreads[:40]:
             if not isinstance(spread, dict):
                 continue
+            # Publitas also includes permanent-range pages in weekly flyers.
+            # Select pages before fetching hotspots: single-page endpoints keep
+            # real offers on the other half of a mixed spread intact.
             page_numbers = [
                 str(item.get("number")) for item in spread.get("pages") or []
                 if isinstance(item, dict) and str(item.get("number") or "").isdigit()
+                and not re.search(
+                    r"^\s*aus\s+unserem\s+sortiment\s*$",
+                    str(item.get("text") or ""), re.IGNORECASE | re.MULTILINE,
+                )
             ]
             if not page_numbers:
                 continue

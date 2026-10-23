@@ -1,6 +1,8 @@
 from datetime import date
 import json
 
+import pytest
+
 from supermarkt.common import deduplicate_offers
 from supermarkt.http import HttpClient
 from supermarkt.models import Offer, ToolError
@@ -500,3 +502,77 @@ def test_aldi_north_keeps_official_price_deposit_and_product_image(monkeypatch):
     assert offers[0].base_price == 1.58
     assert offers[0].image_url == "https://s7g10.scene7.com/is/image/aldinord/3932_product"
     assert (offers[0].valid_from, offers[0].valid_until) == ("2026-08-24", "2026-08-29")
+
+
+@pytest.mark.parametrize("excluded_page", [2, 3])
+@pytest.mark.parametrize("heading", ["Aus unserem Sortiment", "KI-generiert\nAUS\nunserem\u00a0Sortiment\nSchokolade"])
+def test_aldi_south_excludes_only_assortment_half_of_mixed_spread(monkeypatch, excluded_page, heading):
+    publication_url = "https://prospekt.aldi-sued.de/kw35-26-op-mp"
+    publication = {
+        "config": {
+            "canonicalUrl": publication_url,
+            "websiteUrl": "https://www.aldi-sued.de/",
+            "description": "24.08.2026 bis 29.08.2026",
+        },
+    }
+    included_page = 5 - excluded_page
+    fixture = {
+        publication_url + "/spreads.json": [{"pages": [
+            {"number": n, "text": heading if n == excluded_page else "Angebote ab Montag"}
+            for n in [2, 3]
+        ]}],
+        publication_url + f"/page/{included_page}/hotspots_data.json": [{
+            "type": "product", "products": [{"id": 1, "title": "Aktionsartikel", "price": "1.99"}],
+        }],
+    }
+    aldi = source()
+    monkeypatch.setattr(aldi, "_south_get_html", lambda _: f"<script>var data = {json.dumps(publication)}; Reader.start()</script>")
+    requested = []
+
+    def get_json(url):
+        requested.append(url)
+        return fixture[url]  # no request for the excluded page or full spread
+
+    monkeypatch.setattr(aldi, "_south_get_json_value", get_json)
+    offers = aldi._south_brochure_offers(publication_url, date(2026, 8, 28))
+    assert [offer.name for offer in offers] == ["Aktionsartikel"]
+    assert requested == [publication_url + "/spreads.json", publication_url + f"/page/{included_page}/hotspots_data.json"]
+
+
+def test_aldi_south_skips_complete_assortment_spread_without_loading_products(monkeypatch):
+    publication_url = "https://prospekt.aldi-sued.de/kw35-26-op-mp"
+    publication = {"config": {
+        "canonicalUrl": publication_url, "websiteUrl": "https://www.aldi-sued.de/",
+        "description": "24.08.2026 bis 29.08.2026",
+    }}
+    aldi = source()
+    monkeypatch.setattr(aldi, "_south_get_html", lambda _: f"<script>var data = {json.dumps(publication)}; Reader.start()</script>")
+
+    def get_json(url):
+        assert url == publication_url + "/spreads.json"
+        return [{"pages": [{"number": n, "text": "Aus unserem Sortiment\nProdukt"} for n in [2, 3]]}]
+
+    monkeypatch.setattr(aldi, "_south_get_json_value", get_json)
+    assert aldi._south_brochure_offers(publication_url, date(2026, 8, 28)) == []
+
+
+def test_aldi_south_assortment_mention_in_body_does_not_discard_offer_page(monkeypatch):
+    publication_url = "https://prospekt.aldi-sued.de/kw35-26-op-mp"
+    publication = {"config": {
+        "canonicalUrl": publication_url, "websiteUrl": "https://www.aldi-sued.de/",
+        "description": "24.08.2026 bis 29.08.2026",
+    }}
+    aldi = source()
+    monkeypatch.setattr(aldi, "_south_get_html", lambda _: f"<script>var data = {json.dumps(publication)}; Reader.start()</script>")
+    fixture = {
+        publication_url + "/spreads.json": [{"pages": [
+            {"number": 2, "text": "Angebote\nEine Auswahl aus unserem Sortiment zum Aktionspreis"},
+            {"number": 3},  # older fixtures/publications may have no extracted text
+        ]}],
+        publication_url + "/page/2-3/hotspots_data.json": [{
+            "type": "product", "products": [{"id": 2, "title": "Wochenangebot ohne Streichpreis", "price": "1.49"}],
+        }],
+    }
+    monkeypatch.setattr(aldi, "_south_get_json_value", lambda url: fixture[url])
+    offers = aldi._south_brochure_offers(publication_url, date(2026, 8, 28))
+    assert [offer.name for offer in offers] == ["Wochenangebot ohne Streichpreis"]
