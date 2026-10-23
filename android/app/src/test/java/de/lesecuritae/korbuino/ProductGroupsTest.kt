@@ -64,4 +64,38 @@ class ProductGroupsTest {
         assertEquals("Tiefkühl / Eis & Dessert", ProductGroups.of(null, "Magnum Eis am Stiel"))
         assertEquals("Tiefkühl / Eis & Dessert", ProductGroups.of(null, "Ehrmann Grand Dessert"))
     }
+
+    @Test fun `normalization retains unicode categories and collapses separator runs`() {
+        val examples = listOf(
+            null to "",
+            "  \t—🥕\n" to "",
+            "  ÄPFEL\u00a0&\tÖL -- Süß! " to "äpfel öl süß",
+            "ＣＯＬＡ １２３" to "cola 123",
+            "Cafe\u0301 / crème" to "café crème",
+            "cola_zero / cola-zero" to "cola_zero cola zero",
+            // Supplementary letters and non-decimal numbers belonged to \\p{L}/\\p{N}, too.
+            "𐐀\u0f33" to "𐐨\u0f33",
+        )
+        examples.forEach { (input, expected) ->
+            assertEquals(input, expected, ProductGroups.normalizeForMatching(input))
+        }
+    }
+
+    @Test fun `unicode product boundaries and normalized source categories stay unchanged`() {
+        assertEquals("Getränke", ProductGroups.of(null, "ＣＯＬＡ 🥤 light"))
+        assertEquals(ProductGroups.OTHER, ProductGroups.of(null, "𐐀cola"))
+        assertEquals(ProductGroups.OTHER, ProductGroups.of(null, "cola_zero"))
+        ProductGroups.ORDER.forEach { group ->
+            assertEquals(group, ProductGroups.of("  $group\t", null))
+        }
+        assertEquals("Tiefkühl / Eis & Dessert", ProductGroups.of("Tiefkühlkost", null))
+    }
+
+    @Test fun `successive batches of offers retain their product groups`() {
+        repeat(100) {
+            serverDecisions.forEach { (category, name, expected) ->
+                assertEquals(expected, ProductGroups.of(category, name))
+            }
+        }
+    }
 }

@@ -86,23 +86,46 @@ object ProductGroups {
         Pattern.compile(pattern).toRegex()
     }
 
-    private fun fold(value: String?): String =
-        Normalizer.normalize(value.orEmpty(), Normalizer.Form.NFKC)
+    /** Keep Unicode letters/numbers and underscores without compiling an ICU pattern per offer. */
+    internal fun normalizeForMatching(value: String?): String {
+        val normalized = Normalizer.normalize(value.orEmpty(), Normalizer.Form.NFKC)
             .lowercase(Locale.ROOT)
-            .replace(Regex("[^\\p{L}\\p{N}_äöüß]+"), " ")
-            .trim()
+        return buildString(normalized.length) {
+            var index = 0
+            var separator = false
+            while (index < normalized.length) {
+                val codePoint = normalized.codePointAt(index)
+                index += Character.charCount(codePoint)
+                val type = Character.getType(codePoint)
+                val keep = codePoint == '_'.code || Character.isLetter(codePoint) ||
+                    type == Character.DECIMAL_DIGIT_NUMBER.toInt() ||
+                    type == Character.LETTER_NUMBER.toInt() ||
+                    type == Character.OTHER_NUMBER.toInt()
+                if (keep) {
+                    if (separator && isNotEmpty()) append(' ')
+                    appendCodePoint(codePoint)
+                    separator = false
+                } else {
+                    separator = true
+                }
+            }
+        }
+    }
+
+    private val normalizedGroups = ORDER.associateBy(::normalizeForMatching)
+    private val frozenCategory = normalizeForMatching("Tiefkühlkost")
 
     private fun firstMatch(value: String?, rules: List<Pair<String, Regex>>): String {
-        val folded = fold(value)
+        val folded = normalizeForMatching(value)
         if (folded.isEmpty()) return ""
         return rules.firstOrNull { (_, regex) -> regex.containsMatchIn(folded) }?.first.orEmpty()
     }
 
     private fun fromSource(sourceCategory: String?): String {
-        val source = fold(sourceCategory)
+        val source = normalizeForMatching(sourceCategory)
         if (source.isEmpty()) return OTHER
-        ORDER.firstOrNull { source == fold(it) }?.let { return it }
-        if (source == fold("Tiefkühlkost")) return "Tiefkühl / Eis & Dessert"
+        normalizedGroups[source]?.let { return it }
+        if (source == frozenCategory) return "Tiefkühl / Eis & Dessert"
         return sourceRules.firstOrNull { (_, regex) -> regex.containsMatchIn(source) }?.first ?: OTHER
     }
 
