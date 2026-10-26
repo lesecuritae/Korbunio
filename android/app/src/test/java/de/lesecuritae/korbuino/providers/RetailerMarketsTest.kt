@@ -45,8 +45,9 @@ class RetailerMarketsTest {
             assertFalse(markets.hasMarket("80331", "nord"))
             assertTrue(markets.hasMarket("80331", "sued"))
             assertEquals(3, s.requestCount)
-            s.takeRequest(); s.takeRequest()
-            val request = s.takeRequest()
+            val requests = List(3) { s.takeRequest() }
+            assertEquals(setOf("/north", "/south", "/geo"), requests.map { it.requestUrl!!.encodedPath }.toSet())
+            val request = requests.single { it.requestUrl!!.encodedPath == "/geo" }
             assertEquals("80331", request.requestUrl!!.queryParameter("postalcode"))
             assertEquals("de", request.requestUrl!!.queryParameter("countrycodes"))
             assertTrue(request.getHeader("User-Agent")!!.startsWith("Korbuino/"))
@@ -67,6 +68,63 @@ class RetailerMarketsTest {
             val markets = markets(s)
             assertTrue(markets.hasMarket("51643", "nord"))
             assertTrue(markets.hasMarket("51643", "sued"))
+        }
+    }
+
+    @Test fun southDoesNotDependOnAnAvailableNorthStoreList() = runBlocking {
+        server().use { s ->
+            val original = s.dispatcher
+            s.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse =
+                    if (request.requestUrl!!.encodedPath == "/north") MockResponse().setResponseCode(403)
+                    else original.dispatch(request)
+            }
+            val markets = markets(s)
+            assertTrue(markets.hasMarket("80335", "sued"))
+            assertTrue(markets.hasMarket("80331", "sued"))
+            assertEquals(2, s.requestCount) // South stores + geocoding, never North.
+        }
+    }
+
+    @Test fun northDoesNotDependOnAnAvailableSouthStoreList() = runBlocking {
+        server().use { s ->
+            val original = s.dispatcher
+            s.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse =
+                    if (request.requestUrl!!.encodedPath == "/south") MockResponse().setResponseCode(503)
+                    else original.dispatch(request)
+            }
+            assertTrue(markets(s).hasMarket("04205", "nord"))
+            assertEquals("/north", s.takeRequest().requestUrl!!.encodedPath)
+            assertEquals(1, s.requestCount)
+        }
+    }
+
+    @Test fun failedSouthLookupIsRetriedInsteadOfCachingAbsence() = runBlocking {
+        MockWebServer().use { s ->
+            s.enqueue(MockResponse().setResponseCode(503))
+            s.enqueue(MockResponse().setBody(south))
+            val markets = markets(s)
+            assertTrue(runCatching { markets.hasMarket("80335", "sued") }.isFailure)
+            assertTrue(markets.hasMarket("80335", "sued"))
+            assertEquals(2, s.requestCount)
+            repeat(2) { assertEquals("/south", s.takeRequest().requestUrl!!.encodedPath) }
+        }
+    }
+
+    @Test fun southCatalogueRefreshInvalidatesItsPostalResults() = runBlocking {
+        MockWebServer().use { s ->
+            var clock = 1_000L
+            val markets = AldiMarkets(client, s.url("/north").toString(), s.url("/south").toString(),
+                s.url("/geo").toString(), now = { clock })
+            s.enqueue(MockResponse().setBody(south))
+            assertTrue(markets.hasMarket("80335", "sued"))
+            assertTrue(markets.hasMarket("80335", "sued"))
+            assertEquals(1, s.requestCount)
+            clock += 3_600_001L
+            s.enqueue(MockResponse().setBody(south.replace("48.14", "51.02").replace("11.56", "7.56")))
+            assertTrue(markets.hasMarket("80335", "sued"))
+            assertEquals(2, s.requestCount)
         }
     }
 
