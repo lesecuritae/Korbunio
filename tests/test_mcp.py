@@ -42,6 +42,7 @@ def fake_runtime(monkeypatch, tmp_path):
     monkeypatch.setattr(mcp_server, "_load_snapshot", lambda plz, retailers, refresh=False: {"plz": plz})
     monkeypatch.setenv("SUPERMARKT_MCP_WARMUP", "0")
     mcp_server._inflight.clear()
+    mcp_server._load_failures.clear()
     mcp_server._last_used.clear()
     mcp_server._new_postal_codes.clear()
 
@@ -298,6 +299,70 @@ def _short_wait(real):
     async def wait(tasks, timeout=None, **kwargs):
         return await real(tasks, timeout=min(timeout or 0.2, 0.2), **kwargs)
     return wait
+
+
+def test_late_source_failure_is_returned_without_starting_another_load(monkeypatch):
+    import gc
+    from supermarkt.models import ToolError
+
+    release = threading.Event()
+    calls = []
+
+    def load(*_args):
+        calls.append(True)
+        assert release.wait(5)
+        raise ToolError("Catalogue source timed out")
+
+    monkeypatch.setattr(mcp_server, "_load_snapshot", load)
+    monkeypatch.setattr(mcp_server, "LOAD_DEADLINE_SECONDS", 0.1)
+    monkeypatch.setattr("asyncio.wait", _short_wait(asyncio.wait))
+
+    async def run():
+        loop_errors = []
+        asyncio.get_running_loop().set_exception_handler(lambda _loop, context: loop_errors.append(context))
+        async with Client(mcp_server.mcp) as client:
+            first = await client.call_tool("find_offers", {"product": "x", "postal_code": "01067", "retailers": ["Combi"]})
+            assert first.structured_content["status"] == "loading"
+            release.set()
+            for _ in range(100):
+                if not mcp_server._inflight:
+                    break
+                await asyncio.sleep(0.01)
+            gc.collect()
+            second = await client.call_tool("find_offers", {"product": "x", "postal_code": "01067", "retailers": ["Combi"]})
+            assert not second.is_error
+            assert second.structured_content["status"] == "unavailable"
+            assert "found" not in second.structured_content
+            assert "Catalogue source timed out" in str(second.structured_content)
+            assert len(calls) == 1
+            assert not loop_errors
+
+    asyncio.run(run())
+
+
+def test_failed_source_can_recover_after_cooldown(monkeypatch):
+    from supermarkt.models import ToolError
+
+    calls = []
+
+    def load(*_args):
+        calls.append(True)
+        if len(calls) == 1:
+            raise ToolError("Temporary catalogue outage")
+        return {"plz": "01067"}
+
+    monkeypatch.setattr(mcp_server, "_load_snapshot", load)
+    monkeypatch.setattr(mcp_server, "FAILED_LOAD_RETRY_SECONDS", 0)
+
+    async def run():
+        async with Client(mcp_server.mcp) as client:
+            first = await client.call_tool("find_offers", {"product": "x", "postal_code": "01067"})
+            second = await client.call_tool("find_offers", {"product": "x", "postal_code": "01067"})
+        assert first.structured_content["status"] == "unavailable"
+        assert not second.is_error and second.structured_content["status"] == "ok"
+        assert len(calls) == 2
+
+    asyncio.run(run())
 
 
 def test_list_retailers_and_programs():

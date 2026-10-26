@@ -147,6 +147,9 @@ class CatalogueUnavailable(Exception):
 mcp = MCPServer("korbuino", instructions=INSTRUCTIONS)
 
 _inflight: dict[tuple, asyncio.Task] = {}
+_load_failures: dict[tuple, tuple[float, str]] = {}
+FAILED_LOAD_RETRY_SECONDS = 30
+MAX_FAILED_LOADS = 128
 _last_used: dict[str, float] = {}
 _warm_started = False
 _new_postal_codes: list[float] = []
@@ -197,17 +200,43 @@ def _check_new_postal_code(plz: str) -> None:
     _new_postal_codes.append(now)
 
 
+def _load_finished(key: tuple, task: asyncio.Task) -> None:
+    owned = _inflight.get(key) is task
+    if owned:
+        _inflight.pop(key, None)
+    if task.cancelled():
+        return
+    # Always retrieve the exception, including after a caller received StillLoading.
+    error = task.exception()
+    if isinstance(error, ToolError) and owned:
+        now = time.monotonic()
+        for failed_key, (expires, _detail) in list(_load_failures.items()):
+            if expires <= now:
+                _load_failures.pop(failed_key, None)
+        _load_failures[key] = (now + FAILED_LOAD_RETRY_SECONDS, str(error))
+        while len(_load_failures) > MAX_FAILED_LOADS:
+            _load_failures.pop(next(iter(_load_failures)))
+    elif error is not None and not isinstance(error, ToolError):
+        log.error("Background catalogue load failed", exc_info=(type(error), error, error.__traceback__))
+
+
 async def _snapshot(plz: str, retailers: tuple[str, ...], ctx: Context | None = None) -> dict[str, Any]:
     """Angebote laden, mit Frist. Ein begonnenes Laden läuft weiter und wird gemeinsam genutzt."""
     _check_new_postal_code(plz)
     _last_used[plz] = time.time()
     _start_warmup()
     key = (plz, tuple(sorted(retailers)))
+    failure = _load_failures.get(key)
+    if failure is not None:
+        expires, detail = failure
+        if expires > time.monotonic():
+            raise CatalogueUnavailable(detail)
+        _load_failures.pop(key, None)
     task = _inflight.get(key)
     if task is None or task.done():
         task = asyncio.ensure_future(asyncio.to_thread(_load_snapshot, plz, retailers))
         _inflight[key] = task
-        task.add_done_callback(lambda finished, key=key: _inflight.pop(key, None) if _inflight.get(key) is finished else None)
+        task.add_done_callback(lambda finished, key=key: _load_finished(key, finished))
     waited = 0.0
     step = 3.0
     while not task.done():

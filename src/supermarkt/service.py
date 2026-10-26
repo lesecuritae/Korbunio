@@ -5,6 +5,7 @@ import re
 import threading
 import time
 import unicodedata
+import weakref
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, replace
 from datetime import datetime
@@ -604,7 +605,9 @@ class SupermarketEngine:
         self.store = PersistentSnapshotStore(CACHE_DB, CACHE_TTL_MINUTES, RESULT_RETENTION_HOURS, CACHE_MAX_SNAPSHOTS)
         self.loader = SourceLoader()
         self.comparator = OfferComparator()
-        self._refresh_lock = threading.Lock()
+        self._refresh_locks: weakref.WeakValueDictionary[str, Any] = weakref.WeakValueDictionary()
+        self._refresh_locks_guard = threading.Lock()
+        self._refresh_capacity = threading.BoundedSemaphore(MAX_WORKERS)
 
     @staticmethod
     def cache_key(postal_code: str, aldi_region: str, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "", trinkgut_market_id: str = "") -> str:
@@ -623,14 +626,22 @@ class SupermarketEngine:
                 if progress:
                     progress(status="processing", progress=90, source="Cache", retailer="Alle Händler", category="Alle Kategorien", step="Gespeicherter Vergleich wird geöffnet", processed_sources=1, total_sources=1, processed_products=len(cached.get("offers", [])))
                 return cached, True
-        with self._refresh_lock:
+        # Keep duplicate keys serialized without blocking unrelated catalogues.
+        # Waiters retain their lock strongly; unused keys do not accumulate.
+        with self._refresh_locks_guard:
+            refresh_lock = self._refresh_locks.get(key)
+            if refresh_lock is None:
+                refresh_lock = threading.Lock()
+                self._refresh_locks[key] = refresh_lock
+        with refresh_lock:
             if not refresh:
                 cached = self.store.get_by_key(key)
                 if cached is not None:
                     if progress:
                         progress(status="processing", progress=90, source="Cache", retailer="Alle Händler", category="Alle Kategorien", step="Gespeicherter Vergleich wird geöffnet", processed_sources=1, total_sources=1, processed_products=len(cached.get("offers", [])))
                     return cached, True
-            fresh = self.loader.load(postal_code, aldi_region, progress=progress, retailers=retailers, rewe_market_id=rewe_market_id, netto_market_id=netto_market_id, offer_week=offer_week, netto_scottie_market_id=netto_scottie_market_id, trinkgut_market_id=trinkgut_market_id)
+            with self._refresh_capacity:
+                fresh = self.loader.load(postal_code, aldi_region, progress=progress, retailers=retailers, rewe_market_id=rewe_market_id, netto_market_id=netto_market_id, offer_week=offer_week, netto_scottie_market_id=netto_scottie_market_id, trinkgut_market_id=trinkgut_market_id)
             stored = self.store.put(key, fresh, fresh_until=self.freshness_deadline(fresh, offer_week))
             if normalize_offer_week(offer_week) == "current":
                 history.record(postal_code, stored)
