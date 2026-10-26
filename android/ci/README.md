@@ -18,3 +18,8 @@ and regional-settings persistence. It does not fetch live retailer offers in
 the UI. Provider regression tests and separately recorded live regional API
 checks cover the market-search request; physical-device acceptance remains
 separate.
+
+The Android workflow also accepts the optional `release_smoke_tag` dispatch
+input (for example `v0.1.70`). This tests the existing immutable public APK
+without rebuilding or signing the application. It is useful when correcting
+the test harness itself. The recorded APK SHA-256 must match the release asset.

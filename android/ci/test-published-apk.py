@@ -51,6 +51,7 @@ def main():
         device("shell", "uiautomator", "dump", "/sdcard/korbunio-release-smoke.xml")
         raw = device("exec-out", "cat", "/sdcard/korbunio-release-smoke.xml")
         root = ET.fromstring(raw)
+        (evidence / "latest-window.xml").write_text(raw)
         assert not any(n.get("text") == "Korbuino ist abgestürzt" for n in root.iter("node"))
         return root, raw
 
@@ -63,7 +64,10 @@ def main():
             if fields and "Korbuino" in texts and (postal is None or fields[0].get("text") == postal):
                 return fields[0], raw
             time.sleep(1)
-        raise AssertionError("Release APK did not display the expected postal-code form")
+        (evidence / "failure-screen.png").write_bytes(device("exec-out", "screencap", "-p", binary=True))
+        (evidence / "failure-crash.log").write_text(device("logcat", "-d", "-b", "crash"))
+        (evidence / "failure-activities.txt").write_text(device("shell", "dumpsys", "activity", "activities"))
+        raise AssertionError(f"Release APK did not display postal code {postal!r}; fields={[n.get('text') for n in fields]}")
 
     launch()
     wait_for_form()
@@ -76,8 +80,10 @@ def main():
         device("shell", "input", "keyevent", "123")
         device("shell", "input", "keyevent", *("67" for _ in range(6)))
         device("shell", "input", "text", postal)
-        device("shell", "input", "keyevent", "4")
-        wait_for_form(postal)
+        # A focused Compose text field can keep UIAutomator's idle detector
+        # busy with cursor/IME events. Check the persisted value after restart
+        # rather than dumping that animated, focused field or pressing Back.
+        time.sleep(1)
         device("shell", "am", "force-stop", PACKAGE)
         launch()
         _, raw = wait_for_form(postal)
