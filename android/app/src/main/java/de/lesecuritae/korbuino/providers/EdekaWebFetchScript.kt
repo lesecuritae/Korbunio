@@ -27,7 +27,7 @@ object EdekaWebFetchScript {
                 return String(c.zipCode || m.zipCode_keyword || m.zipCode || '');
               };
               try {
-                const found = await get('/api/marketsearch/markets?limit=100&searchstring=' + encodeURIComponent(plz));
+                const found = await get('/api/marketsearch/markets?size=100&searchstring=' + encodeURIComponent(plz));
                 let list = Array.isArray(found) ? found
                   : (['markets', 'docs', 'results', 'items'].map((k) => found && found[k]).find(Array.isArray) || []);
                 list = list.filter((m) => m && typeof m === 'object' && id(m));

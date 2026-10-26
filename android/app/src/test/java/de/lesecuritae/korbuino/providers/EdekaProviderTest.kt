@@ -60,6 +60,24 @@ class EdekaProviderTest {
         ]}
     """.trimIndent()
 
+    @Test fun `finds the exact market beyond the services default ten results`() = runTest {
+        val nearby = (1..10).map { market("near$it", "99999") }
+        val all = nearby + market("exact", "12345")
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val url = request.requestUrl!!
+                if (url.encodedPath.endsWith("/markets")) {
+                    val size = url.queryParameter("size")?.toIntOrNull() ?: 10
+                    return MockResponse().setBody("""{"markets":[${all.take(size).joinToString(",")}]}""")
+                }
+                return MockResponse().setBody(if (url.queryParameter("marketId") == "exact") pricedOffers else """{"docs":[]}""")
+            }
+        }
+        val result = provider().fetch(RetailerRequest("12345"))
+        assertEquals("exact", result.storeId)
+        assertEquals(2, result.offers.size)
+    }
+
     @Test fun `parses priced current offers and skips the rest`() = runTest {
         serve(listOf(market("m1", "26188")), mapOf("m1" to pricedOffers))
         val result = provider().fetch(RetailerRequest("26188"))

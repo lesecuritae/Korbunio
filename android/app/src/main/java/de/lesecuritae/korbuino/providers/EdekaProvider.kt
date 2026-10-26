@@ -79,7 +79,7 @@ class EdekaProvider(
 
     private fun fromNetwork(postalCode: String, reference: LocalDate): ProviderResult {
         val url = marketApi.toHttpUrl().newBuilder()
-            .addQueryParameter("limit", "100")
+            .addQueryParameter("size", "100")
             .addQueryParameter("searchstring", postalCode)
             .build()
         val candidates = candidateMarkets(getJson(url.toString()), postalCode)

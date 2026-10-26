@@ -1,7 +1,7 @@
 import pytest
 
 from supermarkt.models import ToolError
-from supermarkt.sources.edeka import OfficialEdekaSource
+from supermarkt.sources.edeka import OfficialEdekaSource, OfficialMarktkaufSource
 
 
 class _Response:
@@ -110,3 +110,20 @@ def test_market_search_http_error_is_reported(monkeypatch):
     monkeypatch.setattr(source, "_session", lambda: _Session([], status=403))
     with pytest.raises(ToolError, match="Marktsuche HTTP 403"):
         source.load("04109")
+
+
+@pytest.mark.parametrize("source_type", [OfficialEdekaSource, OfficialMarktkaufSource])
+def test_market_beyond_api_default_page_can_be_selected(monkeypatch, source_type):
+    markets = [_market(str(i), "99999") for i in range(10)]
+    markets.append(_market("target", "12345", "MARKTKAUF Test"))
+
+    class PagedSession:
+        def get(self, _url, params=None, timeout=None):
+            # The real service ignores limit and defaults to ten unless size is set.
+            return _Response({"markets": markets[:int(params.get("size", 10))]})
+
+    source = source_type()
+    monkeypatch.setattr(source, "_session", PagedSession)
+    monkeypatch.setattr(source, "_load_offers", lambda _session, **kw: (["offer"], 1, 0) if kw["market_id"] == "target" else ([], 0, 0))
+    assert source.load("12345") == ["offer"]
+    assert source.last_market_id == "target"

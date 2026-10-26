@@ -144,7 +144,7 @@ class OfficialEdekaSource:
         """Markets to try, best first: exact postal code, then the nearest."""
         response = session.get(
             self.MARKET_API,
-            params={"limit": 100, "searchstring": postal_code},
+            params={"size": 100, "searchstring": postal_code},
             timeout=self.timeout_seconds,
         )
         if response.status_code != 200:

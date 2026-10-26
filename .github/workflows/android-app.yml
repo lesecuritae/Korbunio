@@ -27,6 +27,64 @@ permissions:
   contents: read
 
 jobs:
+  published-apk-smoke:
+    name: Published signed APK on AOSP
+    needs: apk
+    if: startsWith(github.ref, 'refs/tags/v') && needs.apk.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download the published APK and verify its checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          apk="korbuino-${version}.apk"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          curl --fail --location --retry 3 --output "$apk" "$base/$apk"
+          curl --fail --location --retry 3 --output "$apk.sha256" "$base/$apk.sha256"
+          sha256sum --check "$apk.sha256"
+      - name: Boot a disposable Google-free emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_BIN="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin | sort -V | tail -1)"
+          "$SDK_BIN/sdkmanager" --licenses < <(yes)
+          "$SDK_BIN/sdkmanager" "emulator" "system-images;android-28;default;x86_64"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/korbunio-release-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$SDK_BIN/avdmanager" create avd --force --name korbunio-release --package "system-images;android-28;default;x86_64" --device pixel
+          test -e /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          nohup "$ANDROID_HOME/emulator/emulator" -avd korbunio-release -accel on -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > "$RUNNER_TEMP/korbunio-release-emulator.log" 2>&1 &
+          timeout 180 "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          ready=0
+          for attempt in $(seq 1 120); do
+            if [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" = 1
+          "$ANDROID_HOME/platform-tools/adb" shell settings put global window_animation_scale 0
+          "$ANDROID_HOME/platform-tools/adb" shell settings put global transition_animation_scale 0
+          "$ANDROID_HOME/platform-tools/adb" shell settings put global animator_duration_scale 0
+      - name: Install and test the actual published release APK
+        shell: bash
+        run: |
+          python3 android/ci/test-published-apk.py \
+            --apk "korbuino-${GITHUB_REF_NAME#v}.apk" \
+            --expected-version "${GITHUB_REF_NAME#v}" \
+            --evidence-dir "$RUNNER_TEMP/published-apk-evidence"
+      - name: Upload release APK test evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: published-release-apk-smoke
+          path: |
+            ${{ runner.temp }}/published-apk-evidence/
+            ${{ runner.temp }}/korbunio-release-emulator.log
+          if-no-files-found: warn
+
   apk:
     if: ${{ github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/fdroid-v') }}
     runs-on: ubuntu-latest
