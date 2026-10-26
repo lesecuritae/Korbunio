@@ -98,7 +98,7 @@ def main():
               "android_api": device("shell", "getprop", "ro.build.version.sdk").strip(),
               "regional_ui_checks": receipts, "fatal_crashes": 0,
               "limits": ["Disposable AOSP emulator, not an affected physical phone",
-                         "Install/startup and regional settings persistence; no live retailer fetching in this UI smoke test"]}
+                         "Install/startup and regional settings persistence; automatic retailer fetching is not awaited or verified"]}
     (evidence / "receipt.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
 
