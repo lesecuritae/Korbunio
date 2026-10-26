@@ -1,3 +1,22 @@
+# 0.1.68
+
+- Android: ALDI Süd lädt seine Filialdaten unabhängig von ALDI Nord. Eine
+  ausgefallene Nord-Abfrage verhindert die Süd-Angebote nicht mehr (#68).
+- Leere oder blockierte ALDI-Süd-Seiten erzeugen eine verständliche Diagnose
+  beziehungsweise die Browser-Bestätigung. Fehlgeschlagene Wiederholungen
+  halten Händler nicht aufgrund älterer leerer Ergebnisse versteckt.
+- MCP/Docker: HOL'AB! wird als Händlername erkannt. Mit leerem Suchbegriff und
+  ausgewählten Händlern lassen sich deren Angebote durchsehen.
+- Erfolgreiche leere Kataloge, unvollständige Ergebnisse und nicht verfügbare
+  Quellen werden unterschieden. Fehlende Daten gelten nicht als Nachweis,
+  dass ein Produkt nicht im Angebot ist. Quellenfehler behalten ihre Diagnose.
+- Gleichzeitige MCP-Anfragen und geteilte Doppelabrufe sind getestet. Echte
+  unerwartete Programmfehler bleiben Fehler; MCP-Schutzmechanismen werden
+  nicht umgangen. Keine Datenbankmigration oder Änderung der Zugangsdaten.
+- Beide Fixes bestanden separat 395 Android-JVM- und 514 Python/JavaScript-
+  Regressionstests sowie die zugehörigen GitHub-Prüfungen. Der konkrete
+  Abruf auf dem ursprünglich betroffenen Handy ist noch nicht bestätigt.
+
 # 0.1.67
 
 - ALDI Süd: Prospektseiten mit der Überschrift „Aus unserem Sortiment“ werden

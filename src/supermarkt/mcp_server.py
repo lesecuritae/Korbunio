@@ -26,9 +26,10 @@ import time
 import threading
 import hashlib
 import json
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError as MCPToolError
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 
@@ -131,10 +132,16 @@ class OfferResult(BaseModel):
     query: str
     found: int = Field(description="Anzahl Treffer insgesamt")
     offers: list[Offer] = Field(description="Die günstigsten Treffer zuerst")
+    status: Literal["ok", "empty", "partial"] = "ok"
+    diagnostics: list[str] = Field(default_factory=list)
 
 
 class StillLoading(Exception):
     """Die Angebote dieser Postleitzahl werden noch geladen."""
+
+
+class CatalogueUnavailable(Exception):
+    """Expected source outage; not an MCP transport or programming failure."""
 
 
 mcp = MCPServer("korbuino", instructions=INSTRUCTIONS)
@@ -162,7 +169,7 @@ WATCH_RETAILERS = {
 def _postal_code(value: str) -> str:
     plz = validate_postal_code((value or os.environ.get("SUPERMARKT_DEFAULT_POSTAL_CODE", "")).strip())
     if not plz:
-        raise ValueError("Bitte eine gültige deutsche Postleitzahl (fünf Ziffern) angeben.")
+        raise MCPToolError("Bitte eine gültige deutsche Postleitzahl (fünf Ziffern) angeben.")
     return plz
 
 
@@ -171,7 +178,7 @@ def _retailers(values: list[str] | None) -> tuple[str, ...]:
         return ()
     resolved, unknown = resolve_retailer_names(values)
     if unknown:
-        raise ValueError("Unbekannte Händler: " + ", ".join(unknown) + ". Gültig: " + ", ".join(spec.name for spec in RETAILER_SPECS))
+        raise MCPToolError("Unbekannte Händler: " + ", ".join(unknown) + ". Gültig: " + ", ".join(spec.name for spec in RETAILER_SPECS))
     return tuple(resolved)
 
 
@@ -186,7 +193,7 @@ def _check_new_postal_code(plz: str) -> None:
     now = time.time()
     _new_postal_codes[:] = [t for t in _new_postal_codes if now - t < 600]
     if len(_new_postal_codes) >= NEW_POSTAL_CODE_LIMIT:
-        raise ValueError("Zu viele verschiedene Postleitzahlen in kurzer Zeit. Bitte in ein paar Minuten noch einmal fragen.")
+        raise MCPToolError("Zu viele verschiedene Postleitzahlen in kurzer Zeit. Bitte in ein paar Minuten noch einmal fragen.")
     _new_postal_codes.append(now)
 
 
@@ -195,7 +202,7 @@ async def _snapshot(plz: str, retailers: tuple[str, ...], ctx: Context | None = 
     _check_new_postal_code(plz)
     _last_used[plz] = time.time()
     _start_warmup()
-    key = (plz, retailers)
+    key = (plz, tuple(sorted(retailers)))
     task = _inflight.get(key)
     if task is None or task.done():
         task = asyncio.ensure_future(asyncio.to_thread(_load_snapshot, plz, retailers))
@@ -214,7 +221,7 @@ async def _snapshot(plz: str, retailers: tuple[str, ...], ctx: Context | None = 
     try:
         return task.result()
     except ToolError as exc:
-        raise ValueError(f"Die Angebote konnten nicht geladen werden: {exc}") from exc
+        raise CatalogueUnavailable(str(exc)) from exc
 
 
 def _start_warmup() -> None:
@@ -439,10 +446,19 @@ def _summary(result: OfferResult) -> str:
 
 def _waiting_result(plz: str, query: str) -> CallToolResult:
     text = (
-        f"Die Angebote für die Postleitzahl {plz} werden gerade zum ersten Mal geladen. Das läuft im Hintergrund weiter "
-        "und dauert höchstens eine Minute. Bitte frage in etwa 30 Sekunden noch einmal genau dasselbe, dann kommt die Antwort sofort."
+        f"Die Angebote für die Postleitzahl {plz} werden geladen. Das läuft im Hintergrund weiter; "
+        "andere gleichzeitige Abrufe können noch davor liegen. Bitte frage in etwa 30 Sekunden noch einmal "
+        "genau dasselbe. Ein laufender Abruf wird dabei gemeinsam genutzt."
     )
     return CallToolResult(content=[TextContent(type="text", text=text)], structured_content={"status": "loading", "postal_code": plz, "query": query})
+
+
+def _unavailable_result(plz: str, query: str, error: CatalogueUnavailable) -> CallToolResult:
+    detail = str(error)[:1200]
+    return CallToolResult(
+        content=[TextContent(type="text", text="Angebotsabruf nicht verfügbar. Ob das Produkt im Angebot ist, bleibt unbekannt. " + detail)],
+        structured_content={"status": "unavailable", "postal_code": plz, "query": query, "diagnostics": [detail], "retry_after_seconds": 30},
+    )
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
@@ -462,7 +478,7 @@ async def find_offers(
     Ihre Gültigkeit unbedingt nennen; ein Vorschaupreis gilt noch nicht heute.
 
     Args:
-        product: Suchbegriff, z. B. "Kaffee" oder "Hochland Schmelzkäse".
+        product: Suchbegriff, z. B. "Kaffee". Leer mit retailers = Angebote dieser Händler durchsehen.
         postal_code: Deutsche Postleitzahl (fünf Ziffern). Leer = Standard des Servers.
         retailers: Nur diese Händler, z. B. ["Kaufland", "REWE"]. Leer = alle. Gültige Namen liefert list_retailers.
         also_search: Weitere Suchbegriffe für dieselbe Frage (ODER), z. B. Synonyme oder Schreibweisen.
@@ -470,15 +486,18 @@ async def find_offers(
         with_images: Bilder der ersten Treffer mitschicken.
         max_images: Wie viele Bilder (0 bis 3, Standard 1); jedes Bild kostet Kontext.
     """
-    if not product.strip():
-        raise ValueError("Bitte sage, welches Produkt gesucht wird.")
     plz = _postal_code(postal_code)
     wanted = _retailers(retailers)
+    product = product.strip()
+    if not product and not wanted:
+        raise MCPToolError("Bitte ein Produkt oder mindestens einen Händler zum Durchsehen angeben.")
     limit = max(1, min(int(limit), 25))
     try:
         snapshot = await _snapshot(plz, wanted, ctx)
     except StillLoading:
         return _waiting_result(plz, product)
+    except CatalogueUnavailable as exc:
+        return _unavailable_result(plz, product, exc)
     also_search = [*(also_search or []), *_synonyms(product)]
     offers = await asyncio.to_thread(_offers_from, snapshot, product.strip(), also_search, wanted)
     widened = False
@@ -487,11 +506,17 @@ async def find_offers(
         if variants:
             offers = await asyncio.to_thread(_offers_from, snapshot, product.strip(), [*(also_search or []), *variants], wanted)
             widened = bool(offers)
-    result = OfferResult(postal_code=plz, query=product.strip(), found=len(offers), offers=offers[:limit])
+    diagnostics = list(dict.fromkeys(str(error)[:240] for error in snapshot.get("request_errors", []) if error))[:5]
+    status = "partial" if diagnostics else ("ok" if offers else "empty")
+    result = OfferResult(postal_code=plz, query=product or "Alle Angebote", found=len(offers), offers=offers[:limit], status=status, diagnostics=diagnostics)
     if not result.offers:
         text = f"Keine Angebote für „{result.query}“ bei der Postleitzahl {plz} gefunden. Versuche einen anderen Begriff oder Synonyme (also_search)."
+        if diagnostics:
+            text = "Keine Treffer in den verfügbaren Daten; der Abruf ist unvollständig. " + " | ".join(diagnostics)
         return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=result.model_dump())
     content: list[TextContent | ImageContent] = [TextContent(type="text", text=_summary(result))]
+    if diagnostics:
+        content[0].text += "\nAbruf unvollständig: " + " | ".join(diagnostics)
     if widened:
         content[0].text += "\n(Nichts mit genau diesem Begriff; gezeigt sind ähnliche Treffer zu einzelnen Wörtern.)"
     silent = sorted({offer.retailer for offer in result.offers if offer.retailer in NO_COMPUTED_BONUS and not offer.price_with_bonus})
@@ -525,6 +550,8 @@ async def list_bonus_programs(postal_code: str = "", ctx: Context | None = None)
         snapshot = await _snapshot(plz, (), ctx)
     except StillLoading:
         return _waiting_result(plz, "")
+    except CatalogueUnavailable as exc:
+        return _unavailable_result(plz, "Bonusprogramme", exc)
     page = await asyncio.to_thread(
         runtime.get_engine().page, snapshot, page=1, page_size=1, view="best_only", sort="price", loyalty_programs=(),
     )
@@ -593,6 +620,8 @@ async def check_shopping_list(postal_code: str = "", ctx: Context | None = None)
         snapshot = await _snapshot(plz, (), ctx)
     except StillLoading:
         return _waiting_result(plz, "Einkaufsliste")
+    except CatalogueUnavailable as exc:
+        return _unavailable_result(plz, "Einkaufsliste", exc)
     rows: list[dict[str, Any]] = []
     lines: list[str] = []
     for entry in items:

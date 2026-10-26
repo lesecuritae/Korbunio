@@ -28,8 +28,8 @@ class HtmlFlyerProvider(
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
         val rendered = renderedHtmlProvider?.invoke()?.takeIf { it.isNotBlank() }
-        val result = if (rendered != null) {
-            parse(rendered)
+        val html = if (rendered != null) {
+            rendered
         } else {
             val call = Request.Builder().url(offersUrl)
                 .header("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
@@ -38,8 +38,18 @@ class HtmlFlyerProvider(
                 .build()
             http.newCall(call).execute().use { response ->
                 check(response.isSuccessful) { "$displayName HTTP ${response.code}" }
-                parse(response.body?.string().orEmpty())
+                response.body?.string().orEmpty()
             }
+        }
+        val result = parse(html)
+        if (id == "aldi-sued" && result.offers.isEmpty()) {
+            // A 200 challenge/navigation page is not evidence of no local
+            // store. Surface the failure so diagnostics and browser handoff
+            // stay available instead of silently hiding the retailer.
+            val blocked = listOf("captcha", "challenge", "access denied", "bot protection", "anti-bot")
+                .any { html.contains(it, ignoreCase = true) }
+            check(!blocked) { "ALDI Süd Anti-Bot-Seite: Browser-Bestätigung erforderlich" }
+            error("ALDI Süd Angebotsformat nicht lesbar: keine Produktkarten gefunden")
         }
         if (id in setOf("mueller", "rossmann") && result.offers.isEmpty()) {
             val reason = if (id == "rossmann") "Rossmann Anti-Bot-Seite lieferte" else "Müller lieferte"

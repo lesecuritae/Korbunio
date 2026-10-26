@@ -226,6 +226,7 @@ class SourceLoader:
         source_states = dict.fromkeys(active_contexts, "keine Treffer")
         final_by_retailer: dict[str, list[Offer]] = {}
         failed_primary: set[str] = set()
+        catalogue_responded = False
 
         # Retailers with maintained first-party adapters always prefer their
         # official source. A partial aggregator result must never suppress a
@@ -303,17 +304,16 @@ class SourceLoader:
                         source_states[name] = "kein Markt"
                         continue
                     offers = deduplicate_offers(list(raw_offers))
+                    catalogue_responded = True
                 except Exception as exc:
                     failed_primary.add(name)
-                    if name in {"Marktkauf", "HOL’AB!", "trinkgut"}:
-                        source_states[name] = "kein Markt"
-                    else:
-                        request_errors.append(f"{name} offiziell: {type(exc).__name__}: {exc}")
+                    source_states[name] = "Abruffehler"
+                    request_errors.append(f"{name} offiziell: {type(exc).__name__}: {exc}")
                     continue
                 if not offers:
                     failed_primary.add(name)
                     if name in {"Marktkauf", "HOL’AB!", "trinkgut"}:
-                        source_states[name] = "kein Markt"
+                        source_states[name] = "keine Treffer"
                     else:
                         request_errors.append(f"{name} offiziell: keine Angebote für die Zielwoche")
                     continue
@@ -340,6 +340,7 @@ class SourceLoader:
                     aldi_name = aldi_futures[future]
                     try:
                         aldi_result = future.result()
+                        catalogue_responded = True
                         request_errors.extend(aldi_result.request_errors)
                         aldi_offers = deduplicate_offers(list(aldi_result.offers))
                     except Exception as exc:
@@ -421,6 +422,7 @@ class SourceLoader:
             if aggregator_names or fallback_names:
                 try:
                     broad_raw, errors = self.marktguru.load_offers(postal_code)
+                    catalogue_responded = True
                     raw.extend(broad_raw)
                     request_errors.extend(errors)
                 except Exception as exc:
@@ -431,6 +433,7 @@ class SourceLoader:
                     postal_code,
                     sorted(marketguru_candidates, key=str.casefold),
                 )
+                catalogue_responded = True
                 raw.extend(targeted_raw)
                 request_errors.extend(errors)
             except Exception as exc:
@@ -568,8 +571,13 @@ class SourceLoader:
                 retailer_url=offer.retailer_url or contexts.get(offer.retailer, RetailerContext("", (), (), "", "", "")).market_url,
             ))
         offers = normalized_offers
-        if not offers and not (selected_retailers and selected_retailers <= unavailable_retailers):
-            raise ToolError("Keine Supermarktangebote konnten geladen werden")
+        confirmed_absence = selected_retailers and selected_retailers <= unavailable_retailers
+        clean_empty = selected_retailers and catalogue_responded and not request_errors
+        if not offers and not (confirmed_absence or clean_empty):
+            details = list(dict.fromkeys(clean_text(error)[:240] for error in request_errors if clean_text(error)))
+            if not details and selected_aldi and not verified_regions and requested_region == "auto":
+                details.append("ALDI-Region nicht bestätigt" + (f": {clean_text(self.aldi_region.last_error)[:240]}" if self.aldi_region.last_error else ""))
+            raise ToolError("Keine Supermarktangebote konnten geladen werden" + (": " + " | ".join(details[-5:]) if details else ""))
 
         notify(status="processing", progress=96, source="Korbuino", retailer="Alle Händler", category="Alle Kategorien", step="Angebote werden zusammengeführt", processed_sources=completed_sources, processed_products=len(offers))
 
@@ -589,9 +597,9 @@ class SourceLoader:
         }
 
 class SupermarketEngine:
-    # v13 validates regional retailers and carries confirmed market absence.
-    # Older snapshots can contain offers for chains with no local store.
-    SNAPSHOT_SCHEMA = 13
+    # v14 distinguishes empty catalogues from failed optional sources.
+    # Older snapshots can incorrectly label source failures as no local store.
+    SNAPSHOT_SCHEMA = 14
     def __init__(self) -> None:
         self.store = PersistentSnapshotStore(CACHE_DB, CACHE_TTL_MINUTES, RESULT_RETENTION_HOURS, CACHE_MAX_SNAPSHOTS)
         self.loader = SourceLoader()
@@ -642,7 +650,7 @@ class SupermarketEngine:
         """
         if not weekly or normalize_offer_week(offer_week) != "current":
             return None
-        if snapshot.get("request_errors"):
+        if snapshot.get("request_errors") or ("offers" in snapshot and not snapshot["offers"]):
             return None
         return next_change_timestamp(now)
 
