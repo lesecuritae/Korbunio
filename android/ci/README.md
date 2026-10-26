@@ -14,7 +14,18 @@ python3 android/ci/test-published-apk.py --apk korbuino-0.1.70.apk \
 
 The script requires exactly one emulator and does not target physical devices.
 This checks the signed, minified release application's installation, startup
-and regional-settings persistence. It does not fetch live retailer offers in
-the UI. Provider regression tests and separately recorded live regional API
+and regional-settings persistence. The application may start live retailer requests automatically; this smoke
+test does not await or verify their completion. Provider regression tests and separately recorded live regional API
 checks cover the market-search request; physical-device acceptance remains
 separate.
+
+After the regional settings checks, the script clears only the disposable
+emulator's app data, selects EDEKA alone and lets the normal startup refresh
+run. It records either a positive offer overview or the explicit action for
+the retailer's browser confirmation. A confirmation-required result does not
+prove that offers were loaded; that outcome is retained separately in the receipt.
+
+The Android workflow also accepts the optional `release_smoke_tag` dispatch
+input (for example `v0.1.70`). This tests the existing immutable public APK
+without rebuilding or signing the application. It is useful when correcting
+the test harness itself. The recorded APK SHA-256 must match the release asset.

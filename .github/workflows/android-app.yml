@@ -22,6 +22,11 @@ on:
       - "fastlane/**"
       - ".github/workflows/android-app.yml"
   workflow_dispatch:
+    inputs:
+      release_smoke_tag:
+        description: "Existing vX.Y.Z release APK to test without rebuilding/signing"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -30,18 +35,21 @@ jobs:
   published-apk-smoke:
     name: Published signed APK on AOSP
     needs: apk
-    if: startsWith(github.ref, 'refs/tags/v') && needs.apk.result == 'success'
+    if: always() && ((startsWith(github.ref, 'refs/tags/v') && needs.apk.result == 'success') || (github.event_name == 'workflow_dispatch' && inputs.release_smoke_tag != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      APK_TEST_TAG: ${{ inputs.release_smoke_tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v6
       - name: Download the published APK and verify its checksum
         shell: bash
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
+          [[ "$APK_TEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          version="${APK_TEST_TAG#v}"
           apk="korbuino-${version}.apk"
-          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${APK_TEST_TAG}"
           curl --fail --location --retry 3 --output "$apk" "$base/$apk"
           curl --fail --location --retry 3 --output "$apk.sha256" "$base/$apk.sha256"
           sha256sum --check "$apk.sha256"
@@ -72,8 +80,8 @@ jobs:
         shell: bash
         run: |
           python3 android/ci/test-published-apk.py \
-            --apk "korbuino-${GITHUB_REF_NAME#v}.apk" \
-            --expected-version "${GITHUB_REF_NAME#v}" \
+            --apk "korbuino-${APK_TEST_TAG#v}.apk" \
+            --expected-version "${APK_TEST_TAG#v}" \
             --evidence-dir "$RUNNER_TEMP/published-apk-evidence"
       - name: Upload release APK test evidence
         if: always()
@@ -86,7 +94,7 @@ jobs:
           if-no-files-found: warn
 
   apk:
-    if: ${{ github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/fdroid-v') }}
+    if: ${{ github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/fdroid-v') && !(github.event_name == 'workflow_dispatch' && inputs.release_smoke_tag != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -333,7 +341,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   flutter-compatibility:
-    if: ${{ !startsWith(github.ref, 'refs/tags/fdroid-v') }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/fdroid-v') && !(github.event_name == 'workflow_dispatch' && inputs.release_smoke_tag != '') }}
     name: Flutter compatibility client checks
     runs-on: ubuntu-latest
     steps:
@@ -357,7 +365,7 @@ jobs:
         run: flutter test --exclude-tags "golden,live"
 
   native-quality:
-    if: ${{ !startsWith(github.ref, 'refs/tags/fdroid-v') }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/fdroid-v') && !(github.event_name == 'workflow_dispatch' && inputs.release_smoke_tag != '') }}
     name: Native Kotlin checks
     runs-on: ubuntu-latest
     steps:
@@ -384,6 +392,7 @@ jobs:
         run: ./gradlew lintStandardDebug
 
   fdroid-quality:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.release_smoke_tag != '') }}
     name: F-Droid build and checks
     runs-on: ubuntu-latest
     steps:
@@ -473,7 +482,7 @@ jobs:
 
   native-ui-regressions:
     name: Native Compose and migration tests (AOSP)
-    if: ${{ !startsWith(github.ref, 'refs/tags/fdroid-v') }}
+    if: ${{ !startsWith(github.ref, 'refs/tags/fdroid-v') && !(github.event_name == 'workflow_dispatch' && inputs.release_smoke_tag != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
