@@ -19,6 +19,12 @@ test does not await or verify their completion. Provider regression tests and se
 checks cover the market-search request; physical-device acceptance remains
 separate.
 
+After the regional settings checks, the script clears only the disposable
+emulator's app data, selects EDEKA alone and lets the normal startup refresh
+run. It records either a positive offer overview or the explicit action for
+the retailer's browser confirmation. A confirmation-required result does not
+prove that offers were loaded; that outcome is retained separately in the receipt.
+
 The Android workflow also accepts the optional `release_smoke_tag` dispatch
 input (for example `v0.1.70`). This tests the existing immutable public APK
 without rebuilding or signing the application. It is useful when correcting

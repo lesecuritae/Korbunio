@@ -47,6 +47,10 @@ def main():
     def launch():
         device("shell", "am", "start", "-W", "-n", component)
 
+    def tap(node):
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.attrib["bounds"]))
+        device("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
+
     def dump():
         device("shell", "uiautomator", "dump", "/sdcard/korbunio-release-smoke.xml")
         raw = device("exec-out", "cat", "/sdcard/korbunio-release-smoke.xml")
@@ -74,9 +78,7 @@ def main():
     receipts = []
     for region, postal in REGIONS:
         field, _ = wait_for_form()
-        coordinates = list(map(int, re.findall(r"\d+", field.attrib["bounds"])))
-        x1, y1, x2, y2 = coordinates
-        device("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
+        tap(field)
         device("shell", "input", "keyevent", "123")
         device("shell", "input", "keyevent", *("67" for _ in range(6)))
         device("shell", "input", "text", postal)
@@ -89,6 +91,52 @@ def main():
         _, raw = wait_for_form(postal)
         (evidence / (region.lower() + ".xml")).write_text(raw)
         receipts.append({"region": region, "postal_code": postal, "persisted_after_process_restart": True})
+    (evidence / "regional-settings-screen.png").write_bytes(device("exec-out", "screencap", "-p", binary=True))
+
+    # Clear only this disposable emulator's application data so a single
+    # selected provider is tested without an unrelated eighteen-provider batch.
+    device("shell", "pm", "clear", PACKAGE)
+    launch()
+    _, raw = wait_for_form()
+    root = ET.fromstring(raw)
+    tap(next(n for n in root.iter("node") if n.get("text", "").startswith("Händler:")))
+    for _ in range(5):
+        root, _ = dump()
+        choices = [n for n in root.iter("node") if n.get("text") == "EDEKA"]
+        if choices:
+            tap(choices[0])
+            break
+        device("shell", "input", "swipe", "540", "1450", "540", "650", "400")
+    else:
+        raise AssertionError("EDEKA selection was not accessible")
+    device("shell", "input", "keyevent", "4")  # close the known open dropdown
+    field, raw = wait_for_form()
+    assert any(n.get("text") == "Händler: EDEKA" for n in ET.fromstring(raw).iter("node")), "Must test only EDEKA"
+    tap(field)
+    device("shell", "input", "text", "04109")
+    time.sleep(1)
+    device("shell", "am", "force-stop", PACKAGE)
+    launch()  # a stored five-digit postal code triggers the normal refresh
+    live_result = None
+    deadline = time.monotonic() + 150
+    while time.monotonic() < deadline:
+        root, raw = dump()
+        texts = [n.get("text", "") for n in root.iter("node")]
+        overview = next((re.search(r"(\d+) Angebote · (\d+) Händler", text) for text in texts
+                         if re.search(r"(\d+) Angebote · (\d+) Händler", text)), None)
+        if overview and int(overview.group(1)) > 0 and "Ergebnisse" in texts:
+            live_result = {"provider": "EDEKA", "postal_code": "04109", "outcome": "offers_displayed",
+                           "displayed_offers": int(overview.group(1))}
+            break
+        if "Händler-Bestätigung öffnen" in texts:
+            live_result = {"provider": "EDEKA", "postal_code": "04109", "outcome": "confirmation_required",
+                           "displayed_offers": None, "diagnostics": [text for text in texts if "EDEKA" in text or "403" in text]}
+            break
+        time.sleep(2)
+    (evidence / "live-edeka-window.xml").write_text(raw)
+    (evidence / "live-edeka-screen.png").write_bytes(device("exec-out", "screencap", "-p", binary=True))
+    (evidence / "live-edeka-crash.log").write_text(device("logcat", "-d", "-b", "crash"))
+    assert live_result is not None, "Live EDEKA read neither completed nor showed its confirmation action"
     crash_log = device("logcat", "-d", "-b", "crash")
     (evidence / "crash.log").write_text(crash_log)
     assert "FATAL EXCEPTION" not in crash_log
@@ -97,8 +145,10 @@ def main():
               "version": args.expected_version, "release_apk": True,
               "android_api": device("shell", "getprop", "ro.build.version.sdk").strip(),
               "regional_ui_checks": receipts, "fatal_crashes": 0,
+              "live_provider_read": live_result,
               "limits": ["Disposable AOSP emulator, not an affected physical phone",
-                         "Install/startup and regional settings persistence; automatic retailer fetching is not awaited or verified"]}
+                         "Eight regional settings checks do not await background catalogue completion",
+                         "A single live EDEKA read verifies offers or an explicit confirmation-required state, not every provider"]}
     (evidence / "receipt.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
 
