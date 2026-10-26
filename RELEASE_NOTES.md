@@ -1,3 +1,15 @@
+## 0.1.70
+
+- EDEKA-Marktsuche in Server/MCP, Android-App und Browser-Bestätigung korrigiert:
+  Die Schnittstelle erwartet `size` statt `limit`. Zuvor wurden trotz angeforderter
+  100 Ergebnisse nur zehn Märkte geliefert. Dadurch konnte ein naher Marktkauf
+  oder der Markt mit passender PLZ fehlen.
+- Regressionstests bilden einen passenden Markt außerhalb der ersten zehn Treffer
+  nach, einschließlich ausgeführtem Browser-JavaScript und Android-Provider.
+- Enthält die Korrekturen für ALDI Süd, MCP-Diagnosen und parallele Katalogabrufe
+  aus 0.1.68 und 0.1.69. Händler außerhalb des eingestellten Suchradius bleiben
+  weiterhin ausgeschlossen; der Radius wird nicht automatisch erweitert.
+
 ## 0.1.69
 
 - Unabhängige Händlerkataloge können gleichzeitig aktualisiert werden. Ein langsamer

@@ -7,7 +7,7 @@ import org.junit.Test
 class EdekaWebFetchScriptTest {
     @Test fun `asks EDEKA's own services for the postal code and calls the bridge`() {
         val script = EdekaWebFetchScript.build("26188")
-        assertTrue(script.contains("/api/marketsearch/markets?limit=100&searchstring="))
+        assertTrue(script.contains("/api/marketsearch/markets?size=100&searchstring="))
         assertTrue(script.contains("/eh/service/eh/offers?marketId="))
         assertTrue(script.contains("KorbuinoEdeka.deliver(JSON.stringify(out))"))
         assertTrue(script.contains("})('26188');"))
