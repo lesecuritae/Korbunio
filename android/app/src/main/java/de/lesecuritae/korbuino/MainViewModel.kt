@@ -567,7 +567,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         append("${offers.size} Angebote von ${successes.size} Quellen gespeichert")
                         if (emptySources > 0) append(" · $emptySources ohne aktuelle Angebote")
                         if (rejectedSources > 0) append(" · $rejectedSources wegen Datenqualität verworfen")
-                        if (failedSources > 0) append(" · $failedSources Abruffehler")
+                        if (failedSources > 0) {
+                            append(" · $failedSources Abruffehler")
+                            fetched.firstOrNull { it.second.isFailure }?.let { (provider, result) ->
+                                val error = result.exceptionOrNull()!!
+                                append("\n${provider.displayName}: ${(error.message ?: error.javaClass.simpleName).take(160)}")
+                            }
+                        }
                     },
                 )
             } else {
@@ -598,7 +604,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val answered = fetched.filter { it.second.isSuccess }
         val empty = answered.filter { it.second.getOrNull()?.offers?.isEmpty() == true }.map { it.first.id }
         val kept = if (_state.value.emptyRetailersPostal == postalCode) {
-            _state.value.emptyRetailers - answered.map { it.first.id }.toSet()
+            // A failed retry no longer confirms an older empty result. Keep
+            // the retailer selectable so browser confirmation/retry is possible.
+            _state.value.emptyRetailers - fetched.map { it.first.id }.toSet()
         } else emptySet()
         val merged = kept + empty
         secureStore.put("empty_retailers", merged.sorted().joinToString(","))

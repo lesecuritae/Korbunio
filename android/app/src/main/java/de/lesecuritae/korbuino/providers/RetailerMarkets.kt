@@ -40,9 +40,10 @@ class AldiMarkets(
 ) {
     private data class Store(val region: String, val postalCode: String, val lat: Double, val lon: Double)
     private val mutex = kotlinx.coroutines.sync.Mutex()
-    private var stores: List<Store>? = null
-    private var fetchedAt = 0L
-    private val regions = linkedMapOf<String, Set<String>>()
+    private data class Catalogue(val stores: List<Store>, val fetchedAt: Long)
+    private val catalogues = mutableMapOf<String, Catalogue>()
+    private val regions = linkedMapOf<Pair<String, String>, Set<String>>()
+    private val origins = linkedMapOf<String, Pair<Double, Double>>()
     private var lastGeocodeAt: Long? = null
 
     suspend fun hasMarket(postalCode: String, region: String): Boolean = withContext(Dispatchers.IO) {
@@ -50,15 +51,20 @@ class AldiMarkets(
         require(region in setOf("nord", "sued"))
         mutex.lock()
         try {
-            if (stores == null || now() - fetchedAt >= 3_600_000L) {
-                val next = northStores() + southStores()
-                stores = next
-                fetchedAt = now()
-                regions.clear()
+            var catalogue = catalogues[region]
+            if (catalogue == null || now() - catalogue.fetchedAt >= 3_600_000L) {
+                // One chain's outage must not prevent the other chain's offers.
+                // Failed lookups remain errors and are never cached as absence.
+                val next = if (region == "nord") northStores() else southStores()
+                if (catalogue != null) origins.clear()
+                catalogue = Catalogue(next, now())
+                catalogues[region] = catalogue
+                regions.keys.removeAll { it.first == region }
             }
-            val selected = regions[postalCode] ?: resolve(postalCode, stores!!).also {
-                if (regions.size >= 32) regions.remove(regions.keys.first())
-                regions[postalCode] = it
+            val key = region to postalCode
+            val selected = regions[key] ?: resolve(postalCode, catalogue.stores).also {
+                if (regions.size >= 64) regions.remove(regions.keys.first())
+                regions[key] = it
             }
             region in selected
         } finally { mutex.unlock() }
@@ -109,9 +115,12 @@ class AldiMarkets(
     }
 
     private suspend fun resolve(code: String, stores: List<Store>): Set<String> {
-        val exact = stores.filter { it.postalCode == code }
-        val point = if (exact.isNotEmpty()) exact.map { it.lat }.average() to exact.map { it.lon }.average()
-            else geocode(code)
+        val exact = catalogues.values.flatMap { it.stores }.filter { it.postalCode == code }
+        val point = origins[code] ?: (if (exact.isNotEmpty()) exact.map { it.lat }.average() to exact.map { it.lon }.average()
+            else geocode(code)).also {
+                if (origins.size >= 32) origins.remove(origins.keys.first())
+                origins[code] = it
+            }
         return stores.filter { distanceKm(point, it.lat to it.lon) <= 15.0 }.map { it.region }.toSet()
     }
 

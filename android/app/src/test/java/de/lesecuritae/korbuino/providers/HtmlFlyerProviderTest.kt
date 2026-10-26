@@ -196,4 +196,36 @@ class HtmlFlyerProviderTest {
             assertTrue(error.message.orEmpty().contains("dynamischen Angebote"))
         }
     }
+
+    @Test fun `ALDI South empty HTML is a parser failure instead of a missing local market`() = runTest {
+        server.enqueue(MockResponse().setBody("<html><body>Nur Navigation</body></html>"))
+        val provider = HtmlFlyerProvider("aldi-sued", "ALDI Süd", server.url("/angebote").toString(), OkHttpClient())
+        val error = runCatching { provider.fetch(RetailerRequest("80335")) }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertTrue(error?.message.orEmpty().contains("ALDI Süd"))
+        assertTrue(error?.message.orEmpty().contains("format", ignoreCase = true))
+    }
+
+    @Test fun `ALDI South HTTP 200 bot page offers the browser confirmation path`() = runTest {
+        server.enqueue(MockResponse().setBody("<html><title>Access Denied</title><body>Bot protection</body></html>"))
+        val provider = HtmlFlyerProvider("aldi-sued", "ALDI Süd", server.url("/angebote").toString(), OkHttpClient())
+        val error = runCatching { provider.fetch(RetailerRequest("80335")) }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertTrue(error != null && ServerFallbackProvider.isBlocked(error))
+    }
+
+    @Test fun `ALDI South uses confirmed browser HTML without another network call`() = runTest {
+        val provider = HtmlFlyerProvider(
+            "aldi-sued", "ALDI Süd", "https://www.aldi-sued.de/angebote", OkHttpClient(),
+            renderedHtmlProvider = { """
+                <div class="product-tile"><a href="/produkt/test-123">
+                  <div data-test="product-tile__name"><p>Äpfel 1 kg</p></div>
+                  <div data-test="product-tile__price"><span>1,69 €</span></div>
+                </a></div>
+            """ },
+        )
+        val result = provider.fetch(RetailerRequest("80335"))
+        assertEquals(169, result.offers.single().priceCents)
+        assertEquals(0, server.requestCount)
+    }
 }
