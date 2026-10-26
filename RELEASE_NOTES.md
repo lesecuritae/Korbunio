@@ -1,3 +1,17 @@
+## 0.1.69
+
+- Unabhängige Händlerkataloge können gleichzeitig aktualisiert werden. Ein langsamer
+  Katalog blockiert andere Händler nicht mehr über einen globalen Snapshot-Lock.
+  Gleichartige Abfragen teilen weiterhin denselben Refresh; die Zahl gleichzeitiger
+  Aktualisierungen bleibt begrenzt.
+- Wenn ein Katalog erst nach der MCP-Wartefrist fehlschlägt, wird der Fehler abgeholt
+  und kurz vorgehalten. Die nächste Nachfrage erhält `unavailable` mit Diagnose,
+  statt den fehlgeschlagenen Abruf sofort erneut zu beginnen.
+- Enthält die Android-ALDI-Süd- und MCP-Diagnosekorrekturen aus 0.1.68.
+- Regressionstests verwenden den echten Snapshot-/SQLite-Pfad mit drei überlappenden
+  Fixture-Ladern sowie echte In-Memory-MCP-Aufrufe für späte Fehler und Wiederholung.
+  Externe Händler können weiterhin langsam oder nicht erreichbar sein.
+
 # 0.1.68
 
 - Android: ALDI Süd lädt seine Filialdaten unabhängig von ALDI Nord. Eine
