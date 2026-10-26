@@ -16,6 +16,11 @@ def test_a_snapshot_with_a_failed_source_keeps_the_short_ttl():
     assert SupermarketEngine.freshness_deadline(snapshot, "current", now=WEDNESDAY, weekly=True) is None
 
 
+def test_a_successfully_empty_catalogue_keeps_the_short_ttl():
+    snapshot = {"offers": [], "request_errors": []}
+    assert SupermarketEngine.freshness_deadline(snapshot, "current", now=WEDNESDAY, weekly=True) is None
+
+
 def test_next_week_previews_keep_the_short_ttl():
     assert SupermarketEngine.freshness_deadline({"request_errors": []}, "next", now=WEDNESDAY, weekly=True) is None
 

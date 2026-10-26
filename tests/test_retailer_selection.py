@@ -205,3 +205,33 @@ def test_unresolved_aldi_region_does_not_claim_confirmed_absence():
     loader.aldi_region = Region()
     with pytest.raises(ToolError, match="Keine Supermarktangebote"):
         loader.load("80331", "auto", retailers=("ALDI Süd",))
+
+
+@pytest.mark.parametrize("retailer", ["famila Nordwest", "Combi"])
+def test_successful_empty_regional_catalogue_is_not_a_load_failure(retailer):
+    from supermarkt.compare import OfferMapper
+    from types import SimpleNamespace
+    loader = SourceLoader.__new__(SourceLoader)
+    loader.aldi_region = SimpleNamespace(last_error="")
+    loader.marktguru = SimpleNamespace(load_offers=lambda _code: ([], []), load_retailer_queries=lambda _code, _names: ([], []))
+    loader.mapper = OfferMapper()
+    result = loader.load("80331", "auto", retailers=(retailer,))
+    assert result["offers"] == []
+    assert result["request_errors"] == []
+    assert result["unavailable_retailers"] == []  # No store absence was proven.
+
+
+def test_failed_optional_source_keeps_its_diagnostic_and_is_not_market_absence():
+    from supermarkt.compare import OfferMapper
+    from supermarkt.models import ToolError
+    from types import SimpleNamespace
+
+    def failed(_code):
+        raise ToolError("Marktkauf HTTP 503")
+    loader = SourceLoader.__new__(SourceLoader)
+    loader.aldi_region = SimpleNamespace(last_error="")
+    loader.official_marktkauf = SimpleNamespace(load=failed)
+    loader.marktguru = SimpleNamespace(load_offers=lambda _code: ([], []), load_retailer_queries=lambda _code, _names: ([], []))
+    loader.mapper = OfferMapper()
+    with pytest.raises(ToolError, match="Marktkauf.*HTTP 503"):
+        loader.load("80331", "auto", retailers=("Marktkauf",))
