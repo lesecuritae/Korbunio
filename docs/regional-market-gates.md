@@ -33,6 +33,26 @@ Server responses expose `unavailable_retailers`; the app understands both server
 retailer names and direct provider IDs. Older servers without this field remain
 compatible. Snapshot schema 13 avoids reusing previously contaminated snapshots.
 
+## Docker/server region correction
+
+The server now also reads both official chain catalogues, independently cached
+for one hour. An exact matching store postcode supplies the geographic origin;
+otherwise geocoding must confirm the German country code and exact postcode.
+Both chains within 15 km remain eligible in border areas. A failed or empty
+catalogue cannot prove that its chain is absent and does not block the other
+chain. The existing versioned official postcode evidence remains supported.
+
+Sparse OSM store search is only a positive-evidence fallback when both official
+catalogues fail; stores beyond 15 km cannot select a chain. Finding one chain in
+that incomplete source never proves absence of the other. Unresolved requested
+chains produce response diagnostics and a server warning, including when other
+retailers successfully return offers. Snapshot schema 15 prevents old incorrect
+region exclusions from surviving an upgrade; shopping lists and settings remain.
+
+This fixes issue #68's Docker case for 50939, previously misclassified as Nord
+before a Süd offer request was even attempted. The correction uses catalogue
+evidence rather than adding a special postcode exception.
+
 Checks cover Munich 80331 (Süd only), Leipzig (Nord only), a border region,
 missing/changed store responses, failed geocoding, office-only Irma results,
 server retailer selection and cache behavior. Room device tests additionally

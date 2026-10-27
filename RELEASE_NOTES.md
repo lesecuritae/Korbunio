@@ -1,3 +1,16 @@
+## 0.1.71
+
+- Docker/Server: ALDI-Süd-Angebote werden in Köln (unter anderem 50939) nicht
+  mehr vor dem Abruf durch eine falsche Nord-Zuordnung ausgeschlossen (#68).
+- Die geografische Prüfung verwendet beide offiziellen Filiallisten, mit
+  getrenntem Stunden-Cache und unverändertem 15-km-Radius. Grenzgebiete können
+  beide Ketten enthalten. Ein ausgefallener Filialdienst bestätigt keine Abwesenheit.
+- Unbestätigte ALDI-Zuordnungen erscheinen in der Antwort und im Serverlog als
+  Diagnose, auch wenn andere Händler Angebote liefern. Alte fehlerhafte
+  Ergebnis-Caches werden neu aufgebaut; Einkaufslisten und Einstellungen bleiben.
+- Android enthält weiterhin die unabhängige Süd-Marktsuche und Fehleranzeige
+  aus 0.1.68; die neue Regionserkennung betrifft den Server.
+
 ## 0.1.70
 
 - EDEKA-Marktsuche in Server/MCP, Android-App und Browser-Bestätigung korrigiert:

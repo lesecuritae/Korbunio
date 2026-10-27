@@ -198,8 +198,23 @@ class SourceLoader:
         unavailable_retailers = set()
         if verified_regions:
             verified_names = {"ALDI Nord" if region == "nord" else "ALDI Süd" for region in verified_regions}
-            unavailable_retailers.update({"ALDI Nord", "ALDI Süd"} - verified_names)
-        if not aldi_names and not selected_retailers:
+            absent = getattr(self.aldi_region, "last_absent_regions", None)
+            unavailable_retailers.update(
+                {"ALDI Nord" if region == "nord" else "ALDI Süd" for region in absent}
+                if absent is not None else {"ALDI Nord", "ALDI Süd"} - verified_names
+            )
+        elif requested_region == "auto":
+            unavailable_retailers.update("ALDI Nord" if region == "nord" else "ALDI Süd"
+                                         for region in getattr(self.aldi_region, "last_absent_regions", ()))
+        unresolved_aldi = set()
+        if requested_region == "auto" and (selected_aldi or not selected_retailers):
+            unresolved_aldi = set(selected_aldi or ("ALDI Nord", "ALDI Süd")) - set(aldi_names) - unavailable_retailers
+            if unresolved_aldi:
+                warning = "ALDI-Marktsuche: Region nicht bestätigt für " + ", ".join(sorted(unresolved_aldi))
+                detail = clean_text(self.aldi_region.last_error)
+                request_errors.append(warning + (f" ({detail})" if detail else ""))
+                LOGGER.warning("%s", request_errors[-1])
+        if not aldi_names and not selected_retailers and unresolved_aldi:
             detail = clean_text(self.aldi_region.last_error)
             warning = "ALDI-Region konnte geografisch nicht eindeutig bestimmt werden; ALDI wurde für diesen Abruf ausgelassen."
             store_warnings.append(warning + (f" ({detail})" if detail else ""))
@@ -225,6 +240,7 @@ class SourceLoader:
                 store_warnings.append(f"Netto Marken-Discount: Filialauflösung nicht verfügbar ({type(exc).__name__}: {exc}).")
 
         source_states = dict.fromkeys(active_contexts, "keine Treffer")
+        source_states.update(dict.fromkeys(unresolved_aldi, "Region nicht bestätigt"))
         final_by_retailer: dict[str, list[Offer]] = {}
         failed_primary: set[str] = set()
         catalogue_responded = False
@@ -598,9 +614,8 @@ class SourceLoader:
         }
 
 class SupermarketEngine:
-    # v14 distinguishes empty catalogues from failed optional sources.
-    # Older snapshots can incorrectly label source failures as no local store.
-    SNAPSHOT_SCHEMA = 14
+    # v15 invalidates ALDI regions inferred from distant, sparsely tagged stores.
+    SNAPSHOT_SCHEMA = 15
     def __init__(self) -> None:
         self.store = PersistentSnapshotStore(CACHE_DB, CACHE_TTL_MINUTES, RESULT_RETENTION_HOURS, CACHE_MAX_SNAPSHOTS)
         self.loader = SourceLoader()

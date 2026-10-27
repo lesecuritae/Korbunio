@@ -3,6 +3,7 @@ from urllib.parse import parse_qs, urlparse
 
 from supermarkt.http import HttpClient
 from supermarkt.region import AldiRegionResolver
+from supermarkt.models import ToolError
 
 
 class FakeHttp(HttpClient):
@@ -12,8 +13,10 @@ class FakeHttp(HttpClient):
 
     def get_bytes(self, url, headers=None):
         self.calls += 1
+        if "nominatim" not in url:
+            raise ToolError("Official catalogue unavailable in OSM fallback fixture")
         if "postalcode=" in url:
-            return json.dumps([{"lat": "51.05", "lon": "13.74"}]).encode()
+            return json.dumps([{"lat": "51.05", "lon": "13.74", "address": {"country_code": "de", "postcode": parse_qs(urlparse(url).query)["postalcode"][0]}}]).encode()
         return json.dumps(
             [
                 {
@@ -42,9 +45,9 @@ def test_region_resolver_uses_bounded_fallback_and_cache():
     resolver = AldiRegionResolver(http)
     resolver.http = http
     assert resolver.detect("01100") == "nord"
-    assert http.calls == 2
+    assert http.calls == 4
     assert resolver.detect("01100") == "nord"
-    assert http.calls == 2
+    assert http.calls == 6
 
 
 def test_markets_preserve_provider_address_and_coordinates():
@@ -65,7 +68,7 @@ def test_retailer_markets_resolve_every_requested_catalog_retailer():
             self.calls += 1
             query = parse_qs(urlparse(url).query)
             if "postalcode" in query:
-                return json.dumps([{"lat": "51.05", "lon": "13.74"}]).encode()
+                return json.dumps([{"lat": "51.05", "lon": "13.74", "address": {"country_code": "de", "postcode": parse_qs(urlparse(url).query)["postalcode"][0]}}]).encode()
             name = "Lidl" if query.get("q", [""])[0].casefold() == "lidl" else "dm-drogerie markt"
             return json.dumps([{"osm_id": name, "lat": "51.051", "lon": "13.741",
                 "display_name": f"{name}, Teststraße 1, 01067 Dresden",
@@ -84,7 +87,7 @@ def test_retailer_markets_classify_plain_aldi_name_from_provider_metadata():
         def get_bytes(self, url, headers=None):
             self.calls += 1
             if "postalcode=" in url:
-                return json.dumps([{"lat": "51.05", "lon": "13.74"}]).encode()
+                return json.dumps([{"lat": "51.05", "lon": "13.74", "address": {"country_code": "de", "postcode": parse_qs(urlparse(url).query)["postalcode"][0]}}]).encode()
             return json.dumps([{"osm_id": "test-aldi", "lat": "51.051", "lon": "13.741",
                 "display_name": "Aldi, Teststraße 1, 01067 Dresden",
                 "address": {"postcode": "01067", "shop": "Aldi"}, "namedetails": {"name": "Aldi"},
@@ -103,9 +106,9 @@ def test_unknown_52_postcode_is_not_classified_by_prefix():
     assert "52000" not in resolver.OFFICIAL_EVIDENCE
     assert resolver.detect("52000") == "nord"
     assert resolver.last_provider == "Nominatim"
-    assert http.calls == 2
+    assert http.calls == 4
     assert resolver.detect("52000") == "nord"
-    assert http.calls == 2
+    assert http.calls == 6
 
 
 def test_leverkusen_is_aldi_sued_without_geocoding():
@@ -134,4 +137,4 @@ def test_cached_region_restores_diagnostics_after_another_postal_code():
     assert resolver.last_regions == ("sued",)
     assert resolver.detect("01100") == "nord"
     assert resolver.last_regions == ("nord",)
-    assert http.calls == 2
+    assert http.calls == 6
