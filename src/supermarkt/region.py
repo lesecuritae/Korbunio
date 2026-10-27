@@ -1,21 +1,26 @@
 from __future__ import annotations
 
 import json
+import math
+import threading
+import time
 import unicodedata
 from math import asin, cos, radians, sin, sqrt
 from typing import Any, Optional
 from urllib.parse import urlencode
 
+from bs4 import BeautifulSoup
+
 from .common import clean_text, validate_postal_code
 from .http import HttpClient
-from .models import RETAILER_SPECS
+from .models import RETAILER_SPECS, ToolError
 
 
 class AldiRegionResolver:
     """Resolve ALDI Nord/Süd from nearby store metadata.
 
-    The resolver intentionally uses one bounded provider path instead of a
-    multi-provider retry chain. Explicit user selection always bypasses it.
+    Official chain catalogues establish presence and absence independently.
+    Sparse OSM store metadata is only a bounded positive-evidence fallback.
     """
 
     def __init__(self, http: HttpClient, timeout_seconds: int = 10) -> None:
@@ -25,13 +30,94 @@ class AldiRegionResolver:
         self.last_distance_km: Optional[float] = None
         self.last_error = ""
         self.last_regions: tuple[str, ...] = ()
+        self.last_absent_regions: tuple[str, ...] = ()
         self.last_confidence = ""
+        self._catalogues: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+        self._catalogue_lock = threading.Lock()
+
+    # Same public first-party sources used by the native Android providers.
+    # The Süd widget identifier is public, not an account credential.
+    STORE_URLS = {
+        "nord": "https://www.aldi-nord.de/filialen-und-oeffnungszeiten.html",
+        "sued": "https://uberall.com/api/storefinders/gqNws2nRfBBlQJS9UrA8zV9txngvET/locations/all?v=20260101&language=de",
+    }
+    MAX_DISTANCE_KM = 15.0
+
+    def _official_stores(self, region: str) -> list[dict[str, Any]]:
+        with self._catalogue_lock:
+            cached = self._catalogues.get(region)
+            if cached and time.monotonic() - cached[0] < 3600:
+                return cached[1]
+            raw = self.http.get_bytes(self.STORE_URLS[region])
+            if len(raw) > 4_000_000:
+                raise ToolError("ALDI-Filialliste überschreitet das Größenlimit")
+            if region == "nord":
+                script = BeautifulSoup(raw, "html.parser").select_one("script#__NEXT_DATA__")
+                if script is None:
+                    raise ToolError("ALDI Nord Filialdaten fehlen")
+                api = json.loads(script.get_text())["props"]["pageProps"]["apiData"]
+                api = json.loads(api) if isinstance(api, str) else api
+                payload = next(item[1]["res"] for item in api
+                               if isinstance(item, list) and len(item) == 2
+                               and item[0] == "STORE_UBERALL_LOCATIONS_GET")
+            else:
+                payload = json.loads(raw)
+            if payload.get("status") != "SUCCESS":
+                raise ToolError("ALDI-Filialdienst meldet keinen Erfolg")
+            rows = payload["response"]["locations"]
+            if not isinstance(rows, list):
+                raise ToolError("ALDI-Filialformat unbekannt")
+            stores = []
+            prefix = "aldi " + ("süd" if region == "sued" else "nord")
+            for row in rows:
+                if not isinstance(row, dict) or row.get("country") != "DE" or not str(row.get("name", "")).casefold().startswith(prefix):
+                    continue
+                code = str(row.get("zip", ""))
+                if len(code) != 5 or not code.isascii() or not code.isdigit():
+                    continue
+                try:
+                    lat, lon = float(row["lat"]), float(row["lng"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if not math.isfinite(lat) or not math.isfinite(lon) or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                    continue
+                stores.append({"postcode": code, "point": (lat, lon)})
+            if not stores:
+                raise ToolError("ALDI lieferte keine gültigen Filialdaten")
+            self._catalogues[region] = (time.monotonic(), stores)
+            return stores
+
+    def _official_regions(self, code: str) -> Optional[str]:
+        catalogues = {}
+        errors = []
+        for region in ("nord", "sued"):
+            try:
+                catalogues[region] = self._official_stores(region)
+            except Exception as exc:
+                errors.append(f"ALDI {region} Filialdienst: {type(exc).__name__}: {exc}")
+        if not catalogues:
+            self.last_error = " | ".join(errors)
+            return None
+        exact = [store["point"] for stores in catalogues.values() for store in stores if store["postcode"] == code]
+        origin = (sum(point[0] for point in exact) / len(exact), sum(point[1] for point in exact) / len(exact)) if exact else self._postal_coordinates(code)
+        self.last_provider = "Offizielle ALDI-Filiallisten"
+        self.last_error = " | ".join(filter(None, [*errors, self.last_error]))
+        if origin is None:
+            self.last_error = self.last_error or "PLZ für ALDI-Marktsuche nicht bestätigt"
+            return "auto"
+        distances = {region: min(self._distance_km(origin, store["point"]) for store in stores)
+                     for region, stores in catalogues.items()}
+        self.last_regions = tuple(region for region, distance in distances.items() if distance <= self.MAX_DISTANCE_KM)
+        self.last_absent_regions = tuple(region for region, distance in distances.items() if distance > self.MAX_DISTANCE_KM)
+        self.last_distance_km = min(distances.values())
+        self.last_confidence = "hoch" if len(catalogues) == 2 else "unvollständig"
+        return self.last_regions[0] if len(self.last_regions) == 1 else "auto"
 
     # Versioned, deliberately postcode-exact evidence from the retailers'
     # official store pages. Ranges below are expanded into exact postcodes;
     # this is not a 52xxx/prefix heuristic. Unknown codes still use bounded
     # geocoding, while genuinely split cities remain explicit border cases.
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
     OFFICIAL_EVIDENCE: dict[str, tuple[str, ...]] = {
         "01067": ("nord",),
         "28195": ("nord",),
@@ -120,6 +206,10 @@ class AldiRegionResolver:
         try:
             payload = self._json("https://nominatim.openstreetmap.org/search?" + query)
             if isinstance(payload, list) and payload and isinstance(payload[0], dict):
+                address = payload[0].get("address") or {}
+                if address.get("country_code") != "de" or address.get("postcode") != postal_code:
+                    self.last_error = "PLZ-Geocoding: Land oder genaue PLZ nicht bestätigt"
+                    return None
                 point = (float(payload[0].get("lat")), float(payload[0].get("lon")))
                 if -90 <= point[0] <= 90 and -180 <= point[1] <= 180:
                     return point
@@ -272,36 +362,44 @@ class AldiRegionResolver:
         return sorted(markets, key=lambda item: (float(item["distance_km"]), item["retailer"].casefold(), item["name"].casefold()))
 
     def detect(self, postal_code: str) -> str:
+        self.last_regions = self.last_absent_regions = ()
+        self.last_error = self.last_provider = self.last_confidence = ""
+        self.last_distance_km = None
         code = validate_postal_code(postal_code)
         if not code:
             return "auto"
         evidence = self.OFFICIAL_EVIDENCE.get(code)
         if evidence:
             self.last_regions = evidence
+            self.last_absent_regions = tuple(region for region in ("nord", "sued") if region not in evidence)
             self.last_provider = "Offizielle ALDI-Filialseiten (versionierter Nachweis)"
             self.last_distance_km = None
             self.last_confidence = "hoch"
             return evidence[0] if len(evidence) == 1 else "auto"
+        official = self._official_regions(code)
+        if official is not None:
+            return official
         cached = self._cache.get(code)
         if cached in {"nord", "sued"}:
             # Other postal-code lookups can overwrite these mutable diagnostics.
             self.last_regions = (cached,)
             self.last_provider = "Nominatim (Cache)"
             self.last_distance_km = None
-            self.last_error = ""
             self.last_confidence = "mittel"
             return cached
 
         self.last_provider = ""
         self.last_distance_km = None
-        self.last_error = ""
+        # Keep official-provider diagnostics while trying sparse OSM positives.
         self.last_regions = ()
         self.last_confidence = ""
         origin = self._postal_coordinates(code)
         if origin is None:
             return "auto"
 
-        candidates = sorted(self._nearby(origin, code), key=lambda item: (not bool(item.get("exact_postcode")), float(item["distance_km"])))
+        candidates = sorted((item for item in self._nearby(origin, code)
+                             if float(item["distance_km"]) <= self.MAX_DISTANCE_KM),
+                            key=lambda item: (not bool(item.get("exact_postcode")), float(item["distance_km"])))
         if not candidates:
             return "auto"
 
