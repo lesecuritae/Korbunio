@@ -166,13 +166,20 @@ void main() {
 
   Future<void> pumpResults(WidgetTester tester, Brightness brightness) async {
     SharedPreferences.setMockInitialValues({});
-    final settings = await Settings.load();
-    final offlineStore = await OfflineStore.open(
-      directory: await Directory.systemTemp.createTemp('korbunio-golden-'),
-    );
-    final localShoppingList = await LocalShoppingListStore.open(
-      directory: await Directory.systemTemp.createTemp('korbunio-list-golden-'),
-    );
+    // Real file IO never completes inside testWidgets' fake-async zone.
+    final deps = (await tester.runAsync(() async {
+      final settings = await Settings.load();
+      final offlineStore = await OfflineStore.open(
+        directory: await Directory.systemTemp.createTemp('korbunio-golden-'),
+      );
+      final localShoppingList = await LocalShoppingListStore.open(
+        directory: await Directory.systemTemp.createTemp(
+          'korbunio-list-golden-',
+        ),
+      );
+      return (settings, offlineStore, localShoppingList);
+    }))!;
+    final (settings, offlineStore, localShoppingList) = deps;
     final client = KorbunioClient(
       baseUrl: 'http://korb.example',
       httpClient: _StubClient(page),
@@ -195,7 +202,14 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // The stub client answers on real time, so give it real time between
+    // frames; pumpAndSettle alone would only advance the fake clock.
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+    }
   }
 
   testWidgets('results screen, light', (tester) async {

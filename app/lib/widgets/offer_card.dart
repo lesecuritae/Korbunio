@@ -126,40 +126,46 @@ class OfferCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    offer.effectivePriceText,
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: offer.hasSaving
-                          ? colors.good
-                          : _stateColor(offer.selectedComparisonState, colors),
-                    ),
-                  ),
-                  if (offer.hasSaving &&
-                      offer.regularPriceText != offer.effectivePriceText)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 110),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
                     Text(
-                      offer.regularPriceText,
+                      offer.effectivePriceText,
                       style: TextStyle(
-                        color: colors.muted,
-                        fontSize: 13,
-                        decoration: TextDecoration.lineThrough,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: offer.hasSaving
+                            ? colors.good
+                            : _stateColor(
+                                offer.selectedComparisonState,
+                                colors,
+                              ),
                       ),
                     ),
-                  if (offer.selectedComparisonState == 'best')
-                    Text(
-                      'Günstigster Vergleichspreis',
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        color: colors.good,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
+                    if (offer.hasSaving &&
+                        offer.regularPriceText != offer.effectivePriceText)
+                      Text(
+                        offer.regularPriceText,
+                        style: TextStyle(
+                          color: colors.muted,
+                          fontSize: 13,
+                          decoration: TextDecoration.lineThrough,
+                        ),
                       ),
-                    ),
-                ],
+                    if (offer.selectedComparisonState == 'best')
+                      Text(
+                        'Günstigster Vergleichspreis',
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color: colors.good,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -200,9 +206,10 @@ class OfferCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 6),
-          Row(
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Spacer(),
               if (onAddToList != null)
                 TextButton.icon(
                   onPressed: sending ? null : onAddToList,
