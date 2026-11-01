@@ -126,7 +126,15 @@ class OfficialRossmannSource:
 
 
 class OfficialMuellerSource:
-    OFFERS_URL = "https://www.mueller.de/c/online-angebote/"
+    # /c/online-angebote/ now redirects (HTTP 308) to the flyer page, which lists no products. The "Aktionen" pages of the
+    # main departments still render priced product tiles in plain HTML.
+    OFFERS_URLS = (
+        "https://www.mueller.de/c/drogerie/aktionen/",
+        "https://www.mueller.de/c/haushalt/aktionen/",
+        "https://www.mueller.de/c/schreibwaren/aktionen/",
+        "https://www.mueller.de/c/spielwaren/aktionen/",
+    )
+    OFFERS_URL = OFFERS_URLS[0]
     MAX_RESPONSE = 4_000_000
     CHALLENGE_MESSAGE = (
         "Müller verlangt eine Browser-Prüfung (Client Challenge) und ist ohne Browser nicht lesbar; "
@@ -144,17 +152,37 @@ class OfficialMuellerSource:
             from bs4 import BeautifulSoup
         except Exception as exc:  # pragma: no cover
             raise ToolError(f"Müller benötigt BeautifulSoup: {exc}") from exc
-        try:
-            payload = self.http.get_bytes(self.OFFERS_URL, {"Accept": "text/html"})
-        except ToolError as exc:
+        payloads: list[tuple[str, bytes]] = []
+        failures: list[ToolError] = []
+        for url in self.OFFERS_URLS:
+            try:
+                payload = self.http.get_bytes(url, {"Accept": "text/html"})
+            except ToolError as exc:
+                failures.append(exc)
+                continue
+            if len(payload) > self.MAX_RESPONSE:
+                failures.append(ToolError("Müller-Antwort überschreitet das Größenlimit"))
+                continue
+            payloads.append((url, payload))
+        if not payloads:
             # Fastly's response is a user-facing JavaScript/CAPTCHA challenge.
             # Do not disable TLS verification or attempt to evade it in the
             # unattended provider.
-            if any(code in str(exc) for code in ("HTTP 403", "HTTP 429")):
-                raise ToolError(self.CHALLENGE_MESSAGE) from exc
-            raise
-        if len(payload) > self.MAX_RESPONSE:
-            raise ToolError("Müller-Antwort überschreitet das Größenlimit")
+            if any(code in str(exc) for exc in failures for code in ("HTTP 403", "HTTP 429")):
+                raise ToolError(self.CHALLENGE_MESSAGE) from failures[0]
+            raise failures[0]
+        result: list[Offer] = []
+        seen: set[str] = set()
+        for url, payload in payloads:
+            for offer in self._parse(BeautifulSoup, url, payload):
+                if offer.offer_id not in seen:
+                    seen.add(offer.offer_id)
+                    result.append(offer)
+        if not result:
+            raise ToolError("Müller lieferte keine lesbaren Online-Angebote")
+        return result
+
+    def _parse(self, BeautifulSoup, url: str, payload: bytes) -> list[Offer]:
         page = BeautifulSoup(payload.decode("utf-8", errors="replace"), "html.parser")
         result: list[Offer] = []
         for index, card in enumerate(page.select("article"), 1):
@@ -177,14 +205,12 @@ class OfficialMuellerSource:
             result.append(Offer(
                 offer_id, "Müller", "Drogerie und Haushalt", name, "", details,
                 price, base_price, base_unit, pack, "Aktuelles Online-Angebot",
-                build_match_key("", name, pack, offer_id), self.OFFERS_URL,
-                image_url=urljoin(self.OFFERS_URL, clean_text(image.get("src"))) if image else "",
-                product_url=urljoin(self.OFFERS_URL, clean_text(link.get("href"))),
+                build_match_key("", name, pack, offer_id), url,
+                image_url=urljoin(url, clean_text(image.get("src"))) if image else "",
+                product_url=urljoin(url, clean_text(link.get("href"))),
                 retailer_url=self.last_market_url,
                 coverage_note="Offizielles Müller-Online-Angebot; Filialpreis und Filialbestand können abweichen",
             ))
-        if not result:
-            raise ToolError("Müller lieferte keine lesbaren Online-Angebote")
         return result
 
 

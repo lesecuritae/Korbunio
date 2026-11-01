@@ -137,3 +137,19 @@ def test_dm_maps_only_official_clearance_products_and_caches_catalogue():
     assert offer.description == "Vorher 2,55 €"
     assert "Filialverfügbarkeit unbekannt" in offer.coverage_note
     assert offer.product_url == "https://www.dm.de/p/d/3061034/ebelin-seifendose-stapelbar"
+
+
+def test_mueller_uses_department_pages_and_survives_one_failing_page():
+    calls = []
+
+    class Http(FakeHttp):
+        def get_bytes(self, url, headers=None):
+            calls.append(url)
+            if "schreibwaren" in url:
+                raise ToolError("HTTP 404 bei www.mueller.de")
+            return super().get_bytes(url, headers)
+
+    offers = OfficialMuellerSource(Http()).load("10115")
+    assert len(calls) == len(OfficialMuellerSource.OFFERS_URLS) and all("/aktionen/" in url for url in calls)
+    assert len(offers) == 1  # identical tile on every page is de-duplicated
+    assert "online-angebote" not in OfficialMuellerSource.OFFERS_URL
