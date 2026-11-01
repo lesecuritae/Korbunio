@@ -13,7 +13,7 @@ from typing import Any
 
 from .cache import PersistentSnapshotStore
 from .categories import category_decision
-from .common import clean_text, deduplicate_offers, filter_offers, filter_offers_by_keywords, normalize_aldi_region, normalize_keywords, normalize_offer_week, normalize_pack, normalize_view, offer_week_reference, parse_iso_date
+from .common import clean_text, deduplicate_offers, filter_offers, filter_offers_by_keywords, normalize_aldi_region, normalize_keywords, normalize_offer_week, normalize_pack, normalize_view, offer_week_reference, parse_iso_date, today_berlin
 from .compare import OfferComparator, OfferMapper
 from .config import (
     CACHE_DB,
@@ -39,6 +39,7 @@ from .http import HttpClient, PostalCodeLocator
 from .loyalty import available_programs, normalize_program_ids
 from .offer_week import next_change_timestamp
 from .models import AGGREGATOR_RETAILERS, RETAILER_SPECS, Offer, RetailerContext, ToolError, offer_from_dict, offer_to_dict
+from .image_match import match_article
 from .presentation import offer_for_response, offer_sort_key, resolve_retailer_name
 from .region import AldiRegionResolver
 from .sources.aktiv_irma import NoLocalMarketOffers
@@ -307,6 +308,31 @@ class SourceLoader:
         notify(total_sources=max(1, total_sources), processed_sources=0)
         completed_sources = 0
         processed_products = 0
+        # Adapters record the market they used in per-thread attributes; snapshot them in the worker thread that ran the
+        # load, so overlapping requests for other postal codes cannot swap markets, labels or URLs.
+        adapter_state: dict[str, dict[str, Any]] = {}
+        state_sources = {
+            "REWE": ("official_rewe", ("last_market_url", "last_market_label")),
+            "EDEKA": ("official_edeka", ("last_market_url", "last_market_label")),
+            "Marktkauf": ("official_marktkauf", ("last_market_url", "last_market_label")),
+            "Globus": ("official_globus", ("last_market_url", "last_market_label", "last_market")),
+            "Netto schwarz": ("official_netto_scottie", ("last_market_url", "last_market_label")),
+            "Kaufland": ("official_kaufland", ("last_store_url", "last_locality")),
+            "trinkgut": ("official_trinkgut", ("last_market_url", "last_market_label")),
+        }
+
+        def capture(name: str, loader):
+            attribute, fields = state_sources.get(name, ("", ()))
+
+            def run():
+                result = loader()
+                source = getattr(self, attribute, None)
+                if source is not None:
+                    adapter_state[name] = {field: getattr(source, field, "") for field in fields}
+                return result
+            return run
+
+        official_jobs = {name: capture(name, loader) for name, loader in official_jobs.items()}
         with ThreadPoolExecutor(max_workers=max(1, len(official_jobs))) as executor:
             futures = {executor.submit(loader): name for name, loader in official_jobs.items()}
             for future in as_completed(futures):
@@ -351,7 +377,10 @@ class SourceLoader:
                             return self.official_aldi.load(name, "next")
                         except Exception:
                             store_warnings.append(f"{name}: Noch keine Angebote der Folgewoche verfügbar; aktuelle Angebote werden angezeigt.")
-                    return aldi_loader.load(name)
+                    result = aldi_loader.load(name)
+                    aldi_sources[name] = getattr(aldi_loader, "last_source", {}).get(name, "offiziell")
+                    return result
+                aldi_sources: dict[str, str] = {}
                 aldi_futures = {executor.submit(load_aldi, name): name for name in aldi_names}
                 for future in as_completed(aldi_futures):
                     aldi_name = aldi_futures[future]
@@ -365,7 +394,7 @@ class SourceLoader:
                         request_errors.append(f"{aldi_name} offiziell: {type(exc).__name__}: {exc}")
                     if aldi_offers:
                         final_by_retailer[aldi_name] = aldi_offers
-                        source_states[aldi_name] = getattr(aldi_loader, "last_source", {}).get(aldi_name, "offiziell")
+                        source_states[aldi_name] = aldi_sources.get(aldi_name, "offiziell")
                         processed_products += len(aldi_offers)
                     else:
                         failed_primary.add(aldi_name)
@@ -373,7 +402,7 @@ class SourceLoader:
                     notify(status="processing", progress=55, source="Offizielle Webseite", retailer=aldi_name, category="Wochenangebote", step="Quelle verarbeitet", processed_sources=completed_sources, processed_products=processed_products)
 
         if source_states.get("Globus") == "offiziell" and hasattr(self, "kaufda_globus_images"):
-            market = getattr(self.official_globus, "last_market", None)
+            market = adapter_state.get("Globus", {}).get("last_market")
             locality = clean_text(getattr(market, "name", ""))
             if locality and any(not offer.image_url for offer in final_by_retailer.get("Globus", ())):
                 try:
@@ -518,36 +547,19 @@ class SourceLoader:
 
         # Update labels only from first-party adapters that actually supplied
         # the catalogue displayed to the user.
-        if source_states.get("REWE") == "offiziell" and self.official_rewe.last_market_url:
-            active_contexts["REWE"] = self._context_with_market(
-                active_contexts["REWE"], self.official_rewe.last_market_label, self.official_rewe.last_market_url
-            )
-        if source_states.get("EDEKA") == "offiziell" and self.official_edeka.last_market_url:
-            active_contexts["EDEKA"] = self._context_with_market(
-                active_contexts["EDEKA"], self.official_edeka.last_market_label, self.official_edeka.last_market_url
-            )
-        if source_states.get("Marktkauf") == "offiziell" and self.official_marktkauf.last_market_url:
-            active_contexts["Marktkauf"] = self._context_with_market(
-                active_contexts["Marktkauf"], self.official_marktkauf.last_market_label, self.official_marktkauf.last_market_url
-            )
-        if source_states.get("Globus", "").startswith("offiziell") and self.official_globus.last_market_url:
-            active_contexts["Globus"] = self._context_with_market(
-                active_contexts["Globus"], self.official_globus.last_market_label, self.official_globus.last_market_url
-            )
-        if source_states.get("Netto schwarz") == "offiziell" and self.official_netto_scottie.last_market_url:
-            active_contexts["Netto schwarz"] = self._context_with_market(
-                active_contexts["Netto schwarz"],
-                self.official_netto_scottie.last_market_label,
-                self.official_netto_scottie.last_market_url,
-            )
-        if source_states.get("Kaufland") == "offiziell" and self.official_kaufland.last_store_url:
-            label = "Kaufland " + clean_text(self.official_kaufland.last_locality)
+        for name, label_field, url_field in (
+            ("REWE", "last_market_label", "last_market_url"), ("EDEKA", "last_market_label", "last_market_url"),
+            ("Marktkauf", "last_market_label", "last_market_url"), ("Globus", "last_market_label", "last_market_url"),
+            ("Netto schwarz", "last_market_label", "last_market_url"), ("trinkgut", "last_market_label", "last_market_url"),
+        ):
+            state = adapter_state.get(name, {})
+            official = source_states.get(name, "").startswith("offiziell") if name == "Globus" else source_states.get(name) == "offiziell"
+            if official and state.get(url_field):
+                active_contexts[name] = self._context_with_market(active_contexts[name], state.get(label_field, ""), state[url_field])
+        kaufland_state = adapter_state.get("Kaufland", {})
+        if source_states.get("Kaufland") == "offiziell" and kaufland_state.get("last_store_url"):
             active_contexts["Kaufland"] = self._context_with_market(
-                active_contexts["Kaufland"], label, self.official_kaufland.last_store_url
-            )
-        if source_states.get("trinkgut") == "offiziell" and self.official_trinkgut.last_market_url:
-            active_contexts["trinkgut"] = self._context_with_market(
-                active_contexts["trinkgut"], self.official_trinkgut.last_market_label, self.official_trinkgut.last_market_url
+                active_contexts["Kaufland"], "Kaufland " + clean_text(kaufland_state.get("last_locality", "")), kaufland_state["last_store_url"]
             )
 
         if requested_week == "next":
@@ -626,7 +638,7 @@ class SupermarketEngine:
 
     @staticmethod
     def cache_key(postal_code: str, aldi_region: str, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "", trinkgut_market_id: str = "") -> str:
-        selected = ",".join(sorted(retailers, key=str.casefold)) or "all"
+        selected = ",".join(sorted({clean_text(name).casefold() for name in retailers if clean_text(name)})) or "all"
         rewe = clean_text(rewe_market_id) or "auto"
         netto = clean_text(netto_market_id) or "auto"
         scottie = clean_text(netto_scottie_market_id) or "auto"
@@ -703,6 +715,11 @@ class SupermarketEngine:
         include_image_urls: bool = False,
     ) -> dict[str, Any]:
         offers = [offer_from_dict(item) for item in snapshot.get("offers", []) if isinstance(item, dict)]
+        # Offers whose ISO end date is already past (Europe/Berlin) are over. Filter before comparing, so an expired
+        # cheaper offer cannot win "best" and counts/pages match what is shown. Later-starting offers (next week) stay.
+        today_iso = today_berlin().isoformat()
+        offers = [offer for offer in offers
+                  if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", (offer.valid_until or "")[:10]) or (offer.valid_until or "")[:10] >= today_iso]
         selected_programs = normalize_program_ids(loyalty_programs)
         source_retailer_counts: dict[str, int] = {}
         for offer in offers:
@@ -814,6 +831,37 @@ class SupermarketEngine:
                 *snapshot.get("request_errors", []),
                 *snapshot.get("store_warnings", []),
             ]))[:12],
-            "offers": [offer_for_response(offer, include_image_urls=include_image_urls) for offer in selected],
+            "offers": self._with_substitute_images([offer_for_response(offer, include_image_urls=include_image_urls) for offer in selected], selected, offers, include_image_urls),
         }
         return result
+
+    @staticmethod
+    def _with_substitute_images(rendered: list[dict[str, Any]], selected: list[Offer], pool: list[Offer], enabled: bool) -> list[dict[str, Any]]:
+        """Offers without a picture borrow the same article's picture from another retailer, clearly labelled.
+
+        Same rules as the MCP path (image_match): other brand, flavour or Zero/regular variant never matches; a different
+        pack is allowed but marked "substitute". Nothing is downloaded here; the image proxy fetches (and may still fail).
+        """
+        if not enabled:
+            return rendered
+        donors = [offer for offer in pool if offer.image_url]
+        for offer, item in zip(selected, rendered, strict=True):
+            if offer.image_url:
+                item["image_source"], item["image_match"], item["image_note"] = "own", "exact", ""
+                continue
+            ranked = sorted(
+                ((donor, kind) for donor in donors if donor.retailer != offer.retailer
+                 and (kind := match_article(offer.name, donor.name, offer.brand, donor.brand))),
+                key=lambda pair: (pair[1] != "exact", pair[0].retailer),
+            )
+            if not ranked:
+                item["image_source"], item["image_match"], item["image_note"] = "", "", ""
+                continue
+            donor, kind = ranked[0]
+            item["image_url"] = donor.image_url
+            item["image_retailer"] = donor.retailer
+            item["image_source_url"] = donor.source_url
+            item["image_source"], item["image_match"] = "same_article_other_retailer", kind
+            item["image_note"] = (f"Bild von {donor.retailer}: gleicher Artikel, gleiche Packung" if kind == "exact"
+                                  else f"Ersatzbild von {donor.retailer}: gleicher Artikel laut Name, Packung abweichend oder unbekannt")
+        return rendered

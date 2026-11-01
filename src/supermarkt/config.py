@@ -48,6 +48,7 @@ CACHE_DB = _env_path("SUPERMARKT_CACHE_DB", DATA_DIR / "supermarkt-cache.sqlite3
 SIGNING_SECRET_FILE = _env_path("SUPERMARKT_SIGNING_SECRET_FILE", DATA_DIR / ".signing-secret")
 ACCESS_TOKENS_FILE = _env_path("SUPERMARKT_ACCESS_TOKENS_FILE", DATA_DIR / "access-tokens.json")
 KITCHENOWL_FILE = _env_path("SUPERMARKT_KITCHENOWL_FILE", DATA_DIR / "kitchenowl.json")
+GROCY_FILE = _env_path("SUPERMARKT_GROCY_FILE", DATA_DIR / "grocy.json")
 HISTORY_DB = _env_path("SUPERMARKT_HISTORY_DB", DATA_DIR / "price-history.sqlite3")
 NOTIFY_FILE = _env_path("SUPERMARKT_NOTIFY_FILE", DATA_DIR / "notify.json")
 IMAGE_CACHE_DIR = _env_path("SUPERMARKT_IMAGE_CACHE_DIR", DATA_DIR / "supermarkt-images")

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from . import kitchenowl, notify
+from . import grocy, kitchenowl, notify
 from .api_models import ShoppingListWriteRequest
 from .api_routes import add_kitchenowl_items
 from .security import api_key
@@ -127,3 +127,90 @@ def notify_delete() -> dict:
     notify.clear()
     _refresh_mcp()
     return notify_status()
+
+
+class GrocySaveRequest(BaseModel):
+    url: str = Field(max_length=300)
+    api_key: str = Field(default="", max_length=400)
+    shopping_list_id: int = Field(default=1, ge=1, le=10**9)
+
+
+class GrocyItem(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    note: str = Field(default="", max_length=500)
+    amount: float = Field(default=1.0, gt=0, le=10_000)
+
+
+class GrocyAddRequest(BaseModel):
+    items: list[GrocyItem] = Field(min_length=1, max_length=100)
+
+
+def _grocy_status() -> dict:
+    settings = grocy.load()
+    return {"configured": settings is not None, "url": settings.url if settings else "",
+            "shopping_list_id": settings.shopping_list_id if settings else None, "auth_required": bool(api_key())}
+
+
+def _grocy_settings() -> grocy.Settings:
+    settings = grocy.load()
+    if settings is None:
+        raise HTTPException(status_code=404, detail="Grocy ist auf diesem Server nicht eingerichtet.")
+    return settings
+
+
+@router.get("/api/v1/grocy", include_in_schema=False, dependencies=[Depends(require_settings_access)])
+def grocy_status() -> dict:
+    return _grocy_status()
+
+
+@router.put("/api/v1/grocy", include_in_schema=False, dependencies=[Depends(require_settings_access)])
+def grocy_save(payload: GrocySaveRequest) -> dict:
+    current = grocy.load()
+    key = payload.api_key.strip() or (current.api_key if current else "")
+    if not key:
+        raise HTTPException(status_code=422, detail="Bitte den Grocy-API-Schlüssel eintragen.")
+    try:
+        settings = grocy.Settings(grocy.normalize_url(payload.url), key, payload.shopping_list_id)
+        grocy.verify(settings)
+    except grocy.GrocyError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    grocy.save(settings)
+    _refresh_mcp()
+    return _grocy_status()
+
+
+@router.delete("/api/v1/grocy", include_in_schema=False, dependencies=[Depends(require_settings_access)])
+def grocy_delete() -> dict:
+    grocy.clear()
+    _refresh_mcp()
+    return _grocy_status()
+
+
+@router.post("/api/v1/grocy/items", include_in_schema=False, dependencies=[Depends(require_settings_access)])
+def grocy_add_items(payload: GrocyAddRequest) -> dict:
+    settings = _grocy_settings()
+    try:
+        results = grocy.add_items(settings, [(item.name, item.note, item.amount) for item in payload.items])
+    except grocy.GrocyError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"items": results}
+
+
+@router.get("/api/v1/grocy/items", include_in_schema=False, dependencies=[Depends(require_settings_access)])
+def grocy_items() -> dict:
+    settings = _grocy_settings()
+    try:
+        return {"items": grocy.list_items(settings)}
+    except grocy.GrocyError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.delete("/api/v1/grocy/items/{row_id}", include_in_schema=False, dependencies=[Depends(require_settings_access)])
+def grocy_remove_item(row_id: str, name: str) -> dict:
+    """Removes exactly one list row (identity checked, confirmed by re-reading). Never deletes Grocy products."""
+    settings = _grocy_settings()
+    try:
+        removed = grocy.remove_item(settings, row_id, name)
+    except grocy.GrocyError as exc:
+        raise HTTPException(status_code=422 if "Ungültige" in str(exc) or "passt nicht" in str(exc) or "gehört nicht" in str(exc) else 502, detail=str(exc)) from exc
+    return {"removed": removed}

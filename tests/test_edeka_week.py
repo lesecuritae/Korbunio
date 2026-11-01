@@ -47,3 +47,12 @@ def test_edeka_drops_expired_week_before_mapping(monkeypatch):
     )
     assert raw_count == 2
     assert [offer.name for offer in offers] == ["Neu"]
+
+
+def test_edeka_keeps_iso_validity_dates_for_consumers(monkeypatch):
+    payload = {"docs": [{"angebotid": "x", "titel": "Energy", "preis": 1.0, "gueltig_von": "2026-10-26", "gueltig_bis": "2026-10-31"}]}
+    monkeypatch.setattr("supermarkt.sources.edeka.date_is_current", lambda start, end: True)
+    offers, _, _ = OfficialEdekaSource()._load_offers(
+        Session(payload), retailer="EDEKA", market_id="1", market_url="https://example.invalid"
+    )
+    assert (offers[0].valid_from, offers[0].valid_until) == ("2026-10-26", "2026-10-31")

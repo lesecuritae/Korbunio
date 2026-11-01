@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..request_state import RequestState
+
 import json
 from datetime import date, datetime
 from typing import Any, Callable, Optional
@@ -29,6 +31,9 @@ MarketFilter = Callable[[dict[str, Any]], bool]
 
 
 class OfficialEdekaSource:
+    last_market_label = RequestState("")
+    last_market_url = RequestState("")
+
     MARKET_API = "https://www.edeka.de/api/marketsearch/markets"
     OFFERS_API = "https://www.edeka.de/eh/service/eh/offers"
 
@@ -269,6 +274,8 @@ class OfficialEdekaSource:
                     base_unit=base_unit,
                     pack_signature=pack,
                     validity_label=self._validity(doc, payload),
+                    valid_from=start.isoformat() if start else None,
+                    valid_until=end.isoformat() if end else None,
                     match_key=build_match_key("", title, pack, offer_id),
                     source_url=market_url,
                     image_url=self._image(doc),

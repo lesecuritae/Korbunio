@@ -29,6 +29,11 @@ import de.lesecuritae.korbuino.providers.RetailerProvider
 import de.lesecuritae.korbuino.providers.ServerFallbackProvider
 import de.lesecuritae.korbuino.providers.ServerProvider
 import de.lesecuritae.korbuino.providers.fetchProviderBatch
+import de.lesecuritae.korbuino.grocy.GrocyClient
+import de.lesecuritae.korbuino.images.ImageFallback
+import de.lesecuritae.korbuino.images.ImageSubstituteIndex
+import de.lesecuritae.korbuino.grocy.GrocySyncPlan
+import de.lesecuritae.korbuino.grocy.GrocyTarget
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlClient
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlSyncPlan
 import de.lesecuritae.korbuino.kitchenowl.KitchenOwlTarget
@@ -65,6 +70,9 @@ data class MainUiState(
     val kitchenOwlUrl: String = "",
     val kitchenConnecting: Boolean = false,
     val kitchenTargets: List<KitchenOwlTarget> = emptyList(),
+    val grocyUrl: String = "",
+    val grocyConnecting: Boolean = false,
+    val grocyTargets: List<GrocyTarget> = emptyList(),
     val update: UpdateInfo? = null,
     val dailySync: Boolean = false,
     val message: String = "Noch keine Angebote geladen",
@@ -78,8 +86,14 @@ data class MainUiState(
 data class OfferDisplay(
     val offer: OfferEntity,
     val productName: String,
+    val brand: String = "",
     val imagePath: String? = null,
     val imageUrl: String? = null,
+    /** Set when [imageUrl] belongs to the same article at another retailer; shown so it is never mistaken for the offer's own picture. */
+    val imageNote: String? = null,
+    val imageReferer: String? = null,
+    /** Pictures of the same article elsewhere, tried when the own link turns out to be dead. */
+    val imageFallbacks: List<ImageFallback> = emptyList(),
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -116,6 +130,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 serverToken = secureStore.get("server_token").orEmpty(),
                 serverMode = secureStore.get("server_mode") == "true",
                 kitchenOwlUrl = secureStore.get("kitchenowl_url").orEmpty(),
+                grocyUrl = secureStore.get("grocy_url").orEmpty(),
                 emptyRetailers = secureStore.get("empty_retailers").orEmpty().split(',').filter(String::isNotBlank).toSet(),
                 emptyRetailersPostal = secureStore.get("empty_retailers_postal").orEmpty(),
                 selectedLoyaltyPrograms = secureStore.get("loyalty_programs")
@@ -295,6 +310,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun grocyUrl(value: String) { _state.value = _state.value.copy(grocyUrl = value.take(200)) }
     fun kitchenOwlUrl(value: String) { _state.value = _state.value.copy(kitchenOwlUrl = value.take(200)) }
 
     fun checkUpdate() {
@@ -369,6 +385,110 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _state.value = _state.value.copy(kitchenOwlUrl = url.trim(), kitchenTargets = targets, message = "${targets.size} KitchenOwl-Liste(n) verbunden")
             }.onFailure { error -> _state.value = _state.value.copy(message = "KitchenOwl: ${error.message}") }
             _state.value = _state.value.copy(kitchenConnecting = false)
+        }
+    }
+
+    /** Verifies address and API key and lists the shopping lists; the key is stored only in the encrypted store. */
+    fun connectGrocy(url: String, apiKey: String) {
+        if (_state.value.grocyConnecting) return
+        _state.value = _state.value.copy(grocyConnecting = true, message = "Grocy wird geprüft …")
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val key = apiKey.trim()
+                    val client = GrocyClient(url.trim(), key)
+                    client.verify()
+                    client.targets().also {
+                        secureStore.put("grocy_url", url.trim())
+                        secureStore.put("grocy_api_key", key)
+                    }
+                }
+            }.onSuccess { targets ->
+                _state.value = _state.value.copy(grocyUrl = url.trim(), grocyTargets = targets, message = "${targets.size} Grocy-Liste(n) verbunden")
+            }.onFailure { error -> _state.value = _state.value.copy(message = "Grocy: ${error.message}") }
+            _state.value = _state.value.copy(grocyConnecting = false)
+        }
+    }
+
+    /** Reloads the lists with the stored key (after an app restart); nothing is shown or logged of the key. */
+    fun reloadGrocyTargets() {
+        val url = secureStore.get("grocy_url") ?: return
+        val key = secureStore.get("grocy_api_key") ?: return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { GrocyClient(url, key).targets() } }
+                .onSuccess { _state.value = _state.value.copy(grocyTargets = it) }
+                .onFailure { error -> _state.value = _state.value.copy(message = "Grocy: ${error.message}") }
+        }
+    }
+
+    fun disconnectGrocy() {
+        secureStore.remove("grocy_url"); secureStore.remove("grocy_api_key")
+        _state.value = _state.value.copy(grocyUrl = "", grocyTargets = emptyList(), message = "Grocy getrennt (gespeicherter Schlüssel gelöscht)")
+    }
+
+    /**
+     * Idempotent hand-over. Articles go to Grocy as products (name only) with the quantity as row amount; the
+     * retailer, pack and price go into the row note. Rows Korbuino created are tracked by Grocy row id and removed
+     * again when the article leaves the list; rows people added in Grocy and Grocy products are never touched.
+     */
+    fun syncGrocy(target: GrocyTarget) {
+        viewModelScope.launch {
+            val url = secureStore.get("grocy_url") ?: return@launch
+            val key = secureStore.get("grocy_api_key") ?: return@launch
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val client = GrocyClient(url, key)
+                    val wanted = LinkedHashMap<String, Triple<String, String, Double>>()
+                    val offers = database.offerDao().all().associateBy { it.id }
+                    database.shoppingListDao().allItems().forEach { item ->
+                        val product = database.productDao().find(listOf(item.productId)).firstOrNull()
+                        val name = product?.name?.trim().orEmpty()
+                        if (name.isBlank()) return@forEach
+                        val retailer = item.retailerId?.let { id -> retailers.toMap()[id] ?: id }
+                        val offer = item.offerId?.let { offers[it] }
+                        val note = listOfNotNull(
+                            retailer?.let { "bei $it" }, offer?.packSize,
+                            item.note.takeIf { it.isNotBlank() },
+                            offer?.let { offerPriceLabel(OfferDisplay(it, name), _state.value.selectedLoyaltyPrograms) },
+                        ).joinToString(" · ")
+                        wanted.putIfAbsent(name.lowercase(), Triple(name, note, item.quantity.toDouble()))
+                    }
+                    val syncedKey = "grocy_synced_${target.id}"
+                    // line format: key <TAB> row id <TAB> article name
+                    val synced = LinkedHashMap<String, Pair<String, String>>()
+                    secureStore.get(syncedKey).orEmpty().lines().forEach { line ->
+                        val parts = line.split('\t')
+                        if (parts.size == 3 && parts[1].all(Char::isDigit) && parts[1].isNotEmpty()) synced[parts[0]] = parts[1] to parts[2]
+                    }
+                    val openIds = client.openRows(target.id).map { it.rowId }.toSet()
+                    val plan = GrocySyncPlan.plan(wanted.keys, synced.mapValues { it.value.first }, openIds)
+                    var failed = 0
+                    plan.toRemoveKeys.forEach { k ->
+                        val (rowId, name) = synced.getValue(k)
+                        runCatching { client.removeRow(target.id, rowId, name) }
+                            .onSuccess { synced.remove(k) }
+                            .onFailure { failed++ }
+                    }
+                    synced.keys.retainAll { it in wanted.keys || it in plan.toRemoveKeys }
+                    plan.toAdd.forEach { k ->
+                        val (name, note, amount) = wanted.getValue(k)
+                        val result = client.addItem(target.id, name, note, amount)
+                        if (result.added) synced[k] = result.rowId to name else synced.remove(k)
+                    }
+                    secureStore.put(syncedKey, synced.entries.joinToString("\n") { "${it.key}\t${it.value.first}\t${it.value.second}" })
+                    Triple(plan.toAdd.size, plan.toRemoveKeys.size - failed, failed) to wanted.size
+                }
+            }.onSuccess { (counts, total) ->
+                val (added, removed, failed) = counts
+                _state.value = _state.value.copy(
+                    message = when {
+                        total == 0 && removed == 0 && failed == 0 -> "Die Einkaufsliste ist leer, nichts zu übertragen"
+                        added == 0 && removed == 0 && failed == 0 -> "Alle $total Artikel sind schon in Grocy (${target.label})"
+                        else -> listOfNotNull("$added Artikel zu ${target.label} übertragen".takeIf { added > 0 }, "$removed Zeile(n) entfernt".takeIf { removed > 0 },
+                            "$failed Zeile(n) nicht entfernt (passt nicht mehr)".takeIf { failed > 0 }).joinToString(", ")
+                    },
+                )
+            }.onFailure { error -> _state.value = _state.value.copy(message = "Grocy-Sync: ${error.message}") }
         }
     }
 
@@ -627,14 +747,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             database.imageDao().find(offers.map { it.productId }).associateBy { it.productId }
         }
         val display = withContext(Dispatchers.IO) {
+            val brands = products.mapValues { it.value.brand }
+            val retailerNames = retailers.toMap()
+            // Offers with their own picture are the pool; the index finds look-alikes of other retailers in O(1).
+            val index = ImageSubstituteIndex(offers.filter { !it.imageUrl.isNullOrBlank() }.map { donor ->
+                ImageSubstituteIndex.Donor(donor.retailerId, retailerNames[donor.retailerId] ?: donor.retailerId,
+                    products[donor.productId]?.name ?: donor.productId, brands[donor.productId].orEmpty(), donor.imageUrl.orEmpty(), donor.sourceUrl)
+            })
             offers.map { offer ->
-                val imageUrl = offer.imageUrl?.takeIf { it.isNotBlank() }
+                val name = products[offer.productId]?.name ?: offer.productId
+                var imageUrl = offer.imageUrl?.takeIf { it.isNotBlank() }
                     ?: images[offer.productId]?.imageUrl?.takeIf { it.isNotBlank() }
+                val candidates = index.candidates(offer.retailerId, name, brands[offer.productId].orEmpty())
+                var note: String? = null
+                var referer: String? = null
+                var fallbacks = candidates
+                if (imageUrl == null && candidates.isNotEmpty()) {
+                    imageUrl = candidates.first().url; referer = candidates.first().referer; note = candidates.first().note
+                    fallbacks = candidates.drop(1)
+                }
                 OfferDisplay(
                     offer = offer,
-                    productName = products[offer.productId]?.name ?: offer.productId,
+                    productName = name,
+                    brand = brands[offer.productId].orEmpty(),
                     imagePath = imageUrl?.let { imageCache.get(it, Long.MAX_VALUE)?.path },
                     imageUrl = imageUrl,
+                    imageNote = note,
+                    imageReferer = referer,
+                    imageFallbacks = fallbacks,
                 )
             }
         }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..request_state import RequestState
+
 import json
 import sqlite3
 import threading
@@ -22,6 +24,8 @@ class AldiOfferChain:
     External catalogue adapters stay in SourceLoader and are considered only
     after this chain returns no catalogue, so catalogues are never mixed.
     """
+    last_source = RequestState(factory=dict)
+
 
     # v3 invalidates ALDI-Süd catalogues that discarded official brands and
     # used the old multipack-only deposit calculation.

@@ -346,6 +346,8 @@ private fun AppSettings(
     var kitchenUsername by remember { mutableStateOf("") }
     var kitchenPassword by remember { mutableStateOf("") }
     var kitchenPasswordLogin by rememberSaveable { mutableStateOf(true) }
+    var grocyKey by remember { mutableStateOf("") }
+    androidx.compose.runtime.LaunchedEffect(state.grocyUrl.isNotBlank()) { if (state.grocyUrl.isNotBlank() && state.grocyTargets.isEmpty()) viewModel.reloadGrocyTargets() }
     Column(
         modifier = Modifier.padding(24.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -424,6 +426,30 @@ private fun AppSettings(
         state.kitchenTargets.forEach { target ->
             Button(onClick = { viewModel.syncKitchenOwl(target) }) { Text("Zu ${target.label} übertragen") }
         }
+        Text("Grocy", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = state.grocyUrl,
+            onValueChange = viewModel::grocyUrl,
+            label = { Text("Grocy HTTPS-Adresse (z. B. https://grocy.example.net)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = grocyKey, onValueChange = { grocyKey = it },
+            label = { Text("Grocy-API-Schlüssel") }, visualTransformation = PasswordVisualTransformation(),
+            singleLine = true, enabled = !state.grocyConnecting, modifier = Modifier.fillMaxWidth(),
+        )
+        Text("Den Schlüssel erzeugst du in Grocy unter „API-Schlüssel verwalten“. Er wird verschlüsselt nur auf diesem Gerät abgelegt; Klartext-HTTP ist nicht erlaubt.")
+        Button(
+            enabled = !state.grocyConnecting && state.grocyUrl.isNotBlank() && grocyKey.isNotBlank(),
+            onClick = { viewModel.connectGrocy(state.grocyUrl, grocyKey); grocyKey = "" },
+        ) { Text(if (state.grocyConnecting) "Verbinde …" else "Grocy verbinden") }
+        state.grocyTargets.forEach { target ->
+            Button(onClick = { viewModel.syncGrocy(target) }) { Text("Zu Grocy: ${target.label} übertragen") }
+        }
+        if (state.grocyUrl.isNotBlank()) {
+            TextButton(onClick = { viewModel.disconnectGrocy() }) { Text("Grocy trennen und Schlüssel löschen") }
+        }
         Text(state.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -464,11 +490,7 @@ private fun OfferOverview(
     }
     // The product-group tabs count what the retailer chip and the text filter leave, but not the tab itself.
     val scopedOffers = shownOffers
-        .filter { display ->
-            val from = display.offer.validFrom.orEmpty().take(10)
-            val until = display.offer.validUntil.orEmpty().take(10)
-            (until.isBlank() || until >= today) && if (futureOnly) from > today else from <= today
-        }
+        .filter { display -> OfferMatcher.isShown(display.offer.validFrom, display.offer.validUntil, today, futureOnly) }
         .filter { display -> retailerFilter == "all" || display.offer.retailerId == retailerFilter }
         .filter { display ->
             offerFilter.isBlank() || OfferMatcher.matches(offerFilter, listOf(display)).isNotEmpty() ||
@@ -672,7 +694,7 @@ private fun OfferOverview(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                                OfferThumbnail(offer.imagePath, offer.imageUrl, offer.offer.sourceUrl)
+                                OfferThumbnail(offer.imagePath, offer.imageUrl, offer.imageReferer ?: offer.offer.sourceUrl, note = offer.imageNote, fallbacks = offer.imageFallbacks)
                                 Column(modifier = Modifier.weight(1f)) {
                                     if (retailerFilter == "all") {
                                         Text(retailerNames[offer.offer.retailerId] ?: offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -707,7 +729,7 @@ private fun OfferOverview(
                                 )
                             }
                             Text("Gültig: ${offer.offer.validFrom ?: "Beginn unbekannt"} bis ${offer.offer.validUntil ?: "Ende unbekannt"}")
-                            if (offer.offer.validFrom.orEmpty() > java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin")).toString()) {
+                            if ((BerlinDate.toLocalDate(offer.offer.validFrom) ?: "") > java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin")).toString()) {
                                 Text("Zukünftig ab ${offer.offer.validFrom}; nicht für den heutigen Einkauf.")
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

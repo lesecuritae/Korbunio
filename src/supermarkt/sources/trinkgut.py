@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..request_state import RequestState
+
 import json
 import re
 import threading
@@ -32,6 +34,9 @@ from ..models import Offer, ToolError
 
 
 class OfficialTrinkgutSource:
+    last_market_label = RequestState("")
+    last_market_url = RequestState("")
+
     BASE = "https://www.trinkgut.de"
     MARKETS_URL = BASE + "/marktsuche"
     OFFERS_URL = BASE + "/angebote/"

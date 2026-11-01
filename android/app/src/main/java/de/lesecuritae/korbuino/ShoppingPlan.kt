@@ -166,13 +166,7 @@ object ShoppingPlan {
     }
 
     private fun isCurrent(display: OfferDisplay, today: LocalDate): Boolean {
-        fun date(value: String?): LocalDate? = value?.takeIf { it.isNotBlank() }?.let {
-            runCatching { LocalDate.parse(it.take(10)) }.getOrNull()
-        }
         val offer = display.offer
-        if (!offer.validFrom.isNullOrBlank() && date(offer.validFrom) == null) return false
-        if (!offer.validUntil.isNullOrBlank() && date(offer.validUntil) == null) return false
-        return date(offer.validFrom)?.let { !today.isBefore(it) } != false &&
-            date(offer.validUntil)?.let { !today.isAfter(it) } != false
+        return OfferMatcher.isShown(offer.validFrom, offer.validUntil, today.toString(), futureOnly = false)
     }
 }

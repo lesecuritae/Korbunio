@@ -38,6 +38,9 @@ class KaufdaRetailerProviderTest {
 
         assertEquals(1, result.offers.size)
         assertEquals(1599, result.offers.single().priceCents)
+        // Stored as Berlin days: 06.09. 22:00 UTC is Berlin midnight of 07.09.; the end 20:00 UTC is 22:00 on 12.09.
+        assertEquals("2026-09-07", result.offers.single().validFrom)
+        assertEquals("2026-09-12", result.offers.single().validUntil)
         assertTrue(result.offers.single().imageUrl.orEmpty().contains("SEO-offer"))
         assertEquals("CELLULAR Power Serum", result.products.single().name)
     }
