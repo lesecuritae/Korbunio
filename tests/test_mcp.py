@@ -815,3 +815,30 @@ def test_mcp_real_engine_preserves_primary_brand_matches_and_deduplicates(monkey
                                  "postal_code": "01067", "retailers": ["Lidl"], "with_images": False})
     assert result.structured_content["found"] == 1
     assert result.structured_content["offers"][0]["product"] == "Cola"
+
+
+def test_new_watch_is_checked_immediately_not_only_at_the_daily_tick(monkeypatch, receiver):
+    checked = []
+
+    async def fake_check(plz, offer_week):
+        checked.append((plz, offer_week))
+
+    monkeypatch.setenv("SUPERMARKT_MCP_WARMUP", "1")
+    monkeypatch.setattr(mcp_server, "_check_new_watch", fake_check)
+    monkeypatch.setattr(mcp_server, "_start_warmup", lambda: None)
+
+    async def run():
+        async with Client(mcp_server.mcp) as client:
+            await client.call_tool("watch_product", {"product": "Schmelzkäse", "postal_code": "01067"})
+            await asyncio.sleep(0.05)
+
+    asyncio.run(run())
+    assert checked == [("01067", "current")]
+
+
+def test_immediate_check_loads_the_week_and_notifies(monkeypatch, receiver):
+    seen = []
+    monkeypatch.setattr(mcp_server, "_load_snapshot", lambda plz, retailers, refresh=False, offer_week="current": seen.append(offer_week) or {"plz": plz})
+    monkeypatch.setattr(mcp_server, "_check_watches", lambda plz, snapshot: seen.append(("checked", plz)))
+    asyncio.run(mcp_server._check_new_watch("01067", "all"))
+    assert seen == ["current", ("checked", "01067"), "next", ("checked", "01067")]
