@@ -95,3 +95,26 @@ def test_retailer_category_yoghurt_belongs_to_dairy():
 
     assert normalize_category("Joghurt", "REWE", "Almighurt") == "Molkereiprodukte & Eier"
     assert normalize_category("Quark & Frischkäse", "REWE", "Sahnequark") == "Molkereiprodukte & Eier"
+
+
+@pytest.mark.parametrize(("source", "name", "expected"), [
+    ("Drogerie & Körperpflege", "Lippenbalsam Butter Bliss Soft Tinted 020, 10 ml", "Drogerie & Körperpflege"),
+    ("Baby & Kind", "Body Ärmellos mit Fisch-Muster, beige, Gr. 98/104, 1 St", "Baby & Kind"),
+    ("Baby & Kind", "Gemüsesuppe Kinder Süßkartoffel & Gemüse mit Kokosmilch ab 12 Monaten, 250 g", "Baby & Kind"),
+    ("Drogerie & Körperpflege", "Quetschie Kirsche Banane in Apfel mit Vollkorn, ab 1 Jahr, 100 g", "Baby & Kind"),
+    ("Baby & Kind", "Baby Shampoo & Waschschaum, 150 ml", "Drogerie & Körperpflege"),
+    ("Rotweine", "Boekenhoutskloof The Chocolate Block Swartland", "Getränke"),
+    ("Katzenfutter", "Fit Katzen Trockenfutter", "Tierbedarf"),
+])
+def test_specific_products_keep_their_real_category(source, name, expected):
+    decision = category_decision(source, name=name)
+    assert decision.category == expected
+
+
+@pytest.mark.parametrize(("source", "name", "expected"), [
+    ("Fisch & Meeresfrüchte", "Viktoriaseebarschfilets", "Fisch & Meeresfrüchte"),
+    ("Fisch & Meeresfrüchte", "Ab Donnerstag erhältlich: Zanderfilets", "Fisch & Meeresfrüchte"),
+    ("Non-Food", "Air-Fryer Kochbuch", "Wohnen, Freizeit & Non-Food"),
+])
+def test_fish_species_and_books(source, name, expected):
+    assert category_decision(source, name=name).category == expected
