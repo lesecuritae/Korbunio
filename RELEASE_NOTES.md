@@ -1,3 +1,15 @@
+## 0.1.72
+
+- Grocy als Einkaufsliste: Artikel hinzufügen, doppelte Einträge vermeiden und
+  gegen aktuelle Angebote prüfen (Server und MCP, Android-Client); gegen Grocy 4.7.1 getestet.
+- EDEKA-Angebote tragen jetzt Beginn und Ende der Woche (maschinenlesbar).
+- Kategorien: Drogerie-, Baby-, Tier-, Getränke- und Fischprodukte werden nicht mehr
+  durch Schlüsselwörter im Namen falsch einsortiert (zum Beispiel Lippenbalsam „Butter“).
+- Produktbilder: Ersatzbild vom selben Artikel eines anderen Händlers bei totem Link,
+  mit Negativcache; Ablauffilter und Berliner Datum in MCP und Android.
+- MCP: Hinweis, dass App-Preise und persönliche Coupons (Lidl Plus, PENNY App,
+  Netto Plus App) nicht verrechnet werden.
+
 ## 0.1.71
 
 - Docker/Server: ALDI-Süd-Angebote werden in Köln (unter anderem 50939) nicht
