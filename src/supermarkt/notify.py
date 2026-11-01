@@ -1,6 +1,6 @@
 """Benachrichtigungsweg für Beobachtungen: eine Adresse, die eine Textnachricht per POST annimmt.
 
-Funktioniert mit ntfy (https://ntfy.sh/dein-thema oder eigener Server) und mit einfachen Webhooks.
+Funktioniert mit ntfy (https://ntfy.sh/dein-thema oder eigener Server), mit einem Telegram-Bot und mit einfachen Webhooks.
 Wie beim KitchenOwl-Token liegt die Adresse nur auf dem Server (Rechte 0600) und wird nie wieder angezeigt,
 denn bei ntfy ist der Themenname das Geheimnis.
 """
@@ -13,7 +13,7 @@ import secrets
 import threading
 import urllib.error
 import urllib.request
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from . import config
 
@@ -89,15 +89,36 @@ def _header(value: str) -> str:
         return "=?UTF-8?B?" + base64.b64encode(value.encode("utf-8")).decode("ascii") + "?="
 
 
+def _telegram_request(target: str, title: str, text: str) -> urllib.request.Request | None:
+    """Telegram-Bot: https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>.
+
+    Telegram nimmt keinen rohen Text an, sondern JSON mit chat_id und text; der Titel steht in der
+    ersten Zeile, weil es dort keinen eigenen Titel gibt. Zugestellt wird über die Telegram-App,
+    also auch über jeden Push-Weg, den sie nutzt (zum Beispiel UnifiedPush/NextPush).
+    """
+    parts = urlsplit(target)
+    if parts.hostname != "api.telegram.org" or not parts.path.endswith("/sendMessage"):
+        return None
+    chat_id = parse_qs(parts.query).get("chat_id", [""])[0]
+    if not chat_id:
+        raise NotifyError("Bei Telegram fehlt ?chat_id=… in der Adresse.")
+    body = json.dumps({"chat_id": chat_id, "text": f"{title}\n{text}"}, ensure_ascii=False)
+    return urllib.request.Request(
+        f"https://api.telegram.org{parts.path}", data=body.encode("utf-8"), method="POST",
+        headers={"Content-Type": "application/json; charset=utf-8"},
+    )
+
+
 def send(title: str, text: str, url: str | None = None) -> None:
     target = url or load()
     if not target:
         raise NotifyError("Es ist keine Benachrichtigungsadresse eingerichtet.")
     target = normalize_url(target)
-    request = urllib.request.Request(target, data=text.encode("utf-8"), method="POST", headers={
-        "Title": _header(title),
-        "Content-Type": "text/plain; charset=utf-8",
-    })
+    request = _telegram_request(target, title, text) or urllib.request.Request(
+        target, data=text.encode("utf-8"), method="POST", headers={
+            "Title": _header(title),
+            "Content-Type": "text/plain; charset=utf-8",
+        })
     try:
         with _OPENER.open(request, timeout=15):
             return
