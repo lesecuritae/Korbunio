@@ -8,7 +8,7 @@
 - Produktbilder: Ersatzbild vom selben Artikel eines anderen Händlers bei totem Link,
   mit Negativcache; Ablauffilter und Berliner Datum in MCP und Android.
 - Müller: Die alte Angebotsseite leitet nur noch auf die Prospekte um; der Abruf liest jetzt
-  die Aktionsseiten von Drogerie, Haushalt, Schreibwaren und Spielwaren (rund 240 statt 16 Angebote).
+  die Aktionsseiten von Drogerie, Haushalt, Schreibwaren und Spielwaren (rund 240 statt 16 Angebote); die Android-App liest dieselben Seiten direkt, ohne eigenen Server.
 - MCP: Hinweis, dass App-Preise und persönliche Coupons (Lidl Plus, PENNY App,
   Netto Plus App) nicht verrechnet werden.
 

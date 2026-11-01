@@ -31,12 +31,20 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                     ),
                 ),
                 FallbackRetailerProvider(
-                    HtmlFlyerProvider(
+                    // /c/online-angebote/ now redirects to the flyer page (no products); the department "Aktionen" pages
+                    // still list priced product tiles. The user-rendered page, if any, replaces the first page only.
+                    CombinedPagesProvider(
                         "mueller",
                         "Müller",
-                        "https://www.mueller.de/c/online-angebote/",
-                        http,
-                        renderedHtmlProvider = MuellerRenderedPageStore::consume,
+                        MuellerPages.DEPARTMENTS.mapIndexed { index, department ->
+                            HtmlFlyerProvider(
+                                "mueller",
+                                "Müller",
+                                "https://www.mueller.de/c/$department/aktionen/",
+                                http,
+                                renderedHtmlProvider = if (index == 0) MuellerRenderedPageStore::consume else null,
+                            )
+                        },
                     ),
                     FallbackRetailerProvider(
                         KaufdaRetailerProvider("mueller", "Müller", "Müller", "Mueller", http),
