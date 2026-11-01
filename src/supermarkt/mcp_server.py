@@ -98,6 +98,8 @@ SYNONYMS: dict[str, tuple[str, ...]] = {
 }
 # Händler, bei denen die Angebotsdaten keinen berechenbaren Bonuspreis hergeben.
 NO_COMPUTED_BONUS = ("EDEKA", "Globus", "Rossmann", "Müller")
+# Retailers whose app-only prices and coupons are not public (personalised) and therefore never part of the comparison.
+APP_ONLY_PRICES = {"Lidl": "Lidl Plus", "PENNY": "PENNY App", "Netto Marken-Discount": "Netto Plus App"}
 
 
 def _synonyms(product: str) -> list[str]:
@@ -615,6 +617,9 @@ async def find_offers(
     silent = sorted({offer.retailer for offer in result.offers if offer.retailer in NO_COMPUTED_BONUS and not offer.price_with_bonus})
     if silent:
         content[0].text += f"\nHinweis: Bei {', '.join(silent)} gibt es keinen berechenbaren Bonuspreis; das heißt nicht, dass es keinen Vorteil gibt."
+    apps = [APP_ONLY_PRICES[name] for name in APP_ONLY_PRICES if any(offer.retailer == name for offer in result.offers)]
+    if apps:
+        content[0].text += f"\nHinweis: App-Preise und persönliche Coupons ({', '.join(apps)}) sind nicht enthalten; gezeigt sind die öffentlichen Preise. Dort kann es günstiger sein."
     if with_images and max_images > 0:
         wanted_images = min(max_images, MAX_IMAGES)
         found_images = 0
