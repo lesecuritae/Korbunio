@@ -339,6 +339,27 @@ def _deliver_watches(plz: str, snapshot: dict[str, Any]) -> None:
             history.mark_notified(watch["id"], batch)
 
 
+_background_checks: set[asyncio.Task] = set()
+
+
+async def _check_new_watch(plz: str, offer_week: str) -> None:
+    """Prüft eine neue Beobachtung sofort; sonst käme die erste Meldung erst beim nächsten Tagestakt."""
+    for week in (("current", "next") if offer_week == "all" else (offer_week,)):
+        try:
+            snapshot = await asyncio.to_thread(_load_snapshot, plz, (), False, week)
+            await asyncio.to_thread(_check_watches, plz, snapshot)
+        except Exception:  # noqa: BLE001 - die Beobachtung bleibt gespeichert und wird im Tagestakt erneut geprüft
+            log.warning("Sofortprüfung für %s fehlgeschlagen", plz, exc_info=True)
+
+
+def _spawn_watch_check(plz: str, offer_week: str) -> None:
+    if os.environ.get("SUPERMARKT_MCP_WARMUP", "1") == "0":
+        return
+    task = asyncio.ensure_future(_check_new_watch(plz, offer_week))
+    _background_checks.add(task)
+    task.add_done_callback(_background_checks.discard)
+
+
 async def _warm_loop() -> None:
     default = validate_postal_code(os.environ.get("SUPERMARKT_DEFAULT_POSTAL_CODE", "")) or ""
     if default:
@@ -832,6 +853,7 @@ async def watch_product(product: str, max_price: str = "", postal_code: str = ""
     watch = await asyncio.to_thread(history.add_watch, " ".join(product.split())[:80], limit, plz, selected, offer_week)
     _last_used.setdefault(plz, time.time())
     _start_warmup()
+    _spawn_watch_check(plz, offer_week)
     price = f" bis {format_euro(limit / 100)} Kassenpreis (bei Mehrkauf für das gesamte Paket)" if limit is not None else ""
     return CallToolResult(content=[TextContent(type="text", text=f"Ich gebe Bescheid, sobald „{watch['query']}“{price} im Angebot ist (PLZ {plz}, Nr. {watch['id']}).")],
                           structured_content=watch)

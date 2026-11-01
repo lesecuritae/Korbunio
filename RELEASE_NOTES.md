@@ -1,3 +1,16 @@
+## 0.1.73
+
+- Beobachtungen (`watch_product`) werden sofort geprüft, nicht erst beim täglichen
+  Durchlauf; eine neue Beobachtung meldet vorhandene Treffer gleich per ntfy.
+- KitchenOwl: Ein abgelehnter Token (HTTP 422) wird jetzt als solcher gemeldet statt
+  als unklarer Fehler.
+- Flutter-Client: Angebotskarten laufen auf schmalen Displays nicht mehr über den
+  Rand (Preisspalte, Buttons „Zur Einkaufsliste“/KitchenOwl brechen um).
+- Flutter-Client: Ergebnisliste und Einstellungen lassen sich bis über die
+  Android-Navigationsleiste hinaus scrollen; der letzte Eintrag wird nicht mehr verdeckt.
+- Tests: Golden-Test hängt nicht mehr (Datei-IO außerhalb der Fake-Zeit); neue
+  Regressionstests für den unteren Rand.
+
 ## 0.1.72
 
 - Grocy als Einkaufsliste: Artikel hinzufügen, doppelte Einträge vermeiden und

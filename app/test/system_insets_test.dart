@@ -116,4 +116,36 @@ void main() {
     await tester.pumpAndSettle();
     _expectBelowStatusBar(tester);
   });
+
+  testWidgets('settings screen scrolls its last entry above the nav bar', (
+    tester,
+  ) async {
+    const navBar = 48.0;
+    await _phone(tester);
+    tester.view.padding = const FakeViewPadding(
+      top: _statusBar * _ratio,
+      bottom: navBar * _ratio,
+    );
+    tester.view.viewPadding = tester.view.padding;
+    SharedPreferences.setMockInitialValues({});
+    final settings = await tester.runAsync(Settings.load);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: korbLightTheme(),
+        home: SettingsScreen(settings: settings!, onThemeChanged: () {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -5000));
+    await tester.pumpAndSettle();
+    final lowest = find
+        .descendant(
+          of: find.byType(Scrollable).first,
+          matching: find.byType(Text),
+        )
+        .evaluate()
+        .map((e) => tester.getBottomLeft(find.byWidget(e.widget)).dy)
+        .reduce((a, b) => a > b ? a : b);
+    expect(lowest, lessThanOrEqualTo(700 - navBar + 0.5));
+  });
 }

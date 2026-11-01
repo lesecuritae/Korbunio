@@ -1007,7 +1007,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () => setState(() {
-          collapsed ? _collapsedGroups.remove(name) : _collapsedGroups.add(name);
+          collapsed
+              ? _collapsedGroups.remove(name)
+              : _collapsedGroups.add(name);
         }),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1061,7 +1063,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final rows = _rows();
     return ListView.separated(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
+      // The list runs behind the system navigation bar (edge-to-edge), so the
+      // last entry has to be able to scroll above it.
+      padding: EdgeInsets.fromLTRB(
+        12,
+        10,
+        12,
+        24 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       itemCount: rows.length + 1,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {

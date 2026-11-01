@@ -96,7 +96,8 @@ def call(url: str, token: str, path: str, body: dict[str, Any] | None = None) ->
         with _OPENER.open(request, timeout=15) as response:
             return json.loads(response.read().decode() or "null")
     except urllib.error.HTTPError as exc:
-        if exc.code in {401, 403}:
+        # KitchenOwl answers a malformed or unknown JWT with 422 on reads; treat it like a rejected token.
+        if exc.code in {401, 403} or (exc.code == 422 and body is None):
             raise KitchenOwlError("KitchenOwl hat den Token abgelehnt.") from exc
         raise KitchenOwlError(f"KitchenOwl antwortete mit HTTP {exc.code}.") from exc
     except (urllib.error.URLError, OSError, ValueError) as exc:
