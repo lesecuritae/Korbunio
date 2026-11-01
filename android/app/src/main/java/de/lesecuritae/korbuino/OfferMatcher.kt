@@ -11,12 +11,27 @@ object OfferMatcher {
     fun matches(query: String, offers: List<OfferDisplay>): List<OfferDisplay> {
         val words = normalize(query).split(' ').filter { it.length >= 2 }
         if (words.isEmpty()) return emptyList()
+        // "energydrink", "Energy Drink" and "Energy-Drink" are one search, as in the server filter.
+        val compactQuery = words.joinToString("")
         return offers
             .filter { offer ->
-                val haystack = normalize(offer.productName)
-                words.all { it in haystack }
+                val haystack = normalize("${offer.productName} ${offer.brand}")
+                words.all { it in haystack } || (compactQuery.length >= 4 && compactQuery in haystack.replace(" ", ""))
             }
             .sortedBy { it.offer.priceCents }
+    }
+
+    /**
+     * Current-offer rule of the list UI; [today] is a Europe/Berlin "yyyy-MM-dd". Dates may be plain or UTC instants
+     * (converted to Berlin days). Blank = open-ended; an unparseable value is not shown (same rule as the shopping plan).
+     */
+    fun isShown(validFrom: String?, validUntil: String?, today: String, futureOnly: Boolean): Boolean {
+        val from = BerlinDate.toLocalDate(validFrom)
+        val until = BerlinDate.toLocalDate(validUntil)
+        if (!validFrom.isNullOrBlank() && from == null) return false
+        if (!validUntil.isNullOrBlank() && until == null) return false
+        if (until != null && until < today) return false
+        return if (futureOnly) from != null && from > today else from == null || from <= today
     }
 
     fun formatPrice(cents: Int): String = "${cents / 100},${(cents % 100).toString().padStart(2, '0')} €"

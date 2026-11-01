@@ -33,8 +33,9 @@ from mcp.server.mcpserver.exceptions import ToolError as MCPToolError
 from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 from pydantic import BaseModel, Field
 
-from . import history, kitchenowl, notify, runtime
-from .common import format_euro, normalize_keywords, validate_postal_code
+from . import grocy, history, kitchenowl, notify, runtime
+from .common import format_euro, normalize_keywords, today_berlin, validate_postal_code
+from .image_match import match_article
 from .images import ImageServiceError
 from .loyalty import PROGRAMS
 from .models import RETAILER_SPECS, ToolError, resolve_retailer_names
@@ -97,6 +98,8 @@ SYNONYMS: dict[str, tuple[str, ...]] = {
 }
 # Händler, bei denen die Angebotsdaten keinen berechenbaren Bonuspreis hergeben.
 NO_COMPUTED_BONUS = ("EDEKA", "Globus", "Rossmann", "Müller")
+# Retailers whose app-only prices and coupons are not public (personalised) and therefore never part of the comparison.
+APP_ONLY_PRICES = {"Lidl": "Lidl Plus", "PENNY": "PENNY App", "Netto Marken-Discount": "Netto Plus App"}
 
 
 def _synonyms(product: str) -> list[str]:
@@ -125,13 +128,20 @@ class Offer(BaseModel):
     valid_until: str = ""
     valid: str = Field(default="", description="Gültigkeit")
     image_url: Optional[str] = Field(default=None, description="Bild des Angebots (Adresse beim Händler)")
+    image_source: str = Field(default="", description="own | same_article_other_retailer; leer = kein Bild geliefert")
+    image_match: str = Field(default="", description="exact | substitute (Ersatzbild: gleicher Artikel, andere Packung oder anderer Händler)")
+    image_note: str = Field(default="", description="Kurzer Hinweis zur Herkunft eines Ersatzbilds")
+    image_fallback_url: Optional[str] = Field(default=None, description="Bildadresse des Ersatzbilds (gehört zu einem anderen Angebot); image_url bleibt unverändert")
 
 
 class OfferResult(BaseModel):
     postal_code: str
     query: str
     found: int = Field(description="Anzahl Treffer insgesamt")
-    offers: list[Offer] = Field(description="Die günstigsten Treffer zuerst")
+    offers: list[Offer] = Field(description="Die günstigsten Treffer zuerst (nur die Seite ab offset)")
+    returned: int = Field(default=0, description="Anzahl der in offers gelieferten Treffer dieser Seite")
+    offset: int = Field(default=0, description="Anzahl übersprungener Treffer vor dieser Seite")
+    has_more: bool = Field(default=False, description="True, wenn es weitere Treffer ab offset+returned gibt; die Liste ist dann NICHT vollständig")
     status: Literal["ok", "empty", "partial"] = "ok"
     diagnostics: list[str] = Field(default_factory=list)
 
@@ -233,7 +243,8 @@ async def _snapshot(plz: str, retailers: tuple[str, ...], ctx: Context | None = 
             raise CatalogueUnavailable(detail)
         _load_failures.pop(key, None)
     task = _inflight.get(key)
-    if task is None or task.done():
+    # A finished task whose done-callback has not run yet is still this key's fresh outcome: reuse it, do not reload or skip the failure throttle.
+    if task is None or task.cancelled():
         task = asyncio.ensure_future(asyncio.to_thread(_load_snapshot, plz, retailers))
         _inflight[key] = task
         task.add_done_callback(lambda finished, key=key: _load_finished(key, finished))
@@ -399,6 +410,7 @@ def _offers_from(snapshot: dict[str, Any], product: str, also_search: list[str] 
         # before; surface it as a separate credit with the effective net price.
         credit = other.get("cashback_credit") or 0.0
         has_credit = credit > 0 and discounted is not None
+        borrowed = item.get("image_source") == "same_article_other_retailer"
         result.append(Offer(
             retailer=item["retailer"], product=item["product"], pack=item.get("pack", ""), unit_price=item.get("unit_price", ""),
             price_without_bonus=item["regular_price_text"],
@@ -410,8 +422,13 @@ def _offers_from(snapshot: dict[str, Any], product: str, also_search: list[str] 
             bonus_credit=other.get("cashback_credit_text") if has_credit else None,
             price_after_credit=format_euro(discounted - credit) if has_credit else None,
             bonus_program=(other.get("loyalty_benefit") or None) if (cheaper or has_credit) else None,
-            valid=item.get("validity", ""), valid_from=item.get("valid_from") or "", valid_until=item.get("valid_until") or "", image_url=item.get("image_url") or None,
+            valid=item.get("validity", ""), valid_from=item.get("valid_from") or "", valid_until=item.get("valid_until") or "", image_url=(None if borrowed else item.get("image_url") or None),
+            image_source=item.get("image_source") or "", image_match=item.get("image_match") or "", image_note=item.get("image_note") or "",
+            image_fallback_url=(item.get("image_url") if borrowed else None),
         ))
+    # Offers whose ISO end date is already past (Europe/Berlin) are over; later-starting ones stay (see find_offers).
+    today = today_berlin().isoformat()
+    result = [offer for offer in result if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", offer.valid_until[:10]) or offer.valid_until[:10] >= today]
     # Ranking stays on the checkout price; cashback is deliberately excluded.
     result.sort(key=lambda offer: _euro(offer.price_with_bonus or offer.price_without_bonus))
     return result
@@ -427,15 +444,42 @@ def _search_variants(product: str) -> list[str]:
     return variants
 
 
-def _image_block(offer: Offer) -> ImageContent | None:
+def _image_block(offer: Offer, url: str | None = None) -> ImageContent | None:
     """Bild des Angebots über den Bilddienst des Servers (Adressprüfung, Zwischenspeicher, Größenlimit)."""
-    if not offer.image_url:
+    url = url or offer.image_url
+    if not url:
         return None
     try:
-        image = runtime.get_image_service().get(source_url=offer.image_url, product=offer.product, retailer=offer.retailer)
+        image = runtime.get_image_service().get(source_url=url, product=offer.product, retailer=offer.retailer)
     except (ImageServiceError, ToolError, OSError, ValueError):
         return None
     return ImageContent(type="image", data=base64.b64encode(image.data).decode("ascii"), mime_type=image.content_type)
+
+
+def _image_with_fallback(offer: Offer, candidates: list[Offer]) -> ImageContent | None:
+    """Own image first; otherwise the image of the same article at another retailer, labelled as a substitute."""
+    block = _image_block(offer) if offer.image_url else None
+    if block is not None:
+        offer.image_source, offer.image_match, offer.image_note = "own", "exact", ""
+        return block
+    if offer.image_fallback_url:  # the catalogue already picked the same article elsewhere (labelled by image_note)
+        block = _image_block(offer, offer.image_fallback_url)
+        if block is not None:
+            return block
+    donors = [(other, match_article(offer.product, other.product)) for other in candidates
+              if other is not offer and other.retailer != offer.retailer and other.image_url]
+    # exact pack matches first, then cheaper-to-explain ones; at most 2 donor attempts keep this bounded.
+    ranked = sorted(((other, kind) for other, kind in donors if kind), key=lambda pair: (pair[1] != "exact", pair[0].retailer))[:2]
+    for other, kind in ranked:
+        block = _image_block(other)
+        if block is not None:
+            offer.image_fallback_url = other.image_url
+            offer.image_source = "same_article_other_retailer"
+            offer.image_match = kind
+            offer.image_note = (f"Bild von {other.retailer}: gleicher Artikel, gleiche Packung" if kind == "exact"
+                                else f"Ersatzbild von {other.retailer}: gleicher Artikel laut Name, Packung abweichend oder unbekannt")
+            return block
+    return None
 
 
 def _valid_text(offer: Offer) -> str:
@@ -451,7 +495,11 @@ def _program_name(offer: Offer) -> str:
 
 
 def _summary(result: OfferResult) -> str:
-    lines = [f"{result.found} Treffer für „{result.query}“ (PLZ {result.postal_code}), günstigste zuerst:"]
+    if result.has_more or result.offset:
+        first = result.offset + 1
+        lines = [f"{result.returned} von {result.found} Treffern für „{result.query}“ (PLZ {result.postal_code}), Nr. {first}–{result.offset + result.returned}, günstigste zuerst:"]
+    else:
+        lines = [f"{result.found} Treffer für „{result.query}“ (PLZ {result.postal_code}), günstigste zuerst:"]
     for offer in result.offers:
         line = f"- {offer.retailer}: {offer.product} {offer.pack}".rstrip() + f" – {offer.price_without_bonus} ohne Bonus"
         if offer.price_with_bonus:
@@ -470,6 +518,8 @@ def _summary(result: OfferResult) -> str:
             # Manche Quellen schreiben schon "gültig ..." in die Angabe.
             line += ", " + (valid if "gültig" in valid.casefold() else f"gültig {valid}")
         lines.append(line)
+    if result.has_more:
+        lines.append(f"UNVOLLSTÄNDIG: {result.found - result.offset - result.returned} weitere Treffer; Rest mit offset={result.offset + result.returned} abrufen (limit höchstens 25). Teurere Treffer, auch andere Marken, stehen weiter hinten.")
     return "\n".join(lines)
 
 
@@ -499,12 +549,14 @@ async def find_offers(
     limit: int = 8,
     with_images: bool = True,
     max_images: int = 1,
+    offset: int = 0,
     ctx: Context | None = None,
 ) -> CallToolResult:
     """Welche Angebote gibt es in der aktuellen Woche? Liefert Händler und Preis ohne und, falls vorhanden, mit Bonusprogramm.
 
     Auch bereits veröffentlichte Angebote späterer Wochentage sind enthalten.
     Ihre Gültigkeit unbedingt nennen; ein Vorschaupreis gilt noch nicht heute.
+    Angebote mit bereits abgelaufenem Enddatum werden ausgeblendet.
 
     Args:
         product: Suchbegriff, z. B. "Kaffee". Leer mit retailers = Angebote dieser Händler durchsehen.
@@ -514,6 +566,9 @@ async def find_offers(
         limit: Höchstens so viele Treffer, die günstigsten zuerst (1 bis 25).
         with_images: Bilder der ersten Treffer mitschicken.
         max_images: Wie viele Bilder (0 bis 3, Standard 1); jedes Bild kostet Kontext.
+        offset: So viele günstigste Treffer überspringen (Blättern). found ist die Gesamtzahl, returned die Zahl dieser Seite;
+            ist has_more wahr, ist die Liste unvollständig. Die Suche prüft Name, Marke und Beschreibung, nicht die Warengruppe:
+            Marken, deren Angebot den Begriff nicht enthält, per also_search ergänzen.
     """
     plz = _postal_code(postal_code)
     wanted = _retailers(retailers)
@@ -521,6 +576,7 @@ async def find_offers(
     if not product and not wanted:
         raise MCPToolError("Bitte ein Produkt oder mindestens einen Händler zum Durchsehen angeben.")
     limit = max(1, min(int(limit), 25))
+    offset = max(0, int(offset))
     try:
         snapshot = await _snapshot(plz, wanted, ctx)
     except StillLoading:
@@ -535,9 +591,19 @@ async def find_offers(
         if variants:
             offers = await asyncio.to_thread(_offers_from, snapshot, product.strip(), [*(also_search or []), *variants], wanted)
             widened = bool(offers)
-    diagnostics = list(dict.fromkeys(str(error)[:240] for error in snapshot.get("request_errors", []) if error))[:5]
+    # store_warnings carry fallback notes (e.g. "offizielle Seite nicht lesbar; KaufDA nur ein Ausschnitt"); errors alone would mislead.
+    diagnostics = list(dict.fromkeys(str(note)[:240] for note in [*snapshot.get("request_errors", []), *snapshot.get("store_warnings", [])] if note))[:8]
     status = "partial" if diagnostics else ("ok" if offers else "empty")
-    result = OfferResult(postal_code=plz, query=product or "Alle Angebote", found=len(offers), offers=offers[:limit], status=status, diagnostics=diagnostics)
+    page = offers[offset:offset + limit]
+    result = OfferResult(
+        postal_code=plz, query=product or "Alle Angebote", found=len(offers), offers=page, returned=len(page), offset=offset,
+        has_more=offset + len(page) < len(offers), status=status, diagnostics=diagnostics,
+    )
+    if offers and not page:
+        text = f"{result.found} Treffer für „{result.query}“ (PLZ {plz}), aber offset={offset} liegt dahinter; es gibt keine weiteren."
+        if diagnostics:
+            text += "\nAbruf unvollständig: " + " | ".join(diagnostics)
+        return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=result.model_dump())
     if not result.offers:
         text = f"Keine Angebote für „{result.query}“ bei der Postleitzahl {plz} gefunden. Versuche einen anderen Begriff oder Synonyme (also_search)."
         if diagnostics:
@@ -551,13 +617,28 @@ async def find_offers(
     silent = sorted({offer.retailer for offer in result.offers if offer.retailer in NO_COMPUTED_BONUS and not offer.price_with_bonus})
     if silent:
         content[0].text += f"\nHinweis: Bei {', '.join(silent)} gibt es keinen berechenbaren Bonuspreis; das heißt nicht, dass es keinen Vorteil gibt."
+    apps = [APP_ONLY_PRICES[name] for name in APP_ONLY_PRICES if any(offer.retailer == name for offer in result.offers)]
+    if apps:
+        content[0].text += f"\nHinweis: App-Preise und persönliche Coupons ({', '.join(apps)}) sind nicht enthalten; gezeigt sind die öffentlichen Preise. Dort kann es günstiger sein."
     if with_images and max_images > 0:
-        shown = [offer for offer in result.offers if offer.image_url][:min(max_images, MAX_IMAGES)]
-        blocks = await asyncio.gather(*(asyncio.to_thread(_image_block, offer) for offer in shown))
-        for offer, block in zip(shown, blocks, strict=True):
-            if block is not None:
-                content.append(TextContent(type="text", text=f"Bild: {offer.retailer} – {offer.product}"))
-                content.append(block)
+        wanted_images = min(max_images, MAX_IMAGES)
+        found_images = 0
+        # Walk the page cheapest-first; each offer tries its own image, then the same article from another retailer.
+        # At most 6 offers are tried, so dead image links cannot cause an unbounded number of downloads.
+        for offer in result.offers[:6]:
+            block = await asyncio.to_thread(_image_with_fallback, offer, offers)
+            if block is None:
+                continue
+            label = f"Bild: {offer.retailer} – {offer.product}"
+            if offer.image_source == "same_article_other_retailer":
+                label += f" ({offer.image_note})"
+            content.append(TextContent(type="text", text=label))
+            content.append(block)
+            found_images += 1
+            if found_images >= wanted_images:
+                break
+        if not found_images:
+            content[0].text += "\nKein passendes Produktbild gefunden (weder eigenes noch von demselben Artikel bei einem anderen Händler)."
     return CallToolResult(content=content, structured_content=result.model_dump())
 
 
@@ -613,15 +694,20 @@ async def add_to_shopping_list(item: str, retailer: str = "", price: str = "", n
     parts = [f"bei {' '.join(retailer.split())[:40]}" if retailer.strip() else "", " ".join(price.split())[:20], " ".join(note.split())[:120]]
     description = " · ".join(part for part in parts if part)
     settings = kitchenowl.load()
-    if settings is None:
-        raise ValueError("KitchenOwl ist auf diesem Server nicht eingerichtet.")
+    grocy_settings = grocy.load() if settings is None else None
+    if settings is None and grocy_settings is None:
+        raise ValueError("Weder KitchenOwl noch Grocy ist auf diesem Server als Einkaufsliste eingerichtet.")
     now = time.time()
     _shopping_adds[:] = [t for t in _shopping_adds if now - t < 3600]
     if len(_shopping_adds) >= SHOPPING_ADDS_PER_HOUR:
         raise ValueError("Zu viele neue Artikel in dieser Stunde. Bitte später noch einmal.")
     try:
-        added = await asyncio.to_thread(kitchenowl.add_item, settings, name, description)
-    except kitchenowl.KitchenOwlError as exc:
+        if grocy_settings is not None:
+            outcome = (await asyncio.to_thread(grocy.add_items, grocy_settings, [(name, description, 1.0)]))[0]
+            added = outcome["status"] == "added"
+        else:
+            added = await asyncio.to_thread(kitchenowl.add_item, settings, name, description)
+    except (kitchenowl.KitchenOwlError, grocy.GrocyError) as exc:
         raise ValueError(str(exc)) from exc
     if added:
         _shopping_adds.append(now)
@@ -636,12 +722,14 @@ async def check_shopping_list(postal_code: str = "", ctx: Context | None = None)
         postal_code: Deutsche Postleitzahl (fünf Ziffern). Leer = Standard des Servers.
     """
     settings = kitchenowl.load()
-    if settings is None:
-        raise ValueError("KitchenOwl ist auf diesem Server nicht eingerichtet.")
+    grocy_settings = grocy.load() if settings is None else None
+    if settings is None and grocy_settings is None:
+        raise ValueError("Weder KitchenOwl noch Grocy ist auf diesem Server als Einkaufsliste eingerichtet.")
     plz = _postal_code(postal_code)
     try:
-        items = (await asyncio.to_thread(kitchenowl.list_items, settings))[:CHECK_LIST_MAX_ITEMS]
-    except kitchenowl.KitchenOwlError as exc:
+        lister = (lambda: grocy.list_items(grocy_settings)) if grocy_settings is not None else (lambda: kitchenowl.list_items(settings))
+        items = (await asyncio.to_thread(lister))[:CHECK_LIST_MAX_ITEMS]
+    except (kitchenowl.KitchenOwlError, grocy.GrocyError) as exc:
         raise ValueError(str(exc)) from exc
     if not items:
         return CallToolResult(content=[TextContent(type="text", text="Die Einkaufsliste ist leer.")], structured_content={"items": []})
@@ -673,7 +761,7 @@ def register_shopping_tool() -> bool:
     for name in ("add_to_shopping_list", "check_shopping_list"):
         with contextlib.suppress(Exception):
             mcp.remove_tool(name)
-    if kitchenowl.load() is None:
+    if kitchenowl.load() is None and grocy.load() is None:
         return False
     mcp.add_tool(add_to_shopping_list, annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
     mcp.add_tool(check_shopping_list, annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))

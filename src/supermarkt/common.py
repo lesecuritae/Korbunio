@@ -128,11 +128,15 @@ def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
         return list(offers)
     # Die Warengruppe zählt nicht zur Suche: Wer „Dessert“ sucht, will keine Fleischangebote, nur weil die
     # Gruppe „Tiefkühl / Eis & Dessert“ heißt. Für Gruppen gibt es die Reiter darüber.
-    return [
-        offer
-        for offer in offers
-        if query in spelling(f"{offer.name} {offer.brand} {offer.description} {offer.retailer}")
-    ]
+    # „Energydrink“, „Energy Drink“ und „Energy-Drink“ sind dieselbe Suche: zusätzlich ohne Leerzeichen/Bindestriche vergleichen.
+    compact_query = re.sub(r"[\s\-‐‑–]+", "", query)
+    compact = len(compact_query) >= 4
+    matches = []
+    for offer in offers:
+        haystack = spelling(f"{offer.name} {offer.brand} {offer.description} {offer.retailer}")
+        if query in haystack or (compact and compact_query in re.sub(r"[\s\-‐‑–]+", "", haystack)):
+            matches.append(offer)
+    return matches
 
 
 def normalize_keywords(values: Iterable[Any], limit: int = 50) -> tuple[str, ...]:

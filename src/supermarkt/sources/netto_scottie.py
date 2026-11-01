@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..request_state import RequestState
+
 import re
 import json
 from datetime import date
@@ -98,6 +100,9 @@ class NettoScottieMarketResolver:
 
 class OfficialNettoScottieSource:
     """Public weekly offers published by Salling Group's German Netto chain."""
+    last_market_label = RequestState("")
+    last_market_url = RequestState("")
+
 
     BASE_URL = "https://netto.de"
     OFFERS_URL = BASE_URL + "/angebote/"

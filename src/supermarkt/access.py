@@ -74,7 +74,9 @@ def build_image_proxy_url(offer: dict[str, Any]) -> str:
     if image_host == "content-media.bonial.biz":
         referer = "https://www.kaufda.de/"
     else:
-        referer = MARKTGURU_HOME if retailer in AGGREGATOR_RETAILERS else normalize_image_url(offer.get("source_url"))
+        # A substitute picture comes from another retailer's offer: its referer rules apply, not the recipient's.
+        image_retailer = clean_text(offer.get("image_retailer")) or retailer
+        referer = MARKTGURU_HOME if image_retailer in AGGREGATOR_RETAILERS else normalize_image_url(offer.get("image_source_url") or offer.get("source_url"))
     return "/image?" + urlencode({
         "src": source_url,
         "ref": referer,

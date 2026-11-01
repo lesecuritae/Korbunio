@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import threading
 import types
 
@@ -41,6 +42,9 @@ def fake_runtime(monkeypatch, tmp_path):
     monkeypatch.setattr(runtime, "get_image_service", lambda: FakeImages())
     monkeypatch.setattr(mcp_server, "_load_snapshot", lambda plz, retailers, refresh=False: {"plz": plz})
     monkeypatch.setenv("SUPERMARKT_MCP_WARMUP", "0")
+    # Fixture offers carry fixed dates; freeze "today" so expiry hiding cannot turn them into time bombs.
+    monkeypatch.setattr(mcp_server, "today_berlin", lambda: datetime.date(2026, 10, 23))
+    monkeypatch.setattr("supermarkt.service.today_berlin", lambda: datetime.date(2026, 10, 23))
     mcp_server._inflight.clear()
     mcp_server._load_failures.clear()
     mcp_server._last_used.clear()

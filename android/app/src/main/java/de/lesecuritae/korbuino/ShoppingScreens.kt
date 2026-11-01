@@ -108,8 +108,9 @@ internal fun ShoppingListContent(
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 OfferThumbnail(
                                     picturedOffer?.imagePath, picturedOffer?.imageUrl,
-                                    picturedOffer?.offer?.sourceUrl.orEmpty(),
+                                    picturedOffer?.imageReferer ?: picturedOffer?.offer?.sourceUrl.orEmpty(),
                                     modifier = Modifier.testTag("shopping-image:${row.itemId}"),
+                                    note = picturedOffer?.imageNote, fallbacks = picturedOffer?.imageFallbacks.orEmpty(),
                                     contentDescription = picturedOffer?.let { "Produktbild: ${it.productName}" },
                                 )
                                 Text(row.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -144,14 +145,17 @@ internal fun ShoppingListContent(
                             }
                             if (row.itemId in expanded) {
                                 val matches = OfferMatcher.matches(row.name, state.offers).filter { display ->
-                                    display.offer.validUntil?.let { runCatching { LocalDate.parse(it.take(10)) >= today }.getOrDefault(false) } ?: true
+                                    // Future-starting offers stay listed (flagged below); only ended or unparseable ones drop out.
+                                    display.offer.validUntil.isNullOrBlank() ||
+                                        (BerlinDate.toLocalDate(display.offer.validUntil)?.let { it >= today.toString() } ?: false)
                                 }
                                 if (matches.isEmpty()) Text("Aktuell in keinem geladenen Angebot.")
                                 matches.take(8).forEach { display ->
-                                    val future = display.offer.validFrom?.let { runCatching { LocalDate.parse(it.take(10)) > today }.getOrDefault(true) } ?: false
+                                    val future = display.offer.validFrom?.takeIf { it.isNotBlank() }?.let { (BerlinDate.toLocalDate(it) ?: "9999-12-31") > today.toString() } ?: false
                                     key(display.offer.id) {
                                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            OfferThumbnail(display.imagePath, display.imageUrl, display.offer.sourceUrl,
+                                            OfferThumbnail(display.imagePath, display.imageUrl, display.imageReferer ?: display.offer.sourceUrl,
+                                                note = display.imageNote, fallbacks = display.imageFallbacks,
                                                 modifier = Modifier.testTag("shopping-match-image:${row.itemId}:${display.offer.id}"),
                                                 contentDescription = "Produktbild: ${display.productName}")
                                             Column(Modifier.weight(1f)) {

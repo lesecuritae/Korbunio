@@ -85,8 +85,8 @@ class KaufdaRetailerProvider(
                 externalId = external,
                 priceCents = BigDecimal.valueOf(price).movePointRight(2)
                     .setScale(0, RoundingMode.HALF_UP).intValueExact(),
-                validFrom = validFrom.toString(),
-                validUntil = validUntil.toString(),
+                validFrom = de.lesecuritae.korbuino.BerlinDate.toLocalDate(validFrom.toString()),
+                validUntil = de.lesecuritae.korbuino.BerlinDate.toLocalDate(validUntil.toString()),
                 sourceUrl = sourceUrl,
                 imageUrl = image,
                 cachedAt = System.currentTimeMillis(),

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..request_state import RequestState
+
 import json
 import re
 import subprocess
@@ -18,6 +20,9 @@ from ..models import LoyaltyBenefit, Offer, ToolError
 from .browser import chromium_command
 
 class OfficialReweSource:
+    last_market_label = RequestState("")
+    last_market_url = RequestState("")
+
     BASE = "https://www.rewe.de"
     INCLUDE_ENDPOINT = BASE + "/api/frontend-includes"
 

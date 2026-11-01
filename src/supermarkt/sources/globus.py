@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..request_state import RequestState
+
 import html, json, math, re, threading
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -76,6 +78,10 @@ class GlobusMarketResolver:
         except (UnicodeDecodeError, json.JSONDecodeError, ToolError, IndexError, AttributeError): return None
 
 class OfficialGlobusSource:
+    last_market_label = RequestState("")
+    last_market_url = RequestState("")
+    last_market = RequestState(None)
+
     FLYER_URL = "https://www.globus.de/faltblatt_online/aktuelle_woche/{code}/pageitems.json"
     def __init__(self, http_client: HttpClient, resolver: Optional[GlobusMarketResolver] = None) -> None:
         self.http, self.resolver = http_client, resolver or GlobusMarketResolver(http_client)

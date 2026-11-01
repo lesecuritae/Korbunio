@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..request_state import RequestState
+
 import html
 import json
 import re
@@ -108,6 +110,9 @@ class KauflandOfficialAnchorParser(HTMLParser):
         return clean_text(" ".join(self.page_text_parts))
 
 class OfficialKauflandSource:
+    last_store_url = RequestState("")
+    last_locality = RequestState("")
+
     MAX_STORE_OFFERS = 800
     STORE_HOST = "filiale.kaufland.de"
     SITEMAP_URLS = (

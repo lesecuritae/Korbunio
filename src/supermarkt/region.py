@@ -16,6 +16,30 @@ from .http import HttpClient
 from .models import RETAILER_SPECS, ToolError
 
 
+class _RequestState:
+    """Diagnostics of the latest detect() on the *calling thread*.
+
+    One resolver serves all concurrent loads, and each load calls detect() and
+    then reads last_* on the same worker thread, so per-thread storage keeps
+    overlapping postal codes from overwriting each other's region/error state
+    without serialising any network I/O.
+    """
+
+    def __init__(self, default: Any) -> None:
+        self.default = default
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.slot = "_state_" + name
+
+    def __get__(self, obj: Any, owner: Any = None) -> Any:
+        if obj is None:
+            return self
+        return getattr(obj._local, self.slot, self.default)
+
+    def __set__(self, obj: Any, value: Any) -> None:
+        setattr(obj._local, self.slot, value)
+
+
 class AldiRegionResolver:
     """Resolve ALDI Nord/Süd from nearby store metadata.
 
@@ -26,14 +50,17 @@ class AldiRegionResolver:
     def __init__(self, http: HttpClient, timeout_seconds: int = 10) -> None:
         self.http = HttpClient(min(http.timeout_seconds, max(3, timeout_seconds)))
         self._cache: dict[str, str] = {}
-        self.last_provider = ""
-        self.last_distance_km: Optional[float] = None
-        self.last_error = ""
-        self.last_regions: tuple[str, ...] = ()
-        self.last_absent_regions: tuple[str, ...] = ()
-        self.last_confidence = ""
+        self._local = threading.local()
         self._catalogues: dict[str, tuple[float, list[dict[str, Any]]]] = {}
         self._catalogue_lock = threading.Lock()
+        self._region_locks = {'nord': threading.Lock(), 'sued': threading.Lock()}
+
+    last_provider = _RequestState("")
+    last_distance_km = _RequestState(None)
+    last_error = _RequestState("")
+    last_regions = _RequestState(())
+    last_absent_regions = _RequestState(())
+    last_confidence = _RequestState("")
 
     # Same public first-party sources used by the native Android providers.
     # The Süd widget identifier is public, not an account credential.
@@ -44,48 +71,62 @@ class AldiRegionResolver:
     MAX_DISTANCE_KM = 15.0
 
     def _official_stores(self, region: str) -> list[dict[str, Any]]:
-        with self._catalogue_lock:
-            cached = self._catalogues.get(region)
-            if cached and time.monotonic() - cached[0] < 3600:
-                return cached[1]
-            raw = self.http.get_bytes(self.STORE_URLS[region])
-            if len(raw) > 4_000_000:
-                raise ToolError("ALDI-Filialliste überschreitet das Größenlimit")
-            if region == "nord":
-                script = BeautifulSoup(raw, "html.parser").select_one("script#__NEXT_DATA__")
-                if script is None:
-                    raise ToolError("ALDI Nord Filialdaten fehlen")
-                api = json.loads(script.get_text())["props"]["pageProps"]["apiData"]
-                api = json.loads(api) if isinstance(api, str) else api
-                payload = next(item[1]["res"] for item in api
-                               if isinstance(item, list) and len(item) == 2
-                               and item[0] == "STORE_UBERALL_LOCATIONS_GET")
-            else:
-                payload = json.loads(raw)
-            if payload.get("status") != "SUCCESS":
-                raise ToolError("ALDI-Filialdienst meldet keinen Erfolg")
-            rows = payload["response"]["locations"]
-            if not isinstance(rows, list):
-                raise ToolError("ALDI-Filialformat unbekannt")
-            stores = []
-            prefix = "aldi " + ("süd" if region == "sued" else "nord")
-            for row in rows:
-                if not isinstance(row, dict) or row.get("country") != "DE" or not str(row.get("name", "")).casefold().startswith(prefix):
-                    continue
-                code = str(row.get("zip", ""))
-                if len(code) != 5 or not code.isascii() or not code.isdigit():
-                    continue
-                try:
-                    lat, lon = float(row["lat"]), float(row["lng"])
-                except (KeyError, TypeError, ValueError):
-                    continue
-                if not math.isfinite(lat) or not math.isfinite(lon) or not (-90 <= lat <= 90 and -180 <= lon <= 180):
-                    continue
-                stores.append({"postcode": code, "point": (lat, lon)})
-            if not stores:
-                raise ToolError("ALDI lieferte keine gültigen Filialdaten")
-            self._catalogues[region] = (time.monotonic(), stores)
+        # The global lock only guards the dict. Network I/O runs under a per-region lock, so a slow Nord catalogue
+        # neither blocks Süd nor fresh cache hits, while concurrent callers of one region still share a single fetch.
+        # A failed refresh raises (fail-closed): an old catalogue is never silently reused as confirmed evidence.
+        def fresh() -> Optional[list[dict[str, Any]]]:
+            with self._catalogue_lock:
+                cached = self._catalogues.get(region)
+            return cached[1] if cached and time.monotonic() - cached[0] < 3600 else None
+
+        if (hit := fresh()) is not None:
+            return hit
+        with self._region_locks[region]:
+            if (hit := fresh()) is not None:
+                return hit
+            stores = self._load_official_stores(region)
+            with self._catalogue_lock:
+                self._catalogues[region] = (time.monotonic(), stores)
             return stores
+
+    def _load_official_stores(self, region: str) -> list[dict[str, Any]]:
+        raw = self.http.get_bytes(self.STORE_URLS[region])
+        if len(raw) > 4_000_000:
+            raise ToolError("ALDI-Filialliste überschreitet das Größenlimit")
+        if region == "nord":
+            script = BeautifulSoup(raw, "html.parser").select_one("script#__NEXT_DATA__")
+            if script is None:
+                raise ToolError("ALDI Nord Filialdaten fehlen")
+            api = json.loads(script.get_text())["props"]["pageProps"]["apiData"]
+            api = json.loads(api) if isinstance(api, str) else api
+            payload = next(item[1]["res"] for item in api
+                           if isinstance(item, list) and len(item) == 2
+                           and item[0] == "STORE_UBERALL_LOCATIONS_GET")
+        else:
+            payload = json.loads(raw)
+        if payload.get("status") != "SUCCESS":
+            raise ToolError("ALDI-Filialdienst meldet keinen Erfolg")
+        rows = payload["response"]["locations"]
+        if not isinstance(rows, list):
+            raise ToolError("ALDI-Filialformat unbekannt")
+        stores = []
+        prefix = "aldi " + ("süd" if region == "sued" else "nord")
+        for row in rows:
+            if not isinstance(row, dict) or row.get("country") != "DE" or not str(row.get("name", "")).casefold().startswith(prefix):
+                continue
+            code = str(row.get("zip", ""))
+            if len(code) != 5 or not code.isascii() or not code.isdigit():
+                continue
+            try:
+                lat, lon = float(row["lat"]), float(row["lng"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not math.isfinite(lat) or not math.isfinite(lon) or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                continue
+            stores.append({"postcode": code, "point": (lat, lon)})
+        if not stores:
+            raise ToolError("ALDI lieferte keine gültigen Filialdaten")
+        return stores
 
     def _official_regions(self, code: str) -> Optional[str]:
         catalogues = {}

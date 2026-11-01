@@ -13,6 +13,17 @@ from ..config import MARKTGURU_HOME, MARKTGURU_SEARCH_API, SEARCH_TERMS
 from ..http import HttpClient
 from ..models import ToolError
 
+class PartialOffers(list):
+    """Offers of one search term plus a note when the term could not be read completely."""
+
+    def __init__(self, items=(), note: str = "") -> None:
+        super().__init__(items)
+        self.note = note
+
+
+MAX_PAGES = 50
+
+
 class MarktguruClient:
     def __init__(self, http: HttpClient, page_size: int, max_workers: int) -> None:
         self.http = http
@@ -61,6 +72,8 @@ class MarktguruClient:
                 except Exception as exc:
                     errors.append(f"{term}: {type(exc).__name__}: {exc}")
                     continue
+                if getattr(offers, "note", ""):
+                    errors.append(f"{term}: {offers.note}")
                 self._merge_unique(collected, offers)
 
         if not collected:
@@ -99,6 +112,8 @@ class MarktguruClient:
                 except Exception as exc:
                     errors.append(f"Marktguru Händlerabfrage {term}: {type(exc).__name__}: {exc}")
                     continue
+                if getattr(offers, "note", ""):
+                    errors.append(f"Marktguru Händlerabfrage {term}: {offers.note}")
                 self._merge_unique(collected, offers)
         return list(collected.values()), errors
 
@@ -141,15 +156,29 @@ class MarktguruClient:
     ) -> list[dict[str, Any]]:
         collected: dict[str, dict[str, Any]] = {}
         offset = 0
-        for _ in range(50):
-            page = self._fetch_page(postal_code, query_text, offset, headers)
+        note = ""
+        for page_number in range(MAX_PAGES):
+            try:
+                page = self._fetch_page(postal_code, query_text, offset, headers)
+            except Exception as exc:
+                if not collected:
+                    raise
+                # Keep what earlier pages delivered, but never present the term as complete.
+                note = f"Seite {page_number + 1} fehlgeschlagen ({type(exc).__name__}: {exc}); Ergebnis unvollständig"
+                break
             if not page:
                 break
             added = self._merge_unique(collected, page)
-            if len(page) < self.page_size or added == 0:
+            if len(page) < self.page_size:
+                break
+            if added == 0:
+                # A full page of nothing new: the source repeats itself, so further pages cannot be trusted to be complete.
+                note = f"Seite {page_number + 1} lieferte nur bereits bekannte Angebote; Ergebnis möglicherweise unvollständig"
                 break
             offset += len(page)
-        return list(collected.values())
+        else:
+            note = f"Seitenlimit ({MAX_PAGES}) erreicht; Ergebnis möglicherweise unvollständig"
+        return PartialOffers(collected.values(), note)
 
     def _clear_credentials(self) -> None:
         with self._credentials_lock:
