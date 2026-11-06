@@ -54,3 +54,23 @@ def test_holab_market_lookup_uses_requested_postal_code_not_default_map_area():
     offers=OfficialHolabSource(http).load("21423")
 
     assert len(offers)==1 and offers[0].retailer_url.endswith("/maerkte/winsen-luhe")
+
+
+def test_holab_reads_the_div_cards_of_the_current_site_markup():
+    """Issue #79: the cards became <div class="offer"> inside a carousel (not <li class="offer">)."""
+    page = b'''<script type="application/ld+json">{"@graph":[{"makesOffer":[{"validFrom":"2026-11-02T00:00:00+01:00","validThrough":"2026-11-07T23:59:59+01:00"}]}]}</script>
+    <section class="offer-overview"><custom-carousel><custom-carousel-item>
+    <div class="offer"><h3 class="offer__title">Beck&#039;s 2 Kisten</h3><span class="offer__subtitle">versch. Sorten</span>
+    <data class="offer__price price-tag" value="10.99"><span class="price-tag__prefix">ab 2 Kisten je</span><span class="price-tag__label">10,99 &euro;</span></data>
+    <span class="offer__details">20 x 0.5 Ltr.<br />+ 3.10 Pfand/Kiste<br />Ltr. 1.10 (ab 2 Kisten)</span>
+    <div class="offer__media"><picture><img alt="" src="/becks.jpg"></picture></div></div>
+    </custom-carousel-item></custom-carousel></section>'''
+    http = FakeHolabHttp()
+    base = http.get_bytes
+    http.get_bytes = lambda url, headers=None: base(url) if "/maerkte?" in url else page
+
+    offers = OfficialHolabSource(http).load("28832")
+
+    assert [o.name for o in offers] == ["Beck's 2 Kisten"]
+    assert offers[0].price == 10.99 and offers[0].minimum_quantity == 2
+    assert offers[0].valid_from == "2026-11-02" and offers[0].valid_until == "2026-11-07"

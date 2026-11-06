@@ -1,3 +1,9 @@
+## 0.1.74
+
+- HOL’AB!: Der Abruf liefert wieder Angebote (Issue #79). Die Seite zeigt die Wochenangebote
+  jetzt als Karten in einem Karussell (`div.offer`) statt als Listeneinträge; der Server liest
+  beide Formen. Marktsuche und Gültigkeitsdaten waren unverändert.
+
 ## 0.1.73
 
 - Beobachtungen (`watch_product`) werden sofort geprüft, nicht erst beim täglichen
