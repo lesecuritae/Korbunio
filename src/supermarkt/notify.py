@@ -1,6 +1,6 @@
 """Benachrichtigungsweg für Beobachtungen: eine Adresse, die eine Textnachricht per POST annimmt.
 
-Funktioniert mit ntfy (https://ntfy.sh/dein-thema oder eigener Server) und mit einfachen Webhooks.
+Funktioniert mit ntfy (https://ntfy.sh/dein-thema oder eigener Server), UnifiedPush/NextPush und einfachen Webhooks.
 Wie beim KitchenOwl-Token liegt die Adresse nur auf dem Server (Rechte 0600) und wird nie wieder angezeigt,
 denn bei ntfy ist der Themenname das Geheimnis.
 """
@@ -94,6 +94,9 @@ def send(title: str, text: str, url: str | None = None) -> None:
     if not target:
         raise NotifyError("Es ist keine Benachrichtigungsadresse eingerichtet.")
     target = normalize_url(target)
+    if "/apps/uppush/" in urlsplit(target).path:
+        # UnifiedPush/NextPush reicht nur den Inhalt weiter, keine ntfy-Header: Titel als erste Zeile.
+        text = f"{title}\n{text}"
     request = urllib.request.Request(target, data=text.encode("utf-8"), method="POST", headers={
         "Title": _header(title),
         "Content-Type": "text/plain; charset=utf-8",

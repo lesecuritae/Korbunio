@@ -16,8 +16,8 @@ android {
         applicationId = "de.korbunio.korbunio_app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 74
-        versionName = "0.1.74"
+        versionCode = 75
+        versionName = "0.1.75"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -99,6 +99,10 @@ dependencies {
     implementation("org.conscrypt:conscrypt-android:2.7.0")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.security:security-crypto:1.1.0")
+    // The connector lists the JVM tink (protobuf-java), which clashes with the android variant that
+    // security-crypto already uses (protobuf-javalite); use the android one only.
+    implementation("org.unifiedpush.android:connector:3.3.5") { exclude(group = "com.google.crypto.tink", module = "tink") }
+    implementation("com.google.crypto.tink:tink-android:1.23.0")
     implementation("org.jsoup:jsoup:1.23.2")
 
     testImplementation("junit:junit:4.13.2")
