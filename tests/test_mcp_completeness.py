@@ -1,5 +1,6 @@
 """find_offers must not look complete when it is truncated (Energy/Monster audit 2026-10-30)."""
 import asyncio
+import datetime
 
 import pytest
 from mcp.client import Client
@@ -8,7 +9,11 @@ from supermarkt import mcp_server, runtime
 from supermarkt.service import SupermarketEngine
 
 
-def _offer(index, retailer, name, price, brand="", description="", valid_from="2026-10-26", valid_until="2026-11-01"):
+def _offer(index, retailer, name, price, brand="", description="", valid_from=None, valid_until=None):
+    # Relative to today: fixed dates expire and silently hide every offer (CI broke on 2026-11-02).
+    today = mcp_server.today_berlin()
+    valid_from = valid_from or (today - datetime.timedelta(days=3)).isoformat()
+    valid_until = valid_until or (today + datetime.timedelta(days=3)).isoformat()
     return {
         "offer_id": f"o{index}", "retailer": retailer, "category": "Getränke", "name": name, "brand": brand,
         "description": description, "price": price, "base_price": None, "base_unit": "", "pack_signature": f"sig{index}",
