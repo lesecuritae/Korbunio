@@ -1,3 +1,13 @@
+## 0.1.75
+
+- Push über UnifiedPush (zum Beispiel NextPush): Die Android-App kann sich bei einem
+  UnifiedPush-Verteiler anmelden (Einstellungen → „Push über UnifiedPush“), gibt den Endpunkt
+  automatisch an den eigenen Korbuino-Server weiter und zeigt Beobachtungsmeldungen als
+  Benachrichtigung an. Der Server schickt nach der Anmeldung eine Testnachricht.
+- Server: Bei NextPush-Adressen steht der Titel als erste Zeile im Text (UnifiedPush kennt keinen
+  Titel-Header); ntfy und Webhooks bleiben unverändert.
+- Neue Berechtigung: Benachrichtigungen (Android 13+), nur für diese Meldungen.
+
 ## 0.1.74
 
 - HOL’AB!: Der Abruf liefert wieder Angebote (Issue #79). Die Seite zeigt die Wochenangebote

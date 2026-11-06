@@ -64,6 +64,8 @@ data class MainUiState(
     val removedShoppingItem: ShoppingListRow? = null,
     val favorites: List<FavoriteEntity> = emptyList(),
     val ntfySettings: NtfySettings = NtfySettings(),
+    val pushActive: Boolean = false,
+    val pushStatus: String = "",
     /** Retailers that answered without offers for [emptyRetailersPostal]; hidden in the picker for that code. */
     val emptyRetailers: Set<String> = emptySet(),
     val emptyRetailersPostal: String = "",
@@ -122,6 +124,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             _state.value = _state.value.copy(
                 ntfySettings = secureStore.loadNtfySettings(),
+                pushActive = !secureStore.get(de.lesecuritae.korbuino.push.PushRegistrar.ENDPOINT).isNullOrBlank(),
+                pushStatus = secureStore.get(de.lesecuritae.korbuino.push.PushRegistrar.STATUS).orEmpty(),
                 postalCode = saved.first,
                 city = saved.second,
                 retailerId = saved.third,
@@ -241,6 +245,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         secureStore.put("city", clean)
     }
 
+    fun refreshPush() {
+        val active = !secureStore.get(de.lesecuritae.korbuino.push.PushRegistrar.ENDPOINT).isNullOrBlank()
+        val status = secureStore.get(de.lesecuritae.korbuino.push.PushRegistrar.STATUS).orEmpty()
+        if (active != _state.value.pushActive || status != _state.value.pushStatus) _state.value = _state.value.copy(pushActive = active, pushStatus = status)
+    }
+    fun registerPushOnServer() { viewModelScope.launch { de.lesecuritae.korbuino.push.PushRegistrar.registerOnServer(getApplication(), secureStore); refreshPush() } }
+    fun disablePush() { viewModelScope.launch { de.lesecuritae.korbuino.push.PushRegistrar.unregisterOnServer(getApplication(), secureStore); refreshPush() } }
     fun message(value: String) { _state.value = _state.value.copy(message = value) }
 
     fun serverUrl(value: String) { val clean = value.trim().take(240); _state.value = _state.value.copy(serverUrl = clean); secureStore.put("server_url", clean) }

@@ -360,6 +360,7 @@ private fun AppSettings(
         Text("ALDI-Filialen werden im Umkreis von 15 km geprüft. Falls die PLZ nicht in den Filiallisten steht, wird nur die PLZ an Nominatim übertragen. GPS wird dafür nicht benötigt.")
         Text("Geodaten: © OpenStreetMap-Mitwirkende (ODbL) · openstreetmap.org/copyright", style = MaterialTheme.typography.bodySmall)
         NtfySettingsCard(state, viewModel)
+        de.lesecuritae.korbuino.push.PushSettingsCard(state, viewModel)
         Text("Verbindungen", style = MaterialTheme.typography.titleLarge)
         Text("Eigener Korbuino-Server", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
