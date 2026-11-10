@@ -607,7 +607,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             providerId = provider.id,
                             lastSuccess = if (rejection == null) System.currentTimeMillis() else previous?.lastSuccess,
                             lastFailure = if (rejection == null || value.offers.isEmpty()) previous?.lastFailure else System.currentTimeMillis(),
-                            lastError = rejection,
+                            lastError = rejection ?: value.sourceWarnings.takeIf { it.isNotEmpty() }?.joinToString(" · ")?.take(320),
                             offerCount = if (rejection == null) value.offers.size else previous?.offerCount ?: 0,
                             retailerReachable = true,
                             sourceReachable = true,
@@ -663,7 +663,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (previousOfferPostal.isNotBlank() && previousOfferPostal != current.postalCode) {
                         database.offerDao().deleteAll()
                     }
-                    database.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) })
+                    database.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) },
+                        successes.filter { it.second.preserveMissingOffers }.map { it.first.id })
                     products to offers
                 }
                 if (imported == null) {

@@ -5,6 +5,8 @@ from ..request_state import RequestState
 import re
 import json
 from datetime import date
+from bs4 import BeautifulSoup
+from ..region import AldiRegionResolver
 from urllib.parse import urlencode, urljoin
 
 from ..common import (
@@ -46,9 +48,47 @@ class NettoScottieMarketResolver:
     def _select_exact(stores: list[dict], postal_code: str) -> dict | None:
         exact = [store for store in stores if clean_text((store.get("address") or {}).get("zip")) == postal_code]
         if exact:
-            return min(exact, key=lambda item: float(item.get("distance_km") or 9999))
-        nearby = [store for store in stores if float(store.get("distance_km") or 9999) <= 15.0]
-        return min(nearby, key=lambda item: float(item.get("distance_km") or 9999)) if nearby else None
+            return min(exact, key=lambda item: (float(item["distance_km"]) if item.get("distance_km") is not None else 9999))
+        nearby = [store for store in stores if (float(store["distance_km"]) if store.get("distance_km") is not None else 9999) <= 15.0]
+        return min(nearby, key=lambda item: (float(item["distance_km"]) if item.get("distance_km") is not None else 9999)) if nearby else None
+
+    @staticmethod
+    def embedded_stores(page: str) -> list[dict]:
+        """Read public Next Flight data as JSON, without executing scripts or needing a token."""
+        chunks = []
+        for script in BeautifulSoup(page, "html.parser").select("script"):
+            match = re.fullmatch(r"self\.__next_f\.push\((.*)\)", script.get_text(), re.DOTALL)
+            if match:
+                try:
+                    packet = json.loads(match[1])
+                except ValueError:
+                    continue
+                if isinstance(packet, list):
+                    chunks.extend(value for value in packet if isinstance(value, str))
+        stores = {}
+
+        def walk(value):
+            if isinstance(value, dict):
+                address = value.get("address")
+                coordinates = value.get("coordinates")
+                if (value.get("brand") == "netto" and isinstance(address, dict)
+                        and address.get("country") == "DE" and re.fullmatch(r"\d{5}", str(address.get("zip", "")))
+                        and isinstance(coordinates, list) and len(coordinates) == 2 and value.get("id")):
+                    stores[str(value["id"])] = value
+                for child in value.values():
+                    walk(child)
+            elif isinstance(value, list):
+                for child in value:
+                    walk(child)
+
+        for line in "".join(chunks).splitlines():
+            match = re.match(r"^[0-9a-f]+:(.*)", line)
+            if match:
+                try:
+                    walk(json.loads(match[1]))
+                except (ValueError, RecursionError):
+                    continue
+        return list(stores.values())
 
     def _stores(self, postal_code: str) -> list[dict]:
         location_url = "https://nominatim.openstreetmap.org/search?" + urlencode({
@@ -59,6 +99,23 @@ class NettoScottieMarketResolver:
             latitude, longitude = float(locations[0]["lat"]), float(locations[0]["lon"])
         except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as exc:
             raise ToolError(f"Netto schwarz konnte PLZ {postal_code} nicht geokodieren") from exc
+        page = self.http.get_bytes(self.SEARCH_URL, {"Accept": "text/html"})
+        if len(page) > 4_000_000:
+            raise ToolError("Netto-schwarz-Marktsuche überschreitet das Größenlimit")
+        embedded = self.embedded_stores(page.decode("utf-8", errors="replace"))
+        if embedded:
+            nearby = []
+            for store in embedded:
+                try:
+                    lon, lat = map(float, store["coordinates"])
+                    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                        continue
+                    distance = AldiRegionResolver._distance_km((latitude, longitude), (lat, lon))
+                except (ValueError, TypeError):
+                    continue
+                if distance <= 100:
+                    nearby.append({**store, "distance_km": distance})
+            return nearby
         query = urlencode({
             "brand": "netto", "country": "DE", "geo": f"{latitude},{longitude}",
             "radius": 100, "per_page": 25,
@@ -76,14 +133,14 @@ class NettoScottieMarketResolver:
     def markets(self, postal_code: str) -> list[dict[str, str]]:
         stores = self._stores(postal_code)
         exact = [store for store in stores if clean_text((store.get("address") or {}).get("zip")) == postal_code]
-        candidates = exact or [store for store in stores if float(store.get("distance_km") or 9999) <= 15.0]
+        candidates = exact or [store for store in stores if (float(store["distance_km"]) if store.get("distance_km") is not None else 9999) <= 15.0]
         return [
             {
                 "market_id": clean_text(store.get("id")),
                 "label": clean_text(store.get("name")) or f"Netto schwarz {postal_code}",
                 "match_type": "exact" if exact else "nearby",
             }
-            for store in sorted(candidates, key=lambda item: (float(item.get("distance_km") or 9999), clean_text(item.get("id"))))
+            for store in sorted(candidates, key=lambda item: ((float(item["distance_km"]) if item.get("distance_km") is not None else 9999), clean_text(item.get("id"))))
             if clean_text(store.get("id"))
         ]
 

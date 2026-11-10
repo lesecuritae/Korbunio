@@ -30,3 +30,29 @@ def test_loyalty_migration_preserves_v5_data_and_matches_room_v6():
             assert sorted(row[1:] for row in upgraded.execute(f"PRAGMA table_info('{table}')")) == sorted(row[1:] for row in fresh.execute(f"PRAGMA table_info('{table}')"))
         assert upgraded.execute("SELECT priceCents, loyaltyProgram, loyaltyPriceCents, loyaltyBenefitsJson FROM offers").fetchone() == (229, "kaufland_xtra", 179, "[]")
         assert upgraded.execute("SELECT value FROM settings WHERE key='postal_code'").fetchone() == ("78467",)
+
+
+def test_description_migration_preserves_v7_offers_and_matches_room_v8():
+    old = json.loads((SCHEMAS / "7.json").read_text())["database"]
+    new = json.loads((SCHEMAS / "8.json").read_text())["database"]
+    source = (ROOT / "android/app/src/main/java/de/lesecuritae/korbuino/data/KorbuinoDatabase.kt").read_text()
+    block = source.split("object : Migration(7, 8)", 1)[1].split("val MIGRATION_6_7", 1)[0]
+    statements = re.findall(r'database\.execSQL\("([^"]+)"\)', block)
+    assert statements == ["ALTER TABLE offers ADD COLUMN description TEXT NOT NULL DEFAULT ''"]
+    with sqlite3.connect(":memory:") as upgraded, sqlite3.connect(":memory:") as fresh:
+        for entity in old["entities"]:
+            upgraded.execute(entity["createSql"].replace("${TABLE_NAME}", entity["tableName"]))
+        upgraded.execute("INSERT INTO offers (id, retailerId, productId, externalId, priceCents, sourceUrl, cachedAt, packSize) VALUES ('o', 'marktguru-lidl', 'p', 'external', 399, 'https://example.org', 1, '400 g')")
+        upgraded.execute("INSERT INTO favorites (productId, createdAt) VALUES ('p', 1)")
+        upgraded.execute("INSERT INTO settings (key, value) VALUES ('postal_code', '04109')")
+        for statement in statements:
+            upgraded.execute(statement)
+        for entity in new["entities"]:
+            table = entity["tableName"]
+            fresh.execute(entity["createSql"].replace("${TABLE_NAME}", table))
+            assert sorted(row[1:] for row in upgraded.execute(f"PRAGMA table_info('{table}')")) == sorted(row[1:] for row in fresh.execute(f"PRAGMA table_info('{table}')"))
+        assert upgraded.execute("SELECT priceCents, packSize, description FROM offers").fetchone() == (399, "400 g", "")
+        upgraded.execute("UPDATE offers SET description='Versch. Sorten. Je 400 g'")
+        assert upgraded.execute("SELECT id FROM offers WHERE description LIKE '%Sorten%'").fetchone() == ('o',)
+        assert upgraded.execute("SELECT productId FROM favorites").fetchone() == ('p',)
+        assert upgraded.execute("SELECT value FROM settings").fetchone() == ('04109',)

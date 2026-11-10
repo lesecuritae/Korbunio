@@ -11,15 +11,7 @@ from urllib.parse import urlencode
 from ..common import clean_text, find_marktguru_keys, first_regex_group
 from ..config import MARKTGURU_HOME, MARKTGURU_SEARCH_API, SEARCH_TERMS
 from ..http import HttpClient
-from ..models import ToolError
-
-class PartialOffers(list):
-    """Offers of one search term plus a note when the term could not be read completely."""
-
-    def __init__(self, items=(), note: str = "") -> None:
-        super().__init__(items)
-        self.note = note
-
+from ..models import ToolError, PartialOffers
 
 MAX_PAGES = 50
 
@@ -145,8 +137,10 @@ class MarktguruClient:
             }
         )
         payload = self.http.get_json(f"{MARKTGURU_SEARCH_API}?{query}", headers)
-        results = payload.get("results")
-        return [item for item in results if isinstance(item, dict)] if isinstance(results, list) else []
+        results = payload.get("results") if isinstance(payload, dict) else None
+        if not isinstance(results, list) or any(not isinstance(item, dict) for item in results):
+            raise ToolError("Marktguru-Angebotsliste hat ein unerwartetes Format")
+        return results
 
     def _fetch_query_pages(
         self,

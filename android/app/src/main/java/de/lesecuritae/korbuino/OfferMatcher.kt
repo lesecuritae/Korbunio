@@ -15,7 +15,7 @@ object OfferMatcher {
         val compactQuery = words.joinToString("")
         return offers
             .filter { offer ->
-                val haystack = normalize("${offer.productName} ${offer.brand}")
+                val haystack = normalize("${offer.productName} ${offer.brand} ${offer.offer.description} ${offer.offer.packSize.orEmpty()}")
                 words.all { it in haystack } || (compactQuery.length >= 4 && compactQuery in haystack.replace(" ", ""))
             }
             .sortedBy { it.offer.priceCents }

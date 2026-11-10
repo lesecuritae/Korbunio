@@ -5,7 +5,9 @@ import de.lesecuritae.korbuino.data.ProductEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -47,14 +49,19 @@ class MarktguruProvider(
         val products = linkedMapOf<String, ProductEntity>()
         val offers = linkedMapOf<String, OfferEntity>()
         var offset = 0
+        val seenPages = mutableSetOf<String>()
         for (pageIndex in 0 until 50) {
             val root = fetchPage(request.postalCode, offset, credentials)
+            val rows = root["results"] as? JsonArray ?: error("Marktguru Angebotsformat unbekannt")
+            check(rows.all { it is JsonObject }) { "Marktguru Angebotsformat unbekannt" }
+            if (rows.isNotEmpty()) check(seenPages.add(rows.toString())) { "Marktguru wiederholt eine Seite; Import unvollständig" }
             val page = parse(root, request.week)
             page.products.forEach { products[it.id] = it }
             page.offers.forEach { offers[it.id] = it }
             val count = root["results"]?.jsonArray?.size ?: 0
             val total = root["totalResults"]?.jsonPrimitive?.intOrNull ?: 0
             if (count == 0 || count < 100 || (total > 0 && offset + count >= total)) break
+            check(pageIndex < 49) { "Marktguru Seitenlimit erreicht; Import unvollständig" }
             offset += count
         }
         ProviderResult(products.values.toList(), offers.values.toList())
@@ -132,6 +139,9 @@ class MarktguruProvider(
                 loyaltyLabel = loyalty?.second ?: if (cashback != null) "REWE Bonus" else null,
                 loyaltyPriceCents = loyalty?.third,
                 loyaltyCashbackCents = cashback,
+                description = listOfNotNull(text(product, "description"), text(item, "description"))
+                    .distinct().joinToString(" · "),
+                packSize = ProviderParsing.packSize("$name ${text(item, "description").orEmpty()}"),
                 cachedAt = System.currentTimeMillis(),
             )
         }
@@ -153,9 +163,7 @@ class MarktguruProvider(
             val until = runCatching { Instant.parse(untilText).atZone(ZoneId.of("Europe/Berlin")).toLocalDate() }
                 .getOrElse { runCatching { LocalDate.parse(untilText.take(10)) }.getOrNull() }
                 ?: return@firstNotNullOfOrNull null
-            val nextMonday = current.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)).plusWeeks(1)
-            val selected = if (week == OfferWeek.NEXT) from < nextMonday.plusWeeks(1) && until >= nextMonday
-                else from < nextMonday && until >= current && from <= until
+            val selected = offerWeekContains(from, until, week, current)
             if (!selected) return@firstNotNullOfOrNull null
             from.toString() to until.toString()
         }
@@ -163,7 +171,7 @@ class MarktguruProvider(
     }
 
     private fun text(obj: JsonObject, vararg keys: String): String? = keys.asSequence()
-        .mapNotNull { key -> runCatching { obj[key]?.jsonPrimitive?.content?.trim() }.getOrNull() }
+        .mapNotNull { key -> runCatching { obj[key]?.takeUnless { it is JsonNull }?.jsonPrimitive?.content?.trim() }.getOrNull() }
         .firstOrNull { it.isNotBlank() }
 
     private fun number(obj: JsonObject, vararg keys: String): Double? = ProviderParsing.price(text(obj, *keys))
@@ -184,8 +192,9 @@ class MarktguruProvider(
     private fun pricing(item: JsonObject, advertisedPrice: Double): Pricing {
         val description = text(item, "description").orEmpty()
         val definitions = listOf(
-            loyaltyDefinition("NETTO\\s+PLUS\\s+APP", "netto_plus", "Netto Plus App"),
+            loyaltyDefinition("NETTO\\s+(?:PLUS\\s+)?APP", "netto_plus", "Netto Plus App"),
             loyaltyDefinition("LIDL\\s+PLUS(?:\\s+APP)?", "lidl_plus", "Lidl Plus"),
+            loyaltyDefinition("MOIN\\s+CARD", "moin_card", "MOIN CARD"),
             loyaltyDefinition("PENNY\\s+APP", "penny_app", "PENNY App"),
             loyaltyDefinition("KAUFLAND\\s+CARD\\s+XTRA", "kaufland_xtra", "Kaufland Card XTRA"),
             loyaltyDefinition("MEIN\\s+GLOBUS", "mein_globus", "Mein Globus"),
@@ -201,7 +210,9 @@ class MarktguruProvider(
         }
 
         val requiresMembership = item["requiresLoyalityMembership"]?.jsonPrimitive?.booleanOrNull == true
-        if (requiresMembership) {
+        val explicitMemberNote = Regex("\\bMIT\\s+(?:DER\\s+)?${definition.marker.pattern}", RegexOption.IGNORE_CASE)
+            .containsMatchIn(description)
+        if (requiresMembership || explicitMemberNote) {
             val publicPrice = ProviderParsing.price(
                 definition.publicPrice.find(description)?.groupValues?.get(1),
             )

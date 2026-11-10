@@ -67,3 +67,33 @@ def test_scottie_market_selection_lists_and_honours_the_requested_branch(monkeyp
 
     assert [market["market_id"] for market in resolver.markets("10115")] == ["second", "first"]
     assert resolver.resolve("10115", "first")["name"] == "Netto Markt A"
+
+
+def test_public_flight_store_data_replaces_removed_script_api_key_without_executing_code():
+    import json
+    stores = [{"id": "fixture-berlin", "name": "Fixture market", "brand": "netto",
+               "address": {"zip": "10115", "city": "Berlin", "country": "DE"}, "coordinates": [13.38, 52.53]}]
+    flight = "1:" + json.dumps(["$", "component", None, {"stores": stores}]) + "\n"
+    html = '<script>self.__next_f.push(' + json.dumps([1, flight]) + ')</script>'
+    assert NettoScottieMarketResolver.embedded_stores(html) == stores
+    assert NettoScottieMarketResolver.embedded_stores("<script>throw new Error('not executed')</script>") == []
+    class Http:
+        def get_bytes(self, url, headers=None):
+            if "nominatim" in url:
+                return b'[{"lat":"52.53","lon":"13.38"}]'
+            assert url == NettoScottieMarketResolver.SEARCH_URL
+            return html.encode()
+    resolver = NettoScottieMarketResolver(Http())
+    selected = resolver.resolve("10115")
+    assert selected["id"] == "fixture-berlin" and selected["distance_km"] == 0
+    assert resolver.resolve("80331") is not None  # The stub coordinates deliberately remain Berlin.
+
+
+def test_unknown_flight_format_cannot_be_reported_as_confirmed_market_absence():
+    import pytest
+    from supermarkt.models import ToolError
+    class Http:
+        def get_bytes(self, url, headers=None):
+            return b'[{"lat":"52.53","lon":"13.38"}]' if "nominatim" in url else b'<html>changed</html>'
+    with pytest.raises(ToolError, match="Zugriffskonfiguration"):
+        NettoScottieMarketResolver(Http()).resolve("10115")

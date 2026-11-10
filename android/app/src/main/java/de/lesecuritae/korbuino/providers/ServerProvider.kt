@@ -96,6 +96,8 @@ class ServerProvider(
                     if (parsed != null && parsed.host.isNotBlank()) image
                     else baseUrl.trimEnd('/') + "/" + image.trimStart('/')
                 }, cachedAt = System.currentTimeMillis(),
+                description = item.text("description").orEmpty(),
+                packSize = item.text("pack_signature") ?: item.text("pack"),
             )
         }
         val unavailableIds = unavailableNames.flatMap { name ->

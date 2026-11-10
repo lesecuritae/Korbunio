@@ -138,7 +138,7 @@ class ReweProvider(
                 retailerId = id,
                 productId = productId,
                 externalId = "$marketId:$from:$index",
-                priceCents = (price * 100).toInt(),
+                priceCents = ProviderParsing.cents(price),
                 validFrom = from.toString(),
                 validUntil = until.toString(),
                 sourceUrl = marketUrl,
@@ -146,6 +146,8 @@ class ReweProvider(
                 loyaltyProgram = if (bonusCents != null) "rewe_bonus" else null,
                 loyaltyLabel = if (bonusCents != null) "REWE Bonus" else null,
                 loyaltyCashbackCents = bonusCents,
+                description = card.select(".cor-offer-information__additional").text(),
+                packSize = ProviderParsing.packSize("$name ${card.select(".cor-offer-information__additional").text()}"),
                 cachedAt = System.currentTimeMillis(),
             )
         }

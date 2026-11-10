@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from urllib.parse import urlencode, urljoin
 
 from ..common import (
@@ -140,6 +140,15 @@ class OfficialAktivIrmaSource:
                     node.decompose()
             description = clean_text(trimmed.get_text(" ", strip=True))
 
+        weekday = re.search(r"gültig\s+ab\s+(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\b", card.get_text(" ", strip=True), re.I)
+        if weekday:
+            if not start or not end:
+                raise ToolError("aktiv & irma: Wochenendaktion ohne lesbaren Wochenzeitraum")
+            days = ("montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag")
+            candidate = start + timedelta(days=(days.index(weekday[1].casefold()) - start.weekday()) % 7)
+            if candidate > end:
+                raise ToolError("aktiv & irma: Aktionsbeginn außerhalb des veröffentlichten Zeitraums")
+            start = candidate
         base_price, base_unit = parse_base_price_text(description)
         pack = normalize_pack(description)
         slug = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")

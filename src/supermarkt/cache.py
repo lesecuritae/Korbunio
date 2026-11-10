@@ -101,7 +101,7 @@ class PersistentSnapshotStore:
             db.execute("DELETE FROM supermarket_snapshots WHERE search_id = ?", (row["search_id"],))
             return None
 
-    def get_by_key(self, cache_key: str) -> Optional[dict[str, Any]]:
+    def get_by_key(self, cache_key: str, *, allow_stale: bool = False) -> Optional[dict[str, Any]]:
         now = time.time()
         with self._lock, self._connect() as db:
             self._cleanup(db, now)
@@ -109,11 +109,11 @@ class PersistentSnapshotStore:
                 """
                 SELECT search_id, created_at, payload
                 FROM supermarket_snapshots
-                WHERE cache_key = ? AND fresh_until > ? AND expires_at > ?
+                WHERE cache_key = ? AND (? OR fresh_until > ?) AND expires_at > ?
                 ORDER BY created_at DESC
                 LIMIT 1
                 """,
-                (cache_key, now, now),
+                (cache_key, allow_stale, now, now),
             ).fetchone()
             if row is None:
                 return None

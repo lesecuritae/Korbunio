@@ -1,0 +1,53 @@
+{
+  "id": 25583947,
+  "brand": {
+    "uniqueName": "kania",
+    "indexOffer": true,
+    "indexLeaflet": false,
+    "id": 114653,
+    "name": "Kania",
+    "industryId": 1023
+  },
+  "advertisers": [
+    {
+      "uniqueName": "lidl",
+      "indexOffer": true,
+      "indexLeaflet": true,
+      "id": "retailers/126679",
+      "name": "Lidl",
+      "industryId": 1023
+    }
+  ],
+  "categories": [
+    {
+      "uniqueName": null,
+      "indexOffer": false,
+      "indexLeaflet": false,
+      "id": 343,
+      "name": "Dosengerichte",
+      "description": null,
+      "parentId": 113
+    }
+  ],
+  "description": "Versch. Sorten. Je 400 g",
+  "volume": 0.4,
+  "quantity": 1.0,
+  "price": 3.99,
+  "referencePrice": 9.97,
+  "unit": {
+    "shortName": "kg",
+    "id": 2,
+    "name": "Kilogramm"
+  },
+  "product": {
+    "id": 1332283,
+    "name": "Wildgerichte",
+    "description": null
+  },
+  "validityDates": [
+    {
+      "from": "2026-11-08T23:00:00Z",
+      "to": "2026-11-14T22:59:59Z"
+    }
+  ]
+}

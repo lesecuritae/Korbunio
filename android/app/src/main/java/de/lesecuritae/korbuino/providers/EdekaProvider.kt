@@ -196,6 +196,8 @@ class EdekaProvider(
                 validUntil = end?.toString(),
                 sourceUrl = marketUrl,
                 imageUrl = imageOf(doc),
+                description = clean(doc.text("beschreibung")).orEmpty(),
+                packSize = ProviderParsing.packSize("$title ${clean(doc.text("beschreibung")).orEmpty()}"),
                 cachedAt = now(),
             )
         }

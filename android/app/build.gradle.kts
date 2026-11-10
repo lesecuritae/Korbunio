@@ -9,6 +9,7 @@ plugins {
 android {
     namespace = "de.lesecuritae.korbuino"
     compileSdk = 37
+    sourceSets.getByName("test").resources.srcDir("../../tests/fixtures")
 
     defaultConfig {
         // Keep the package used by the previously distributed Android app so

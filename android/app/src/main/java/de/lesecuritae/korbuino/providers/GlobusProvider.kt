@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -68,6 +69,10 @@ class GlobusProvider(
                         .setScale(0, RoundingMode.HALF_UP).intValueExact(),
                     sourceUrl = sourceUrl,
                     imageUrl = article.text("product_image") ?: article.text("productImage"),
+                    description = listOfNotNull(article.text("subtitle"), article.text("custom")).joinToString(" · "),
+                    packSize = ProviderParsing.packSize(article.text("menge").orEmpty()),
+                    validFrom = de.lesecuritae.korbuino.BerlinDate.toLocalDate(article.text("begin")),
+                    validUntil = de.lesecuritae.korbuino.BerlinDate.toLocalDate(article.text("end")),
                     cachedAt = System.currentTimeMillis(),
                 )
             }
@@ -172,7 +177,7 @@ class GlobusProvider(
         }
     }
 
-    private fun JsonObject.text(key: String): String? = this[key]?.jsonPrimitive?.content?.trim()?.ifBlank { null }
+    private fun JsonObject.text(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull?.trim()?.ifBlank { null }
     private fun kotlinx.serialization.json.JsonElement.jsonObjectOrNull(): JsonObject? = runCatching { jsonObject }.getOrNull()
     private fun normalize(value: String): String = value.lowercase().replace("[^a-z0-9]+".toRegex(), "-").trim('-')
 }

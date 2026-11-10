@@ -117,7 +117,7 @@ class HtmlFlyerProviderTest {
                 "src=\"javascript:alert(1)\"" to null,
                 "src=\"\"" to null,
             )) {
-                server.enqueue(MockResponse().setBody("<article><h3>Shampoo</h3><span class='price'>1,49 €</span><img $attribute></article>"))
+                server.enqueue(MockResponse().setBody("<article data-product-id='fixture'><span class='product-badges__text'>Sale</span><h3 class='product-tile__product-name'>Shampoo</h3><span class='price' data-testid='plp-currentPrice-label'>1,49 €</span><img $attribute></article>"))
                 val result = HtmlFlyerProvider(retailer, retailer, server.url("/offers").toString(), OkHttpClient())
                     .fetch(RetailerRequest("12345"))
                 assertEquals("$retailer: $attribute", expected, result.offers.single().imageUrl)
@@ -165,7 +165,7 @@ class HtmlFlyerProviderTest {
 
     @Test fun `uses a user rendered Müller document without a second network request`() = runTest {
         val rendered = """
-            <html><body><article data-product-id="mueller-1">
+            <html><body><article data-product-id="mueller-1"><span class="product-badges__text">Sale</span>
               <h3 class="product-tile__product-name">Müller Shampoo 300 ml</h3>
               <span data-testid="plp-currentPrice-label">2,49 €</span>
               <img src="https://cdn.example.test/mueller.jpg">

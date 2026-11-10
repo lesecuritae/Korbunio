@@ -48,7 +48,7 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                             providerId = provider.id,
                             lastSuccess = if (rejection == null) System.currentTimeMillis() else previous?.lastSuccess,
                             lastFailure = if (rejection == null || value.offers.isEmpty()) previous?.lastFailure else System.currentTimeMillis(),
-                            lastError = rejection,
+                            lastError = rejection ?: value.sourceWarnings.takeIf { it.isNotEmpty() }?.joinToString(" · ")?.take(320),
                             offerCount = if (rejection == null) value.offers.size else previous?.offerCount ?: 0,
                             retailerReachable = true,
                             sourceReachable = true,
@@ -74,7 +74,8 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                     db.productDao().upsertAll(products)
                     val previousPostalCode = secureStore.get("offer_postal_code").orEmpty()
                     if (previousPostalCode.isNotBlank() && previousPostalCode != postalCode) db.offerDao().deleteAll()
-                    db.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) })
+                    db.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) },
+                        successes.filter { it.second.preserveMissingOffers }.map { it.first.id })
                 }
                 secureStore.put("offer_postal_code", postalCode)
                 de.lesecuritae.korbuino.notifications.NativeWatchSync.afterSuccessfulSync(

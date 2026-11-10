@@ -4,6 +4,14 @@ from dataclasses import asdict, dataclass
 from typing import Any, Optional
 
 
+class PartialOffers(list):
+    """A usable list plus explicit evidence that a source was not read completely."""
+
+    def __init__(self, items=(), note: str = "") -> None:
+        super().__init__(items)
+        self.note = note
+
+
 @dataclass(frozen=True)
 class RetailerSpec:
     name: str
@@ -25,10 +33,11 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
         ("netto marken-discount", "netto markendiscount", "netto-online", "netto"),
         "#f4c300",
         "https://www.netto-online.de/angebote/",
+        excluded_aliases=("netto scottie", "netto mit scottie", "netto mit dem scottie", "netto mit hund", "netto salling", "netto schwarz"),
     ),
     RetailerSpec(
         "Netto schwarz",
-        ("netto scottie", "netto mit scottie", "netto mit hund", "netto salling", "netto schwarz"),
+        ("netto scottie", "netto mit scottie", "netto mit dem scottie", "netto mit hund", "netto salling", "netto schwarz"),
         "#ffd500",
         "https://netto.de/marktsuche/",
         True,

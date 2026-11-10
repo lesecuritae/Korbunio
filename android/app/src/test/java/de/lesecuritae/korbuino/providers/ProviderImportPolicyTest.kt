@@ -32,7 +32,13 @@ class ProviderImportPolicyTest {
     }
 
     @Test fun `rejects a complete Lidl shop-sized import`() {
-        assertTrue(ProviderImportPolicy.rejectionReason("marktguru-lidl", 814, 0)!!.contains("Plausibilitätsgrenze"))
+        assertTrue(ProviderImportPolicy.rejectionReason("marktguru-lidl", 1201, 0)!!.contains("Plausibilitätsgrenze"))
+    }
+
+    @Test fun `allows observed regional catalogues without rejecting the whole import`() {
+        assertNull(ProviderImportPolicy.rejectionReason("marktguru-lidl", 906, 482))
+        assertNull(ProviderImportPolicy.rejectionReason("rossmann", 316, 0))
+        assertNull(ProviderImportPolicy.rejectionReason("globus", 635, 0))
     }
 
     @Test fun `rejects an unexplained surge and preserves server aggregation`() {

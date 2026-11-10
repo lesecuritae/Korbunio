@@ -47,7 +47,7 @@ object NativeWatchSync {
                 start != null && end != null && start <= until && end >= from && end >= start
             }
             if (offers.isEmpty()) {
-                database.offerDao().storeWeekRefresh(provider.id, from.toString(), until.toString(), emptyList())
+                database.offerDao().storeWeekRefresh(provider.id, from.toString(), until.toString(), emptyList(), preserveMissing = result.preserveMissingOffers)
                 return@forEach
             }
             if (ProviderImportPolicy.rejectionReason(provider.id, offers.size) != null) return@forEach
@@ -70,7 +70,7 @@ object NativeWatchSync {
                     offer.copy(id = existing?.id ?: (offer.id + suffix), externalId = existing?.externalId ?: (offer.externalId + suffix),
                         productId = ids[offer.productId] ?: offer.productId)
                 }
-                database.offerDao().storeWeekRefresh(provider.id, from.toString(), until.toString(), dated)
+                database.offerDao().storeWeekRefresh(provider.id, from.toString(), until.toString(), dated, preserveMissing = result.preserveMissingOffers)
             }
         }
     }

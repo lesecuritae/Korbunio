@@ -59,6 +59,7 @@ data class OfferEntity(
     val packSize: String? = null,
     val multiBuyCondition: String? = null,
     val multiBuyMixGroup: String? = null,
+    @ColumnInfo(defaultValue = "''") val description: String = "",
 )
 
 @Entity(tableName = "shopping_lists")

@@ -292,6 +292,10 @@ def identity_words(brand: str, name: str) -> list[str]:
     return name_words if brand_words and name_words[: len(brand_words)] == brand_words else brand_words + name_words
 
 def normalize_pack(value: str) -> str:
+    # German thousands separators in published quantities ("1.000 g") are
+    # not decimal points. Preserve genuine decimal quantities such as 1.5 l.
+    value = re.sub(r"(?<![\d.,])([1-9]\d{0,2}(?:\.\d{3})+)(?![\d.,])",
+        lambda match: match[1].replace(".", ""), value)
     # Grundpreis-Angaben sind keine zweite Packungsgröße. Beispiele:
     # "0,33-l-Dose (1 l = 1.19)" oder "150-g-Becher (1 kg = 3,27 €)".
     # Die komplette Klammer fliegt vor der Packungserkennung raus.
@@ -423,12 +427,18 @@ def identify_retailer(
     labels = " | ".join(advertiser_labels(raw_offer))
     if not labels:
         return None
+    matches = []
     for name, context in retailers.items():
         if any(alias in labels for alias in context.excluded_aliases):
             continue
-        if any(alias in labels for alias in context.aliases):
-            return name
-    return None
+        longest = max((len(alias) for alias in context.aliases if alias in labels), default=0)
+        if longest:
+            matches.append((longest, name))
+    if not matches:
+        return None
+    best = max(length for length, _name in matches)
+    names = {name for length, name in matches if length == best}
+    return names.pop() if len(names) == 1 else None
 
 def normalize_base_unit(value: str) -> str:
     unit = clean_text(value).casefold().replace(".", "")
@@ -583,6 +593,7 @@ def deduplicate_offers(offers: Iterable[Offer]) -> list[Offer]:
             offer.price,
             benefits,
             offer.validity_label,
+            re.sub(r"[^\w]+", " ", clean_text(offer.description).casefold()).strip(),
         )
         unique.setdefault(key, offer)
     return list(unique.values())
@@ -851,3 +862,28 @@ def first_regex_group(value: str, patterns: Iterable[str]) -> Optional[str]:
         if match:
             return match.group(1)
     return None
+
+
+def supplement_offers(primary: Iterable[Offer], supplemental: Iterable[Offer]) -> list[Offer]:
+    """Union independent sources, retaining primary evidence on exact identity.
+
+    Do not fuzzy-match varieties, pack sizes, dates or membership prices. Source
+    identifiers differ, so they cannot establish cross-source identity.
+    """
+    def text(value: str) -> str:
+        return re.sub(r"[^\w]+", " ", clean_text(value).casefold()).strip()
+
+    def identity(offer: Offer) -> tuple:
+        return (offer.retailer, text(offer.name), text(offer.brand),
+                normalize_pack(offer.pack_signature), offer.price,
+                offer.valid_from, offer.valid_until, text(offer.description),
+                offer.benefits, offer.deposit)
+
+    result = list(primary)
+    seen = {identity(offer) for offer in result}
+    for offer in supplemental:
+        key = identity(offer)
+        if key not in seen:
+            result.append(offer)
+            seen.add(key)
+    return result

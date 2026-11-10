@@ -4,6 +4,10 @@ import argparse
 import json
 from collections import Counter
 from typing import Any
+from pathlib import Path
+
+from .common import filter_offers, normalize_pack, clean_text
+from .models import RETAILER_SPECS, offer_from_dict
 
 from .service import SourceLoader
 
@@ -52,7 +56,52 @@ def evaluate(result: dict[str, Any]) -> dict[str, Any]:
         "optional_counts": optional,
         "failures": failures,
         "ok": not failures,
+        "coverage_status": "NOT_VERIFIED",  # Count thresholds are reachability checks only.
     }
+
+
+def evaluate_reference_coverage(result: dict[str, Any], references: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compare independently verified published articles, including filled catalogues.
+
+    `raw_found` is separate upstream evidence supplied by the audit, never
+    inferred from a successful HTTP request or from the number of other offers.
+    `verified` attests only the stated source/region/time sample, not completeness.
+    """
+    offers = [offer_from_dict(item) for item in result.get("offers", []) if isinstance(item, dict)]
+    rows = []
+    for spec in RETAILER_SPECS:
+        selected = [ref for ref in references if ref.get("retailer") == spec.name]
+        articles = []
+        for ref in selected:
+            status, reason = "NOT_VERIFIED", "Independent source/region evidence missing"
+            matches = []
+            if ref.get("verified") is True and str(ref.get("source_url", "")).startswith("https://") and ref.get("postal_code") == result.get("postal_code"):
+                matches = [offer for offer in offers if offer.retailer == spec.name
+                    and clean_text(offer.name).casefold() == clean_text(ref.get("name")).casefold()]
+                exact = [offer for offer in matches if offer.price == ref.get("price")
+                    and normalize_pack(offer.pack_signature) == normalize_pack(ref.get("pack", ""))
+                    and offer.valid_from == ref.get("valid_from") and offer.valid_until == ref.get("valid_until")]
+                if exact:
+                    query = ref.get("query") or ref["name"]
+                    status = "OK" if filter_offers(exact, query) else "SEARCH_MISMATCH"
+                    reason = "Published reference sample matched" if status == "OK" else "Stored article not found by reference query"
+                elif matches:
+                    status, reason = "NOT_VERIFIED", "Name present, but price/pack/validity differs; raw evidence needed to classify the cause"
+                elif spec.name in result.get("unavailable_retailers", []):
+                    status, reason = "DATE_REGION_FILTER", "Reference article removed by market/region selection"
+                elif ref.get("raw_found") is True:
+                    status, reason = "PARSER_LOSS", "Reference present upstream but absent after import"
+                elif ref.get("raw_found") is False:
+                    status, reason = "UPSTREAM_MISSING", "Published reference absent from inspected upstream response"
+                elif result.get("source_states", {}).get(spec.name) == "Abruffehler":
+                    status, reason = "SOURCE_UNAVAILABLE", "Source request failed"
+            articles.append({"name": ref.get("name"), "source_url": ref.get("source_url"),
+                "status": status, "reason": reason, "stored_name_matches": len(matches)})
+        statuses = {article["status"] for article in articles}
+        rows.append({"retailer": spec.name, "catalogue_count": sum(offer.retailer == spec.name for offer in offers),
+            "reference_count": len(articles), "status": "OK" if statuses == {"OK"} else "NOT_VERIFIED" if not statuses else ",".join(sorted(statuses)),
+            "articles": articles})
+    return {"postal_code": result.get("postal_code"), "scope": "reference samples only", "retailers": rows}
 
 
 def _print_report(report: dict[str, Any]) -> None:
@@ -92,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Live-Diagnose der Supermarktquellen für eine Postleitzahl")
     parser.add_argument("postal_code", help="fünfstellige deutsche Postleitzahl")
     parser.add_argument("--aldi-region", choices=("auto", "nord", "sued"), default="auto")
+    parser.add_argument("--references", type=Path, help="JSON array of independently verified offer references")
+    parser.add_argument("--snapshot", type=Path, help="Evaluate an existing JSON snapshot without live requests")
     parser.add_argument("--json", action="store_true", dest="as_json")
     args = parser.parse_args(argv)
 
@@ -99,8 +150,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("postal_code muss aus genau fünf Ziffern bestehen")
 
     try:
-        result = SourceLoader().load(args.postal_code, args.aldi_region)
+        result = json.loads(args.snapshot.read_text()) if args.snapshot else SourceLoader().load(args.postal_code, args.aldi_region)
+        if result.get("postal_code") != args.postal_code:
+            raise ValueError("Snapshot postal code does not match request")
         report = evaluate(result)
+        if args.references:
+            report["reference_coverage"] = evaluate_reference_coverage(result, json.loads(args.references.read_text()))
     except Exception as exc:
         if args.as_json:
             print(json.dumps({"ok": False, "fatal_error": f"{type(exc).__name__}: {exc}"}, ensure_ascii=False))
