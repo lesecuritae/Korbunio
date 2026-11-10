@@ -224,12 +224,31 @@ def test_holab_minimum_quantity_is_not_presented_as_a_single_crate_price():
     assert alternative.pack_signature == "24x330ml/20x500ml"
     assert alternative.deposit is None and alternative.base_price is None
     assert not alternative.comparison_eligible
+    juice = next(o for o in offers if o.name == "Rauch Happy Day")
+    assert (juice.price, juice.single_price, juice.multi_buy_quantity, juice.multi_buy_total_price) == (1.99, 1.99, 6, 10.0)
+    assert "6er-Karton" in juice.description
+    assert quantity_price(juice, 1)["total_cents"] == 199
+    assert quantity_price(juice, 6)["total_cents"] == 1000
+    assert quantity_price(juice, 7)["total_cents"] == 1199
     water = next(o for o in offers if o.name == "Vilsa Mineralwasser Glas")
     assert water.price == 4.49 and water.minimum_quantity == 2
     assert water.multi_buy_total_price == 8.98 and water.single_price == 4.99
     assert quantity_price(water, 1)["total_cents"] == 499
     assert quantity_price(water, 2)["total_cents"] == 898
     assert water.valid_from == "2026-11-09" and water.valid_until == "2026-11-14"
+
+
+@pytest.mark.parametrize("replacement", ["6er-Karton 10.00€ nur mit App", "6er-Karton 10.00€ 12er-Karton 18.00€", "1er-Karton 1.00€"])
+def test_carton_prices_with_unverified_membership_ambiguous_totals_or_invalid_quantities_are_not_inferred(replacement):
+    from supermarkt.sources.holab import OfficialHolabSource
+    class HTTP:
+        def get_bytes(self, url, *_args):
+            if "/maerkte" in url:
+                return b'<li class="store">26135 <a href="/maerkte/fixture">Fixture</a></li>'
+            return (FIXTURES / "holab_selected.html").read_text().replace("6er-Karton 10.00€", replacement).encode()
+    juice = next(o for o in OfficialHolabSource(HTTP()).load("26135") if o.name == "Rauch Happy Day")
+    assert juice.price == 1.99 and juice.multi_buy_quantity is None
+    assert replacement in juice.description
 
 
 def test_published_specific_breadcrumb_is_searchable_without_inventing_another_species():

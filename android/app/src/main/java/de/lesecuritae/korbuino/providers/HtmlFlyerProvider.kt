@@ -276,21 +276,37 @@ class HtmlFlyerProvider(
             val minimum = Regex("ab\\s+(\\d{1,2})\\s+Kisten", RegexOption.IGNORE_CASE).find(condition)
                 ?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it > 1 }
             check(condition.isBlank() || condition.equals("Top-Angebot", true) || minimum != null) { "HOL’AB! unbekannte Preisbedingung" }
-            val single = Regex("1\\s+Kiste\\s+(\\d+[,.]\\d{2})", RegexOption.IGNORE_CASE)
+            var single = Regex("1\\s+Kiste\\s+(\\d+[,.]\\d{2})", RegexOption.IGNORE_CASE)
                 .find(description)?.groupValues?.get(1)?.let(ProviderParsing::price)?.let(ProviderParsing::cents)
             val productId = "$id-product-${normalize(name)}"
             products += ProductEntity(productId, name, normalizedKey = normalize(name))
             val detail = card.select(".offer__details").text()
             val crates = Regex("\\b\\d+\\s*[x×]\\s*\\d+(?:[.,]\\d+)?\\s*(?:Ltr\\.?|Liter|l)\\b", RegexOption.IGNORE_CASE)
                 .findAll(detail).mapNotNull { ProviderParsing.packSize(it.value) }.distinct().toList()
+            var quantity = minimum
+            var bundleTotal = minimum?.let { ProviderParsing.cents(price * it) }
+            var bundleCondition = condition.takeIf { minimum != null }
+            val cartons = Regex("\\b(\\d{1,2})er[- ]Karton\\s+(\\d+[,.]\\d{2})\\s*€", RegexOption.IGNORE_CASE)
+                .findAll(detail).map { it.groupValues[1] to it.groupValues[2] }.distinct().toList()
+            val restricted = Regex("\\b(?:app|card|karte|coupon|kupon|mitglied|aktivieren)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)
+            if (minimum == null && condition.isBlank() && !restricted && cartons.size == 1) {
+                val count = cartons.single().first.toInt()
+                val amount = ProviderParsing.price(cartons.single().second)
+                if (count in 2..99 && amount != null && amount > 0 && amount < price * count) {
+                    quantity = count
+                    bundleTotal = ProviderParsing.cents(amount)
+                    single = ProviderParsing.cents(price)
+                    bundleCondition = "${count}er-Karton"
+                }
+            }
             offers += OfferEntity(id = "$id:$index:${normalize(name)}", retailerId = id, productId = productId,
                 externalId = "$index:${normalize(name)}", priceCents = ProviderParsing.cents(price),
                 validFrom = from.toString(), validUntil = until.toString(), sourceUrl = offersUrl,
                 imageUrl = imageUrl(card), cachedAt = System.currentTimeMillis(), description = description,
                 packSize = if (crates.size > 1) crates.joinToString(" / ") else ProviderParsing.packSize(detail),
                 depositCents = if (crates.size > 1) null else ProviderParsing.depositCents(detail),
-                multiBuyQuantity = minimum, multiBuyTotalCents = minimum?.let { ProviderParsing.cents(price * it) },
-                singlePriceCents = single, multiBuyCondition = condition.takeIf { minimum != null })
+                multiBuyQuantity = quantity, multiBuyTotalCents = bundleTotal,
+                singlePriceCents = single, multiBuyCondition = bundleCondition)
         }
         return ProviderResult(products, offers)
     }

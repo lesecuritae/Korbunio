@@ -167,6 +167,27 @@ class OfferCoverageTest {
             val alternative = result.offers.single { offer -> result.products.single { it.id == offer.productId }.name.contains("Hemelinger") }
             assertEquals("24 x 0.33 l / 20 x 0.5 l", alternative.packSize)
             assertNull(alternative.depositCents)
+            val juice = result.offers.single { offer -> result.products.single { it.id == offer.productId }.name == "Rauch Happy Day" }
+            assertEquals(199, juice.priceCents)
+            assertEquals(6, juice.multiBuyQuantity)
+            assertEquals(1000, juice.multiBuyTotalCents)
+            assertEquals(199, de.lesecuritae.korbuino.OfferPricing.quote(juice, 1).totalCents)
+            assertEquals(1000, de.lesecuritae.korbuino.OfferPricing.quote(juice, 6).totalCents)
+            assertEquals(1199, de.lesecuritae.korbuino.OfferPricing.quote(juice, 7).totalCents)
+        }
+    }
+
+    @Test fun `HOLAB ambiguous or membership-only carton totals do not become unconditional bundles`() = runTest {
+        for (replacement in listOf("6er-Karton 10.00€ nur mit App", "6er-Karton 10.00€ 12er-Karton 18.00€", "1er-Karton 1.00€")) {
+            MockWebServer().use { server ->
+                server.start()
+                server.enqueue(MockResponse().setBody(fixture("holab_selected.html").replace("6er-Karton 10.00€", replacement)))
+                val result = HtmlFlyerProvider("holab", "HOL’AB!", server.url("/angebote").toString(), OkHttpClient(),
+                    now = { java.time.LocalDate.parse("2026-11-09") }).fetch(RetailerRequest("26135"))
+                val juice = result.offers.single { offer -> result.products.single { it.id == offer.productId }.name == "Rauch Happy Day" }
+                assertNull(juice.multiBuyQuantity)
+                assertEquals(199, juice.priceCents)
+            }
         }
     }
 
