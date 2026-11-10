@@ -16,7 +16,7 @@ from urllib.parse import urljoin, urlsplit
 
 from ..common import build_match_key, clean_text, deduplicate_offers, normalize_offer_week, normalize_pack, offer_reference_date, offer_week_reference, parse_base_price_text, parse_deposit_text, parse_number, today_berlin
 from ..http import PostalCodeLocator
-from ..models import LoyaltyBenefit, Offer, ToolError
+from ..models import LoyaltyBenefit, Offer, ToolError, PartialOffers
 from .browser import chromium_command
 
 class OfficialReweSource:
@@ -713,4 +713,5 @@ class OfficialReweSource:
         if not offers:
             detail = f"; {unknown} Karten konnten nicht ausgewertet werden" if unknown else ""
             raise ToolError(f"REWE {postal_code}: keine auswertbaren aktuellen Angebote{detail}")
-        return deduplicate_offers(offers)
+        parsed = deduplicate_offers(offers)
+        return PartialOffers(parsed, f"REWE: {unknown} Angebotskarten konnten nicht ausgewertet werden") if unknown else parsed

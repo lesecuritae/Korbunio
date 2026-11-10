@@ -12,6 +12,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import kotlinx.serialization.json.*
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
 
 class ReweProviderTest {
     private lateinit var server: MockWebServer
@@ -228,5 +231,114 @@ class ReweProviderTest {
         val provider = ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'), regionalSource(null))
 
         assertEquals(11, provider.fetch(RetailerRequest("12345", citySlug = "teststadt")).offers.size)
+    }
+
+    private fun capturedInclude() = Json.parseToJsonElement(javaClass.classLoader!!
+        .getResourceAsStream("offer_coverage/rewe_public_include.json")!!.bufferedReader().use { it.readText() }).jsonObject
+
+    private fun includeDispatcher(mode: String = "ok", reverse: Boolean = false): Dispatcher {
+        val fixture = capturedInclude()
+        fun field(key: String) = fixture.getValue(key).jsonPrimitive.content
+        val market = field("market_id")
+        val floating = field("rendered_card").replace("</article>", """<a data-offer-nan="${field("rendered_nan")}">Details</a></article>""")
+        val wrappers = listOf(
+            """<div data-offer-nan="${field("rendered_nan")}" data-offer-wwident="$market">${field("rendered_card")}</div>""",
+            """<div data-offer-nan="${field("missing_nan")}" data-offer-wwident="${if (mode == "foreign-market") "99999" else market}"></div>""",
+            """<div data-offer-nan="${field("rendered_nan")}" data-offer-wwident="$market"></div>""",
+        ).let { if (reverse) it.reversed() else it }
+        return object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when {
+                request.path!!.startsWith("/marktsuche/") -> MockResponse().setBody("""<a href="/angebote/teststadt/$market/rewe-markt/">REWE 12345</a>""")
+                request.path!!.startsWith("/angebote/") -> MockResponse().setBody(
+                    """<div data-categories-week-value="current">${wrappers.joinToString("")}$floating</div><div data-categories-week-value="next">${field("included_card")}</div>""")
+                request.path == "/api/frontend-includes" -> {
+                    if (mode == "http") return MockResponse().setResponseCode(503)
+                    if (mode == "missing") return MockResponse().setBody("[]")
+                    val sent = Json.parseToJsonElement(request.body.readUtf8()).jsonArray
+                    check(sent.size == 1)
+                    check(sent.single().jsonObject["params"]!!.jsonObject["nan"]!!.jsonPrimitive.content == field("missing_nan"))
+                    check(sent.single().jsonObject["query"]!!.jsonObject["wwIdent"]!!.jsonPrimitive.content == market)
+                    val id = if (mode == "foreign-id") "unrequested" else sent.single().jsonObject["id"]!!.jsonPrimitive.content
+                    MockResponse().setBody(buildJsonArray { add(buildJsonObject {
+                        put("id", id); put("content", field("included_card"))
+                    }) }.toString())
+                }
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+    }
+
+    @Test fun `official NAN placeholders are hydrated and market data wins over a larger aggregator`() = runTest {
+        server.dispatcher = includeDispatcher()
+        val fallback = object : RetailerProvider {
+            override val id = "fallback"
+            override val displayName = "unused"
+            override suspend fun fetch(request: RetailerRequest): ProviderResult = error("must not call fallback")
+        }
+        val result = ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'), fallback,
+            now = { Instant.parse("2026-11-10T12:00:00Z") }).fetch(RetailerRequest("12345", "teststadt"))
+        assertTrue(result.paginationComplete)
+        assertEquals("1940016", result.storeId)
+        assertEquals(listOf(119, 379), result.offers.map { it.priceCents }.sorted())
+        assertEquals(15, result.offers.single { it.priceCents == 119 }.depositCents)
+        assertEquals(2, result.products.size)
+        assertEquals(2, result.offers.map { it.id }.distinct().size)
+        assertTrue(result.offers.all { it.validFrom == "2026-11-09" && it.validUntil == "2026-11-15" })
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test fun `missing HTTP and foreign response IDs never count as a complete official import`() = runTest {
+        for (mode in listOf("http", "missing", "foreign-id", "foreign-market")) {
+            server.dispatcher = includeDispatcher(mode)
+            val provider = ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'), regionalSource(5),
+                now = { Instant.parse("2026-11-10T12:00:00Z") })
+            val result = provider.fetch(RetailerRequest("12345", "teststadt"))
+            assertEquals(5, result.offers.size)
+            assertTrue(!result.paginationComplete)
+            assertTrue(result.sourceWarnings.any { it.contains("Filialgeltung") })
+            assertTrue(result.preserveMissingOffers)
+        }
+    }
+
+    @Test fun `official identities survive reordered wrappers and duplicated categories`() = runTest {
+        suspend fun read(reverse: Boolean): ProviderResult {
+            server.dispatcher = includeDispatcher(reverse = reverse)
+            return ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'),
+                now = { Instant.parse("2026-11-10T12:00:00Z") }).fetch(RetailerRequest("12345", "teststadt"))
+        }
+        val first = read(false)
+        val reordered = read(true)
+        assertEquals(first.offers.map { it.id }.toSet(), reordered.offers.map { it.id }.toSet())
+        assertEquals(first.products.map { it.id }.toSet(), reordered.products.map { it.id }.toSet())
+    }
+
+    @Test fun `optional full captured official catalogue hydrates all public cards`() = runTest {
+        val path = System.getenv("KORBUINO_REWE_HYDRATION_CAPTURE")
+        org.junit.Assume.assumeTrue(!path.isNullOrBlank())
+        val capture = Json.parseToJsonElement(java.io.File(path!!).readText()).jsonObject
+        val market = capture.getValue("market").jsonPrimitive.content
+        val cards = capture.getValue("cards").jsonObject
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when {
+                request.path!!.startsWith("/marktsuche/") -> MockResponse().setBody("""<a href="/angebote/teststadt/$market/rewe-markt/">REWE 12345</a>""")
+                request.path!!.startsWith("/angebote/") -> MockResponse().setBody(capture.getValue("html").jsonPrimitive.content)
+                request.path == "/api/frontend-includes" -> MockResponse().setBody(buildJsonArray {
+                    Json.parseToJsonElement(request.body.readUtf8()).jsonArray.forEach { raw ->
+                        val row = raw.jsonObject
+                        val nan = row.getValue("params").jsonObject.getValue("nan").jsonPrimitive.content
+                        add(buildJsonObject {
+                            put("id", row.getValue("id")); put("content", cards.getValue(nan))
+                        })
+                    }
+                }.toString())
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        val result = ReweProvider(OkHttpClient(), server.url("/").toString().trimEnd('/'),
+            now = { Instant.parse("2026-11-10T12:00:00Z") }).fetch(RetailerRequest("12345", "teststadt"))
+        assertEquals(188, cards.size)
+        assertEquals(184, result.offers.size)
+        assertTrue(result.sourceWarnings.toString(), result.paginationComplete)
+        assertTrue(result.products.any { it.name.contains("Landliebe") })
     }
 }
