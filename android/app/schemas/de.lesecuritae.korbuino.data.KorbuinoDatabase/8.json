@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 8,
-    "identityHash": "bbc02b03a6f6329718f82bccef2f8955",
+    "identityHash": "65c34847b550e61077b74127315e75f4",
     "entities": [
       {
         "tableName": "retailers",
@@ -137,12 +137,12 @@
         "indices": [
           {
             "name": "index_products_normalizedKey",
-            "unique": true,
+            "unique": false,
             "columnNames": [
               "normalizedKey"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_products_normalizedKey` ON `${TABLE_NAME}` (`normalizedKey`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_products_normalizedKey` ON `${TABLE_NAME}` (`normalizedKey`)"
           }
         ]
       },
@@ -733,7 +733,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bbc02b03a6f6329718f82bccef2f8955')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '65c34847b550e61077b74127315e75f4')"
     ]
   }
 }

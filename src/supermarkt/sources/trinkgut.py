@@ -30,7 +30,7 @@ from ..common import (
 )
 from ..http import PostalCodeLocator
 from ..images import is_rejected_image_url, normalize_image_url
-from ..models import Offer, ToolError
+from ..models import Offer, ToolError, NoLocalMarketError, NoLocalMarketOffers
 
 
 class OfficialTrinkgutSource:
@@ -429,7 +429,7 @@ class OfficialTrinkgutSource:
         selected_distance, selected = ranked[0]
         if selected_distance > self.max_distance_km:
             near_name = clean_text(selected.get("city")) or clean_text(selected.get("name"))
-            raise ToolError(
+            raise NoLocalMarketError(
                 f"trinkgut: kein Markt im Umkreis von {self.max_distance_km:.0f} km um {postal_code} "
                 f"(nächster: {near_name}, {selected_distance:.0f} km)"
             )
@@ -694,9 +694,12 @@ class OfficialTrinkgutSource:
             raise ToolError(f"trinkgut benötigt BeautifulSoup: {exc}") from exc
 
         requested_market_id = clean_text(market_id)
-        session, market_id, market_url, market_label, distance_km = self._find_market(
-            postal_code, market_id=requested_market_id
-        )
+        try:
+            session, market_id, market_url, market_label, distance_km = self._find_market(
+                postal_code, market_id=requested_market_id
+            )
+        except NoLocalMarketError:
+            return NoLocalMarketOffers()
 
         requested_week = normalize_offer_week(offer_week)
         reference_date = offer_week_reference(requested_week)

@@ -451,3 +451,14 @@ def test_trinkgut_never_requests_a_detail_page_on_another_host():
     session = _CountingSession()
     source._enrich_deposits([offer], session)
     assert session.urls == []
+
+
+def test_proven_no_nearby_store_is_typed_absence_while_geocode_failure_is_not(monkeypatch):
+    from supermarkt.models import NoLocalMarketOffers
+    source = OfficialTrinkgutSource(SimpleNamespace())
+    monkeypatch.setattr(source, "_get_all_markets", lambda _session=None: SAMPLE_MARKETS)
+    monkeypatch.setattr(source, "_postal_coordinates", lambda _code: BERLIN)
+    assert isinstance(source.load("10115"), NoLocalMarketOffers)
+    monkeypatch.setattr(source, "_postal_coordinates", lambda _code: None)
+    with pytest.raises(ToolError, match="Standort"):
+        source.load("10115")

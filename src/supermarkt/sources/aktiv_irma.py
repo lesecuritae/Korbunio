@@ -16,7 +16,7 @@ from ..common import (
     validate_postal_code,
 )
 from ..http import HttpClient
-from ..models import Offer, ToolError
+from ..models import Offer, ToolError, NoLocalMarketOffers
 
 _VALIDITY = re.compile(
     r"^(?P<category>.+?):\s*(?P<vendor>.+?)\s+g[uü]ltig\s+vom\s+"
@@ -25,11 +25,6 @@ _VALIDITY = re.compile(
 )
 
 
-class NoLocalMarketOffers(list[Offer]):
-    """Empty catalogue with confirmed market absence, rather than a fetch error."""
-
-    def __init__(self) -> None:
-        super().__init__()
 # Price nodes live inside the product card and must not bleed into the
 # description text; they are read on their own and stripped from the copy.
 _PRICE_NODES = (".fr-price-box", ".fr-price-angebot", ".fr-price-statt", ".fr-price-app", ".fr-produktButton")

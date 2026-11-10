@@ -41,6 +41,11 @@ abstract class KorbuinoDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // Additive migration: preserve offers, lists, favorites and offline data.
                 database.execSQL("ALTER TABLE offers ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+                // A display name is not product identity: retain distinct GTINs/providers.
+                database.execSQL("DROP INDEX IF EXISTS index_products_normalizedKey")
+                database.execSQL("CREATE INDEX index_products_normalizedKey ON products (normalizedKey)")
+                // Re-fetch corrected source metadata without deleting offline offers.
+                database.execSQL("UPDATE provider_cache SET lastSuccess = NULL")
             }
         }
 

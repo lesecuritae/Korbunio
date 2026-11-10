@@ -37,3 +37,9 @@ def test_lidl_wildschwein_never_leaks_into_a_drogerie_search(monkeypatch, retail
     _install(monkeypatch, [offer_to_dict(o) for o in [kania(), *secondary()]])
     result = call({"product": "Wildschwein", "retailers": [retailer]}).structured_content
     assert result["found"] == 0 and result["offers"] == []
+
+
+def test_broad_wildgulasch_search_finds_only_the_evidenced_wildschwein_variant(monkeypatch):
+    _install(monkeypatch, [offer_to_dict(o) for o in [kania(), *secondary()]])
+    result = call({"product": "Wildgulasch", "retailers": ["Lidl"]}).structured_content
+    assert result["found"] == 1 and result["offers"][0]["product"] == "Kania Wildschwein"

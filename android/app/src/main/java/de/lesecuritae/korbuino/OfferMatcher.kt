@@ -4,6 +4,7 @@ import java.text.Normalizer
 
 /** Finds the loaded offers that belong to a shopping-list entry such as "Nutella". */
 object OfferMatcher {
+    private val gameStewSubtype = Regex("""\b(?:wildschwein|hirsch|reh)[ -]?gulasch\b""")
     /**
      * Offers whose name contains every word of [query], cheapest first. Case,
      * accents and ß are ignored, so "nutella" finds "Nutella Nuss-Nougat-Creme".
@@ -16,7 +17,7 @@ object OfferMatcher {
         return offers
             .filter { offer ->
                 val haystack = normalize("${offer.productName} ${offer.brand} ${offer.offer.description} ${offer.offer.packSize.orEmpty()}")
-                words.all { it in haystack } || (compactQuery.length >= 4 && compactQuery in haystack.replace(" ", ""))
+                words.all { word -> word in haystack || (word == "wildgulasch" && gameStewSubtype.containsMatchIn(haystack)) } || (compactQuery.length >= 4 && compactQuery in haystack.replace(" ", ""))
             }
             .sortedBy { it.offer.priceCents }
     }

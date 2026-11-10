@@ -125,3 +125,12 @@ def test_loader_uses_resolved_market_code():
     offers = OfficialGlobusSource(http, Resolver()).load("65185")
     assert len(offers) == 1
     assert http.get_calls == ["https://www.globus.de/faltblatt_online/aktuelle_woche/wib/pageitems.json"]
+
+
+def test_unavailable_postal_coordinates_do_not_prove_store_absence(monkeypatch):
+    from supermarkt.models import ToolError
+    import pytest
+    resolver = GlobusMarketResolver(FakeHttp(markets=market_payload()))
+    monkeypatch.setattr(resolver, "_postal_coordinates", lambda _p: None)
+    with pytest.raises(ToolError, match="Standort"):
+        resolver.resolve("99999")

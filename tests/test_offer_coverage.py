@@ -220,6 +220,10 @@ def test_holab_minimum_quantity_is_not_presented_as_a_single_crate_price():
             return (FIXTURES / "holab_selected.html").read_bytes()
     offers = OfficialHolabSource(HTTP()).load("26135")
     assert len(offers) == 5
+    alternative = next(o for o in offers if "Hemelinger" in o.name)
+    assert alternative.pack_signature == "24x330ml/20x500ml"
+    assert alternative.deposit is None and alternative.base_price is None
+    assert not alternative.comparison_eligible
     water = next(o for o in offers if o.name == "Vilsa Mineralwasser Glas")
     assert water.price == 4.49 and water.minimum_quantity == 2
     assert water.multi_buy_total_price == 8.98 and water.single_price == 4.99
@@ -309,3 +313,56 @@ def test_actual_aktiv_weekend_marker_overrides_only_its_product_start():
     vegetable = next(o for o in offers if "iglo" in o.name)
     assert (vegetable.valid_from, vegetable.valid_until) == ("2026-11-12", "2026-11-14")
     assert all(o.valid_from == "2026-11-09" for o in offers if o is not vegetable)
+
+
+def test_broad_game_stew_query_matches_only_a_published_specific_stew_not_an_invented_species():
+    extra = secondary()
+    assert filter_offers(extra, "Wildgulasch") == extra
+    assert filter_offers(extra, "Kania Wildgulasch") == extra
+    assert filter_offers(extra, "Wildgulasch Kania") == extra
+    assert filter_offers([kania()], "Wildgulasch") == []  # Generic Wildgerichte has no published stew subtype.
+    assert filter_offers(extra, "Hirschgulasch") == []
+    soup = replace(extra[0], name="Wildschweingulaschsuppe", brand="", description="")
+    assert filter_offers([soup], "Wildgulasch") == []
+
+
+def test_search_word_order_accents_and_punctuation_match_native_search():
+    offer = replace(kania(), name="Deluxe Crème Brûlée", brand="Deluxe", description="2 x 100 g")
+    assert filter_offers([offer], "brulee deluxe") == [offer]
+    assert filter_offers([offer], "creme brulee") == [offer]
+
+
+@pytest.mark.parametrize("published_location,accepted", [({"lat": 53.1367, "lng": 8.21653}, True),
+    ({"lat": 54.294, "lng": 10.886}, False), ({}, False)])
+def test_published_city_suffix_requires_its_own_nearby_coordinates(published_location, accepted):
+    class Http:
+        def __init__(self): self.calls = []
+        def get_bytes(self, url, headers=None):
+            self.calls.append(url)
+            if "/Geschaefte/" in url:
+                return b'<a href="/Berlin/Lidl/p-r74">Berlin</a>'  # popular-city list omits Oldenburg
+            if "/Oldenburg-Oldb/" in url:
+                data = {"props": {"pageProps": {"pageInformation": {"location": published_location,
+                    "brochures": {"viewer": [{"id": "2501324792", "publisher": {"name": "Lidl", "type": "RETAILER"}}]}}}}}
+                return f'<script id="__NEXT_DATA__">{json.dumps(data)}</script>'.encode()
+            return json.dumps(viewer()).encode()
+    http = Http()
+    source = KaufdaRetailerSource(http, "Lidl", "Lidl", "Lidl", use_viewer=True)
+    if accepted:
+        result = source.load_regional("Oldenburg", DAY, (53.1367, 8.21653))
+        assert result and "/Oldenburg-Oldb/" in result[0].source_url
+    else:
+        with pytest.raises(ToolError, match="Ortsnachweis"):
+            source.load_regional("Oldenburg", DAY, (53.1367, 8.21653))
+        assert not any("/pages?" in url for url in http.calls)
+
+
+@pytest.mark.parametrize("published,pack", [
+    ("12 x 0,7 Ltr. (1 Ltr. = 0,53)", "12x700ml"),
+    ("50 Stück (10 Stück = 3,79 €)", "50stk"),
+    ("20 WL (1 WL = 0,25 €)", "20portion"),
+    ("250 ml 23,96 € / 1 Ltr.", "250ml"),
+])
+def test_public_quantity_reference_units_are_not_additional_packages(published, pack):
+    from supermarkt.common import normalize_pack
+    assert normalize_pack(published) == pack

@@ -43,11 +43,19 @@ class OfficialHolabSource:
             if start and end and start > end:
                 raise ToolError("HOL’AB! lieferte eine widersprüchliche Artikelgültigkeit")
             prefix=clean_text(price_node.select_one(".price-tag__prefix").get_text(" ",strip=True) if price_node and price_node.select_one(".price-tag__prefix") else "");minimum_match=re.search(r"ab\s*(\d{1,2})\s*kisten",prefix,re.I);minimum=int(minimum_match[1]) if minimum_match and int(minimum_match[1])>1 else None;deposit=parse_deposit_text(details);base_price,base_unit=parse_base_price_text(details);image=card.select_one("img[src]");image_url=urljoin(self.BASE,clean_text(image.get("src"))) if image else "";offer_id=f"holab:{index}:{re.sub(r'[^a-z0-9]+','-',name.casefold()).strip('-')}";pack=normalize_pack(details)
+            # Several explicitly printed crates belong to alternative variants,
+            # not one giant combined pack. Their deposits/base prices cannot be
+            # assigned to a single unspecified selection.
+            variants = pack.split("+")
+            ambiguous_variants = len(variants) > 1
+            if ambiguous_variants:
+                pack = "/".join(variants)
+                deposit, base_price, base_unit = None, None, ""
             single_match = re.search(r"1\s*Kiste\s*(\d+[,.]\d{2})", details, re.I)
             single_price = parse_number(single_match[1]) if single_match else None
             result.append(Offer(multi_buy_quantity=minimum,
                 multi_buy_total_price=round(price * minimum, 2) if minimum else None,
                 single_price=single_price, pack_size=pack,
-                multi_buy_condition=prefix, offer_id=offer_id,retailer="HOL’AB!",category="Getränke",name=name,brand="",description=subtitle,price=price,base_price=base_price,base_unit=base_unit,pack_signature=pack,validity_label=format_validity(start,end),match_key=build_match_key("",name,pack,offer_id),source_url=self.OFFERS_URL,product_url=self.OFFERS_URL,retailer_url=self.last_market_url,image_url=image_url,deposit=deposit,minimum_quantity=minimum,offer_condition=prefix,comparison_eligible=minimum is None,coverage_note="Ausgewählte Wochenangebote; nicht der vollständige Prospekt" + ("; Gültigkeit nicht vollständig veröffentlicht" if not (start and end) else ""),valid_from=start.isoformat() if start else None,valid_until=end.isoformat() if end else None))
+                multi_buy_condition=prefix, offer_id=offer_id,retailer="HOL’AB!",category="Getränke",name=name,brand="",description=subtitle,price=price,base_price=base_price,base_unit=base_unit,pack_signature=pack,validity_label=format_validity(start,end),match_key=build_match_key("",name,pack,offer_id),source_url=self.OFFERS_URL,product_url=self.OFFERS_URL,retailer_url=self.last_market_url,image_url=image_url,deposit=deposit,minimum_quantity=minimum,offer_condition=prefix,comparison_eligible=minimum is None and not ambiguous_variants,coverage_note="Ausgewählte Wochenangebote; nicht der vollständige Prospekt" + ("; mehrere Packungsvarianten, Pfand/Grundpreis nicht eindeutig zugeordnet" if ambiguous_variants else "") + ("; Gültigkeit nicht vollständig veröffentlicht" if not (start and end) else ""),valid_from=start.isoformat() if start else None,valid_until=end.isoformat() if end else None))
         if not result:raise ToolError("HOL’AB! lieferte keine lesbaren ausgewählten Angebote")
         return result

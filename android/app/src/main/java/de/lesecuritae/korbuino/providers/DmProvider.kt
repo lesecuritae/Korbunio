@@ -31,6 +31,8 @@ class DmProvider(
         val products = linkedMapOf<String, ProductEntity>()
         val offers = linkedMapOf<String, OfferEntity>()
         val seenPages = mutableSetOf<String>()
+        var expectedCount: Int? = null
+        var loadedCount = 0
         for (page in 0 until 4) {
             val url = endpoint.toHttpUrl().newBuilder().addQueryParameter("query", "ausverkauf")
                 .addQueryParameter("pageSize", "500").addQueryParameter("currentPage", page.toString()).build()
@@ -44,15 +46,23 @@ class DmProvider(
                 json.parseToJsonElement(source.readUtf8()).jsonObject
             }
             val rows = root["products"] as? JsonArray ?: error("dm Angebotsformat unbekannt")
+            val count = root["count"]?.jsonPrimitive?.intOrNull
+            check(root["count"] == null || (count != null && count in 0..2000)) { "dm Gesamtzahl unbekannt oder zu groß" }
+            check(expectedCount == null || count == null || count == expectedCount) { "dm Katalog während des Abrufs verändert" }
+            if (count != null) expectedCount = count
+            val current = root["currentPage"]?.jsonPrimitive?.intOrNull
+            check(root["currentPage"] == null || current == page) { "dm falsche Pagination-Seite geliefert" }
+            loadedCount += rows.size
             val pages = root["totalPages"]?.jsonPrimitive?.intOrNull
             check(root["totalPages"] == null || (pages != null && pages in 1..4)) { "dm Seitenzahl unbekannt oder Seitenlimit überschritten" }
             if (rows.isNotEmpty()) check(seenPages.add(rows.toString())) { "dm wiederholt eine Seite" }
-            check(rows.isNotEmpty() || pages == null || page >= pages - 1) { "dm Folgeseite fehlt" }
+            check(rows.isNotEmpty() || (page == 0 && (pages == null || pages == 1))) { "dm Folgeseite fehlt" }
             val result = parse(root)
             result.products.forEach { products[it.id] = it }
             result.offers.forEach { offers[it.id] = it }
             check(offers.size <= 2000) { "dm Katalog zu groß" }
             if ((pages != null && page + 1 >= pages) || (pages == null && rows.size < 500)) {
+                check(expectedCount == null || loadedCount == expectedCount) { "dm Teilantwort: Produktzahl stimmt nicht mit Gesamtzahl überein" }
                 return@withContext ProviderResult(products.values.toList(), offers.values.toList(), paginationComplete = true)
             }
         }
@@ -82,6 +92,8 @@ class DmProvider(
                 id = "$id:$productId", retailerId = id, productId = "dm-product-$productId",
                 externalId = productId, priceCents = ProviderParsing.cents(price),
                 sourceUrl = "https://www.dm.de/ausverkauf", imageUrl = image,
+                description = tile["price"]?.jsonObject?.get("tileInfos")?.jsonArray.orEmpty().joinToString(" · ") { it.jsonPrimitive.content },
+                packSize = ProviderParsing.packSize("$name ${tile["price"]?.jsonObject?.get("tileInfos")?.jsonArray.orEmpty().joinToString(" ") { it.jsonPrimitive.content }}"),
                 cachedAt = System.currentTimeMillis(),
             )
         }

@@ -3,9 +3,12 @@ from __future__ import annotations
 from ..request_state import RequestState
 
 import json
+import re
+from collections import Counter
+from dataclasses import replace
 from datetime import date, datetime
 from typing import Any, Callable, Optional
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin, urlsplit
 
 from ..common import (
     build_match_key,
@@ -24,7 +27,7 @@ from ..common import (
 from ..config import BERLIN
 from ..images import is_rejected_image_url, normalize_image_url
 from ..loyalty import parse_public_loyalty_prices
-from ..models import Offer, ToolError
+from ..models import Offer, ToolError, PartialOffers
 
 
 MarketFilter = Callable[[dict[str, Any]], bool]
@@ -285,6 +288,64 @@ class OfficialEdekaSource:
 
         return deduplicate_offers(offers), len(docs), skipped_zero
 
+    @staticmethod
+    def preserve_offer_ids(previous: list[Offer], current: list[Offer]) -> list[Offer]:
+        """Preserve favorites/history identity only for unambiguous exact matches.
+
+        No fuzzy title/price matching, and never bind two GTIN variants to one
+        old row when their old public fields were indistinguishable.
+        """
+        def key(o):
+            return (o.retailer, clean_text(o.name).casefold(), o.price, o.pack_signature,
+                    clean_text(o.description).casefold(), o.valid_from, o.valid_until)
+        old_counts = Counter(map(key, previous))
+        new_counts = Counter(map(key, current))
+        old = {key(o): o for o in previous if old_counts[key(o)] == 1}
+        return [replace(o, offer_id=old[key(o)].offer_id,
+                    base_price=o.base_price if o.base_price is not None else old[key(o)].base_price,
+                    base_unit=o.base_unit or old[key(o)].base_unit,
+                    image_url=o.image_url or old[key(o)].image_url)
+                if key(o) in old and new_counts[key(o)] == 1 else o for o in current]
+
+    def _load_public_market(self, session: Any, market_url: str, market_id: str, retailer: str, target: date) -> list[Offer] | None:
+        """Follow only the selected official market's own offer link.
+
+        External Marktkauf domains keep their existing adapter. A global EDEKA
+        offer page or a different branch is not an enrichment for this market.
+        """
+        from bs4 import BeautifulSoup
+        from .edeka_html import parse_market_offers
+        parsed = urlsplit(market_url)
+        if parsed.scheme != "https" or parsed.hostname != "www.edeka.de" or not parsed.path.startswith(("/eh/", "/maerkte/")):
+            return None
+        response = session.get(quote(market_url, safe=":/?=&%"), timeout=self.timeout_seconds)
+        if response.status_code != 200:
+            raise ToolError(f"EDEKA Marktseite HTTP {response.status_code}")
+        final = urlsplit(getattr(response, "url", market_url))
+        if final.scheme != "https" or final.hostname != "www.edeka.de":
+            raise ToolError("EDEKA: Marktseite verweist auf fremden Ursprung")
+        text = getattr(response, "text", "")
+        if not isinstance(text, str) or len(text) > 5_000_000:
+            raise ToolError("EDEKA Marktseite nicht lesbar oder zu groß")
+        page = BeautifulSoup(text, "html.parser")
+        urls = {urljoin(market_url, a["href"]).rstrip("/") + "/" for a in page.select('a[href]')
+                if re.fullmatch(r"/maerkte/\d+/angebote/?", urlsplit(urljoin(market_url, a["href"])).path)
+                and urlsplit(urljoin(market_url, a["href"])).hostname == "www.edeka.de"
+                and urlsplit(urljoin(market_url, a["href"])).scheme == "https"}
+        if len(urls) != 1:
+            raise ToolError("EDEKA: kein eindeutiger Angebotslink des gewählten Marktes")
+        url = next(iter(urls))
+        response = session.get(url, timeout=self.timeout_seconds)
+        if response.status_code != 200:
+            raise ToolError(f"EDEKA Marktangebote HTTP {response.status_code}")
+        final = urlsplit(getattr(response, "url", url))
+        if final.scheme != "https" or final.hostname != "www.edeka.de" or final.path.rstrip("/") != urlsplit(url).path.rstrip("/"):
+            raise ToolError("EDEKA: Angebotsseite verweist auf anderen Markt")
+        text = getattr(response, "text", "")
+        if not isinstance(text, str) or len(text) > 5_000_000:
+            raise ToolError("EDEKA Marktangebote nicht lesbar oder zu groß")
+        return parse_market_offers(text, url, retailer, market_id, target)
+
     def _load_retailer(
         self,
         postal_code: str,
@@ -306,6 +367,7 @@ class OfficialEdekaSource:
         )
         problems: list[str] = []
         for market_id, market_label, market_url in candidates:
+            legacy_error = None
             try:
                 offers, raw_count, skipped_zero = self._load_offers(
                     session,
@@ -314,20 +376,35 @@ class OfficialEdekaSource:
                     market_url=market_url,
                     reference_date=reference_date,
                 )
-            except ToolError as exc:
-                # One market failing must not hide the others nearby.
-                problems.append(f"Markt {market_id}: {exc}")
-                continue
-            if not offers:
-                problems.append(f"Markt {market_id}: keine preislich verwertbaren Angebote")
-                continue
+            except Exception as exc:
+                # The selected public market page can still be readable when
+                # the old JSON endpoint fails. No alternate market is invented.
+                legacy_error = exc
+                offers, raw_count, skipped_zero = [], 0, 0
 
+            note = ""
+            try:
+                modern = self._load_public_market(session, market_url, market_id, retailer,
+                    reference_date or offer_week_reference("current"))
+                if modern:
+                    offers = self.preserve_offer_ids(offers, modern)
+                    raw_count, skipped_zero = len(modern), 0
+            except Exception as exc:
+                note = f"Öffentliche Marktanzeige nicht abgeglichen; API-Angebote beibehalten: {exc}"
+            if offers and retailer == "Marktkauf":
+                try:
+                    offers = self._enrich_market_quantities(session, market_url, offers)
+                except Exception as exc:
+                    note = " · ".join(filter(None, (note, f"Markt-Packungsangaben nicht abgeglichen: {exc}")))
+            if not offers:
+                problems.append(f"Markt {market_id}: {legacy_error or note or 'keine preislich verwertbaren Angebote'}")
+                continue
             self.last_market_id = market_id
             self.last_market_label = market_label
             self.last_market_url = market_url
             self.last_raw_count = raw_count
             self.last_skipped_zero_price = skipped_zero
-            return offers
+            return PartialOffers(offers, note) if note else offers
 
         raise ToolError(
             f"{retailer}: {len(candidates)} Märkte in der Nähe von {postal_code} geprüft, "
@@ -339,6 +416,24 @@ class OfficialEdekaSource:
 
 
 class OfficialMarktkaufSource(OfficialEdekaSource):
+    def _enrich_market_quantities(self, session: Any, market_url: str, offers: list[Offer]) -> list[Offer]:
+        # Only independently checked first-party sites, no arbitrary upstream URL.
+        parsed = urlsplit(market_url)
+        if parsed.hostname not in {"www.dein-marktkauf.de", "dein-marktkauf.de", "marktkauf-frechen.de", "www.marktkauf-frechen.de"}:
+            return offers
+        from .marktkauf_html import enrich_quantities
+        url = parsed._replace(scheme="https").geturl()
+        response = session.get(quote(url, safe=":/?=&%"), timeout=self.timeout_seconds)
+        if response.status_code != 200:
+            raise ToolError(f"Marktkauf Marktseite HTTP {response.status_code}")
+        final = urlsplit(getattr(response, "url", url))
+        if final.scheme != "https" or final.hostname not in {parsed.hostname, "www." + parsed.hostname.removeprefix("www."), parsed.hostname.removeprefix("www.")}:
+            raise ToolError("Marktkauf: Marktseite verweist auf fremden Ursprung")
+        text = getattr(response, "text", "")
+        if not isinstance(text, str) or len(text) > 5_000_000:
+            raise ToolError("Marktkauf Marktseite nicht lesbar oder zu groß")
+        return enrich_quantities(offers, text)
+
     @staticmethod
     def _is_marktkauf(market: dict[str, Any]) -> bool:
         try:

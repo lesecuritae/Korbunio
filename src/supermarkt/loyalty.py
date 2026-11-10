@@ -222,6 +222,7 @@ def parse_public_loyalty_prices(
         r"mein\s*globus(?:[- ]?preis)?",
         r"edeka\s*app(?:[- ]?preis)?",
         r"marktkauf\s*app(?:[- ]?preis)?",
+        r"müller\s*app(?:[- ]?preis)?",
         r"payback(?:[- ]?preis)?",
         r"app[- ]?preis",
         r"club[- ]?preis",

@@ -34,3 +34,16 @@ Passing fixtures does not establish national or complete leaflet coverage.
   ordinary assortment. Category membership and UVP alone must not qualify.
 - `aktiv_selected.html`: five actual weekly cards, including the product-local
   “gültig ab Donnerstag” restriction. It must not inherit Monday from its tab.
+- `kaufda_mueller_brochure.json`: seven actual products from dated Müller
+  publisher viewer 2501311481 (02–14 November). The explicit Müller app price
+  remains separate; the global publisher does not establish branch stock.
+- `edeka_romano_offers.html`: nine minimal offer dialogs from the selected
+  official market page https://www.edeka.de/maerkte/070696/angebote/ including
+  normal/app prices and different GTINs with identical titles. Tracking prices
+  alone are not evidence of the unconditional cash price.
+- `marktkauf_quantity.html`: the selected Markkleeberg weekly Philadelphia
+  offer's published quantity; used only for exact, missing-field enrichment.
+- `aldi_sued_published_products.json`: five minimal actual product objects from
+  https://prospekt.aldi-sued.de/kw46-26-op-mp/ (09–14 November), captured on
+  10 November using an operator-authorized, process-local public DNS test.
+  TLS verification remained enabled. No resolver override ships in the app.

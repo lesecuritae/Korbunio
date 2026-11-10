@@ -13,7 +13,7 @@ internal object ProviderParsing {
     }
 
     // Preserve an explicitly published quantity; never infer it from price or unit price.
-    private val packPattern = Regex("""(?i)(\d+(?:[.,]\d+)?(?:\s*[x×]\s*\d+(?:[.,]\d+)?)?)\s*[- ]?\s*(kilogramm|milliliter|gramm|liter|ltr|kg|ml|cl|g|l)\b""")
+    private val packPattern = Regex("""(?i)(\d+(?:[.,]\d+)?(?:\s*(?:[x×]|[-–])\s*\d+(?:[.,]\d+)?)?)\s*[- ]?\s*(kilogramm|milliliter|gramm|liter|ltr|stück|stk|st|rollen?|kg|ml|cl|g|l)\b""")
     fun packSize(text: String): String? = packPattern.find(
         text.replace(Regex("""(?<![\d.,])([1-9]\d{0,2}(?:\.\d{3})+)(?![\d.,])""")) { it.value.replace(".", "") }
     )?.let {
@@ -22,9 +22,16 @@ internal object ProviderParsing {
             "kilogramm" -> "kg"
             "gramm" -> "g"
             "milliliter" -> "ml"
+            "st", "stk", "stück" -> "Stück"
             else -> raw
         }
         "${it.groupValues[1]} $unit"
+    }
+
+    fun depositCents(text: String): Int? {
+        val amounts = Regex("""(?:zzgl\.?|zuzüglich|\+)\s*(?:€\s*)?(\d+[.,]\d{2})\s*(?:€\s*)?(?:Einwegpfand|Pfand)\b""", RegexOption.IGNORE_CASE)
+            .findAll(text).mapNotNull { price(it.groupValues[1]) }.filter { it > 0 }.distinct().toList()
+        return amounts.singleOrNull()?.let(::cents)
     }
 
     fun price(value: String?): Double? {

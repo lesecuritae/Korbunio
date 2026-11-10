@@ -280,11 +280,15 @@ class HtmlFlyerProvider(
                 .find(description)?.groupValues?.get(1)?.let(ProviderParsing::price)?.let(ProviderParsing::cents)
             val productId = "$id-product-${normalize(name)}"
             products += ProductEntity(productId, name, normalizedKey = normalize(name))
+            val detail = card.select(".offer__details").text()
+            val crates = Regex("\\b\\d+\\s*[x×]\\s*\\d+(?:[.,]\\d+)?\\s*(?:Ltr\\.?|Liter|l)\\b", RegexOption.IGNORE_CASE)
+                .findAll(detail).mapNotNull { ProviderParsing.packSize(it.value) }.distinct().toList()
             offers += OfferEntity(id = "$id:$index:${normalize(name)}", retailerId = id, productId = productId,
                 externalId = "$index:${normalize(name)}", priceCents = ProviderParsing.cents(price),
                 validFrom = from.toString(), validUntil = until.toString(), sourceUrl = offersUrl,
                 imageUrl = imageUrl(card), cachedAt = System.currentTimeMillis(), description = description,
-                packSize = ProviderParsing.packSize(card.select(".offer__details").text()),
+                packSize = if (crates.size > 1) crates.joinToString(" / ") else ProviderParsing.packSize(detail),
+                depositCents = if (crates.size > 1) null else ProviderParsing.depositCents(detail),
                 multiBuyQuantity = minimum, multiBuyTotalCents = minimum?.let { ProviderParsing.cents(price * it) },
                 singlePriceCents = single, multiBuyCondition = condition.takeIf { minimum != null })
         }

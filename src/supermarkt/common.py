@@ -121,7 +121,9 @@ def normalize_view(value: Any) -> str:
 
 def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
     def spelling(value: str) -> str:
-        return re.sub(r"\bem[\s\-‐‑–]*eukal\b", "emeukal", value.casefold())
+        value = unicodedata.normalize("NFKD", value.casefold())
+        value = "".join(char for char in value if not unicodedata.combining(char))
+        return re.sub(r"\bem[\s\-‐‑–]*eukal\b", "emeukal", value)
 
     query = spelling(clean_text(filter_text))
     if not query:
@@ -131,10 +133,14 @@ def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
     # „Energydrink“, „Energy Drink“ und „Energy-Drink“ sind dieselbe Suche: zusätzlich ohne Leerzeichen/Bindestriche vergleichen.
     compact_query = re.sub(r"[\s\-‐‑–]+", "", query)
     compact = len(compact_query) >= 4
+    words = [word for word in re.findall(r"[a-z0-9]+", query) if len(word) >= 2]
+    # General Wildgulasch may find a published subtype, never the reverse.
+    def contains(word: str, text: str) -> bool:
+        return word in text or (word == "wildgulasch" and bool(re.search(r"\b(?:wildschwein|hirsch|reh)[ -]?gulasch\b", text)))
     matches = []
     for offer in offers:
         haystack = spelling(f"{offer.name} {offer.brand} {offer.description} {offer.retailer}")
-        if query in haystack or (compact and compact_query in re.sub(r"[\s\-‐‑–]+", "", haystack)):
+        if query in haystack or (compact and compact_query in re.sub(r"[\s\-‐‑–]+", "", haystack)) or (words and all(contains(word, haystack) for word in words)):
             matches.append(offer)
     return matches
 
@@ -300,17 +306,19 @@ def normalize_pack(value: str) -> str:
     # "0,33-l-Dose (1 l = 1.19)" oder "150-g-Becher (1 kg = 3,27 €)".
     # Die komplette Klammer fliegt vor der Packungserkennung raus.
     value = re.sub(
-        r"\(\s*(?:grundpreis\s*)?(?:1\s*(?:kg|kilogramm|l|liter)|"
-        r"100\s*(?:g|gramm|ml|milliliter)|1\s*(?:stk\.?|stück|portion|anwendung))"
+        r"\(\s*(?:grundpreis\s*)?\d+(?:[.,]\d+)?\s*"
+        r"(?:kg|kilogramm|l|liter|ltr\.?|g|gramm|ml|milliliter|"
+        r"stk\.?|st\.?|stück|portion(?:en)?|anwendung(?:en)?|wl|waschladungen?|rollen?|blatt)"
         r"\s*=\s*[^)]*\)",
-        " ",
-        value,
-        flags=re.IGNORECASE,
+        " ", value, flags=re.IGNORECASE,
     )
+
+    # Reverse unit-price notation is not another package: "23,96 € / 1 l".
+    value = re.sub(r"(?:\d+[.,]\d{2}\s*€|€\s*\d+[.,]\d{2})\s*/\s*(?:1|100)\s*(?:kg|g|ml|ltr\.?|l)\b", " ", value, flags=re.IGNORECASE)
 
     unit_pattern = (
         r"waschladungen?|wäschen?|portionen?|anwendungen?|kilogramm|milliliter|"
-        r"kapseln?|gramm|liter|caps?|pods?|tabs?|kg|ml|cl|g|l|wl|stück|stk\.?|rollen?|blatt"
+        r"kapseln?|gramm|liter|ltr\.?|caps?|pods?|tabs?|kg|ml|cl|g|l|wl|stück|stk\.?|st\.?|rollen?|blatt"
     )
 
     # A source range such as "85-100 g" is one ambiguous package choice, not
@@ -380,7 +388,7 @@ def normalize_pack_unit(amount: float, unit_text: str) -> tuple[float, str]:
     unit = unit_text.casefold().rstrip(".")
     if unit in {"kg", "kilogramm"}:
         return amount * 1000, "g"
-    if unit in {"l", "liter"}:
+    if unit in {"l", "liter", "ltr"}:
         return amount * 1000, "ml"
     if unit == "milliliter":
         return amount, "ml"
@@ -388,7 +396,7 @@ def normalize_pack_unit(amount: float, unit_text: str) -> tuple[float, str]:
         return amount * 10, "ml"
     if unit == "gramm":
         return amount, "g"
-    if unit.startswith("stück") or unit == "stk":
+    if unit.startswith("stück") or unit in {"stk", "st"}:
         return amount, "stk"
     if unit.startswith("rolle"):
         return amount, "rollen"
@@ -593,6 +601,7 @@ def deduplicate_offers(offers: Iterable[Offer]) -> list[Offer]:
             offer.price,
             benefits,
             offer.validity_label,
+            tuple(offer.product_gtins),
             re.sub(r"[^\w]+", " ", clean_text(offer.description).casefold()).strip(),
         )
         unique.setdefault(key, offer)
@@ -877,7 +886,7 @@ def supplement_offers(primary: Iterable[Offer], supplemental: Iterable[Offer]) -
         return (offer.retailer, text(offer.name), text(offer.brand),
                 normalize_pack(offer.pack_signature), offer.price,
                 offer.valid_from, offer.valid_until, text(offer.description),
-                offer.benefits, offer.deposit)
+                offer.benefits, offer.deposit, tuple(offer.product_gtins))
 
     result = list(primary)
     seen = {identity(offer) for offer in result}

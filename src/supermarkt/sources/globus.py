@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 from ..common import build_match_key, clean_text, format_validity, normalize_pack, parse_iso_date, parse_number
 from ..http import HttpClient
 from ..images import is_rejected_image_url, normalize_image_url
-from ..models import Offer, ToolError
+from ..models import Offer, ToolError, NoLocalMarketOffers
 
 @dataclass(frozen=True)
 class GlobusMarket:
@@ -43,6 +43,8 @@ class GlobusMarketResolver:
         result = exact[0] if exact else None
         if result is None:
             coordinates = self._postal_coordinates(postal_code)
+            if coordinates is None:
+                raise ToolError("Globus: PLZ-Standort nicht bestätigt; Markt-Abwesenheit unbekannt")
             if coordinates is not None:
                 ranked = sorted(((_distance_km(*coordinates, m.latitude, m.longitude), m) for m in markets), key=lambda x: (x[0], x[1].market_id))
                 result = ranked[0][1] if ranked and ranked[0][0] <= self.MAX_DISTANCE_KM else None
@@ -90,7 +92,7 @@ class OfficialGlobusSource:
 
     def load(self, postal_code: str) -> list[Offer]:
         market = self.resolver.resolve(postal_code)
-        if market is None: return []
+        if market is None: return NoLocalMarketOffers()
         self.last_market = market
         self.last_market_label, self.last_market_url = f"Globus {market.name}", market.url
         url = self.FLYER_URL.format(code=market.code)

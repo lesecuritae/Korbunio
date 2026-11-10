@@ -18,7 +18,7 @@ data class StoreEntity(
     val sourceUrl: String = "",
 )
 
-@Entity(tableName = "products", indices = [Index(value = ["normalizedKey"], unique = true)])
+@Entity(tableName = "products", indices = [Index(value = ["normalizedKey"])])
 data class ProductEntity(
     @PrimaryKey val id: String,
     val name: String,

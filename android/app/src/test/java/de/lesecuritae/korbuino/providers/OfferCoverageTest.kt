@@ -36,6 +36,49 @@ class OfferCoverageTest {
     private val now = { Instant.parse("2026-11-09T12:00:00Z") }
     private fun keys(server: MockWebServer) = server.enqueue(MockResponse().setBody("""<script>{"apiKey":"fixture","clientKey":"fixture"}</script>"""))
 
+    @Test fun `Muller publisher brochure retains dates prices and app price without a regional claim`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setBody("""<script id="__NEXT_DATA__">{"props":{"pageProps":{"pageInformation":{"brochures":{"viewer":[{"id":"2501311481","publisher":{"name":"Müller"}},{"id":"2501298321","publisher":{"name":"Nutella"}}]}}}}}</script>"""))
+            server.enqueue(MockResponse().setBody("""[{"lat":"51.34","lon":"12.37","address":{"city":"Leipzig"}}]"""))
+            server.enqueue(MockResponse().setBody(fixture("kaufda_mueller_brochure.json")))
+            val result = KaufdaRetailerProvider("mueller", "Müller", "Müller", "Mueller", OkHttpClient(), server.url("/").toString().trimEnd('/'), now,
+                viewerBaseUrl = server.url("/").toString().trimEnd('/'), geocodeUrl = server.url("/geo").toString(), publisherViewer = true).fetch(RetailerRequest("04109"))
+            assertEquals(7, result.offers.size)
+            assertTrue(result.offers.all { it.validFrom == "2026-11-02" && it.validUntil == "2026-11-14" })
+            assertTrue(result.sourceWarnings.any { it.contains("Filialgeltung") })
+            val issey = result.products.single { it.name.contains("ISSEY") }
+            val offer = result.offers.single { it.productId == issey.id }
+            assertEquals(4295, offer.priceCents)
+            assertEquals(3795, offer.loyaltyPriceCents)
+            assertEquals("mueller_blueten", offer.loyaltyProgram)
+            repeat(2) { server.takeRequest() }
+            val query = server.takeRequest().requestUrl!!
+            assertEquals("51.34", query.queryParameter("lat"))
+            assertEquals("12.37", query.queryParameter("lng"))
+            assertEquals(3, server.requestCount)
+        }
+    }
+
+    @Test fun `city suffix requires independently published nearby coordinates before brochure use`() = runTest {
+        for (near in listOf(true, false)) {
+            MockWebServer().use { server ->
+                server.start()
+                server.enqueue(MockResponse().setBody("<a href='${server.url("/Berlin/Lidl/p-r74")}'>Berlin</a>"))
+                server.enqueue(MockResponse().setBody("""[{"lat":"53.1367","lon":"8.21653","address":{"city":"Oldenburg"}}]"""))
+                val latitude = if (near) 53.1367 else 54.294
+                val longitude = if (near) 8.21653 else 10.886
+                server.enqueue(MockResponse().setBody("""<script id="__NEXT_DATA__">{"props":{"pageProps":{"pageInformation":{"location":{"lat":$latitude,"lng":$longitude},"brochures":{"viewer":[{"id":"2501324792","publisher":{"name":"Lidl","type":"RETAILER"}}]}}}}}</script>"""))
+                if (near) server.enqueue(MockResponse().setBody(fixture("kaufda_kania.json")))
+                val provider = KaufdaRetailerProvider("marktguru-lidl", "Lidl", "Lidl", "Lidl", OkHttpClient(), server.url("/").toString().trimEnd('/'), now,
+                    regionalViewer = true, viewerBaseUrl = server.url("/").toString().trimEnd('/'), geocodeUrl = server.url("/geo").toString())
+                val result = runCatching { provider.fetch(RetailerRequest("26135")) }
+                assertEquals(near, result.isSuccess)
+                assertEquals(if (near) 4 else 3, server.requestCount)
+            }
+        }
+    }
+
     @Test fun `actual public response retains price dates descriptions and quantity in searchable entity`() = runTest {
         MockWebServer().use { server ->
             server.start(); keys(server)
@@ -68,6 +111,9 @@ class OfferCoverageTest {
             assertTrue(result.offers.single().sourceUrl.contains("/Leipzig/"))
             assertEquals("2026-11-14", result.offers.single().validUntil)
             assertFalse(result.products.single().name.contains("Hirsch"))
+            val display = OfferDisplay(result.offers.single(), result.products.single().name, brand = "Kania")
+            for (query in listOf("Wildgulasch", "Wildgulasch Kania")) assertEquals(1, OfferMatcher.matches(query, listOf(display)).size)
+            assertTrue(OfferMatcher.matches("Hirschgulasch", listOf(display)).isEmpty())
             repeat(3) { server.takeRequest() }
             val viewerRequest = server.takeRequest().requestUrl!!
             assertEquals("51.34", viewerRequest.queryParameter("lat"))
@@ -117,6 +163,10 @@ class OfferCoverageTest {
             assertEquals(499, de.lesecuritae.korbuino.OfferPricing.quote(water, 1).totalCents)
             assertEquals("2026-11-14", water.validUntil)
             assertEquals("12 x 0.7 l", water.packSize)
+            assertEquals(330, water.depositCents)
+            val alternative = result.offers.single { offer -> result.products.single { it.id == offer.productId }.name.contains("Hemelinger") }
+            assertEquals("24 x 0.33 l / 20 x 0.5 l", alternative.packSize)
+            assertNull(alternative.depositCents)
         }
     }
 

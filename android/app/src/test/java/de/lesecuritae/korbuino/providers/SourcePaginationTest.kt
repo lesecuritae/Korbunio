@@ -68,6 +68,29 @@ class SourcePaginationTest {
         }
     }
 
+    @Test fun `dm refuses truncated declared totals even on a successful final HTTP page`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setBody("""{"products":[${dm("first")}],"totalPages":1,"currentPage":0,"count":2}"""))
+            val result = runCatching { DmProvider(OkHttpClient(), server.url("/search").toString()).fetch(RetailerRequest("04109")) }
+            assertTrue(result.isFailure)
+            assertTrue(result.exceptionOrNull()!!.message!!.contains("Teilantwort"))
+            assertEquals(1, server.requestCount)
+        }
+    }
+
+    @Test fun `dm refuses an empty last page even without a declared total`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setBody("""{"products":[${dm("first")}],"totalPages":2,"currentPage":0}"""))
+            server.enqueue(MockResponse().setBody("""{"products":[],"totalPages":2,"currentPage":1}"""))
+            val result = runCatching { DmProvider(OkHttpClient(), server.url("/search").toString()).fetch(RetailerRequest("04109")) }
+            assertTrue(result.isFailure)
+            assertTrue(result.exceptionOrNull()!!.message!!.contains("Folgeseite"))
+            assertEquals(2, server.requestCount)
+        }
+    }
+
     @Test fun `dm unknown schema and missing subsequent page are failures not complete empty catalogues`() = runTest {
         for (schema in listOf("{}", """{"products":{}}""", """{"products":[${dm("first")}],"totalPages":5}""")) {
             MockWebServer().use { server ->

@@ -344,6 +344,7 @@ class OfficialDmSource:
 
     def _fetch(self) -> list[Offer]:
         products = []
+        expected_count = None
         seen_pages: set[str] = set()
         for page in range(4):
             query = urlencode({"query": "ausverkauf", "pageSize": 500, "currentPage": page})
@@ -352,6 +353,16 @@ class OfficialDmSource:
             batch = payload.get("products")
             if not isinstance(batch, list) or any(not isinstance(product, dict) for product in batch):
                 raise ToolError("dm lieferte einen unerwarteten Angebotskatalog")
+            count = payload.get("count")
+            if count is not None:
+                if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= 2000:
+                    raise ToolError("dm Gesamtzahl unbekannt oder zu groß")
+                if expected_count is not None and count != expected_count:
+                    raise ToolError("dm Katalog während des Abrufs verändert")
+                expected_count = count
+            current = payload.get("currentPage")
+            if current is not None and (not isinstance(current, int) or isinstance(current, bool) or current != page):
+                raise ToolError("dm falsche Pagination-Seite geliefert")
             pages = payload.get("totalPages")
             if pages is not None and (not isinstance(pages, int) or isinstance(pages, bool) or not 1 <= pages <= 4):
                 raise ToolError("dm Seitenzahl unbekannt oder Seitenlimit überschritten")
@@ -361,7 +372,7 @@ class OfficialDmSource:
                 raise ToolError("dm wiederholt eine Seite; Katalog unvollständig")
             if batch:
                 seen_pages.add(fingerprint)
-            if not batch and pages and page < pages - 1:
+            if not batch and (page > 0 or (pages and page < pages - 1)):
                 raise ToolError("dm Folgeseite fehlt; Katalog unvollständig")
             products.extend(batch)
             if len(products) > 2000:
@@ -370,6 +381,8 @@ class OfficialDmSource:
                 break
         else:
             raise ToolError("dm Seitenlimit erreicht; Katalog unvollständig")
+        if expected_count is not None and len(products) != expected_count:
+            raise ToolError("dm Teilantwort: Produktzahl stimmt nicht mit der angekündigten Gesamtzahl überein")
         result: list[Offer] = []
         for product in products:
             if not isinstance(product, dict) or not isinstance(product.get("tileData"), dict):

@@ -42,11 +42,12 @@ from .models import AGGREGATOR_RETAILERS, RETAILER_SPECS, Offer, RetailerContext
 from .image_match import match_article
 from .presentation import offer_for_response, offer_sort_key, resolve_retailer_name
 from .region import AldiRegionResolver
-from .sources.aktiv_irma import NoLocalMarketOffers
+from .models import NoLocalMarketOffers
 
 LOGGER = logging.getLogger(__name__)
-from .sources import KaufdaGlobusImageSource, KaufdaRetailerSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAktivIrmaSource, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialMuellerSource, OfficialRossmannSource, OfficialTrinkgutSource
+from .sources import KaufdaGlobusImageSource, KaufdaRetailerSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAktivIrmaSource, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialRossmannSource, OfficialTrinkgutSource
 from .sources.netto_scottie import NettoScottieMarketResolver
+from .sources.brochures import MuellerBrochureSource
 from .sources.aldi_chain import AldiOfferChain
 
 class SourceLoader:
@@ -72,7 +73,7 @@ class SourceLoader:
         self.official_netto_scottie = OfficialNettoScottieSource(http, self.netto_scottie_markets.resolve)
         self.netto_marken_markets = NettoMarkenMarketResolver(http)
         self.official_rossmann = OfficialRossmannSource(timeout_seconds=TIMEOUT_SECONDS)
-        self.official_mueller = OfficialMuellerSource(http)
+        self.official_mueller = MuellerBrochureSource(http, locator)
         self.kaufda_lidl = KaufdaRetailerSource(http, "Lidl", "Lidl", "Lidl", use_viewer=True)
         self.kaufda_supplements = {
             "Lidl": self.kaufda_lidl,
@@ -292,7 +293,8 @@ class SourceLoader:
         if hasattr(self, "official_rossmann") and "Rossmann" in active_contexts:
             official_jobs["Rossmann"] = lambda: self.official_rossmann.load(postal_code)
         if hasattr(self, "official_mueller") and "Müller" in active_contexts:
-            official_jobs["Müller"] = lambda: self.official_mueller.load(postal_code)
+            official_jobs["Müller"] = lambda: (self.official_mueller.load_week(postal_code, target_date)
+                if hasattr(self.official_mueller, "load_week") else self.official_mueller.load(postal_code))
         if hasattr(self, "official_dm") and "dm" in active_contexts:
             official_jobs["dm"] = lambda: self.official_dm.load(postal_code)
         if hasattr(self, "official_holab") and "HOL’AB!" in active_contexts:
@@ -326,6 +328,7 @@ class SourceLoader:
             "Netto schwarz": ("official_netto_scottie", ("last_market_url", "last_market_label")),
             "Kaufland": ("official_kaufland", ("last_store_url", "last_locality")),
             "trinkgut": ("official_trinkgut", ("last_market_url", "last_market_label")),
+            "Müller": ("official_mueller", ("last_market_url", "last_market_label", "source_label", "scope_note")),
         }
 
         def capture(name: str, loader):
@@ -372,7 +375,10 @@ class SourceLoader:
                         request_errors.append(f"{name} offiziell: keine Angebote für die Zielwoche")
                     continue
                 final_by_retailer[name] = offers
-                source_states[name] = "offiziell"
+                source_states[name] = adapter_state.get(name, {}).get("source_label") or "offiziell"
+                scope_note = adapter_state.get(name, {}).get("scope_note")
+                if scope_note:
+                    store_warnings.append(scope_note)
                 processed_products += len(offers)
                 notify(status="processing", progress=10 + completed_sources * 9, source="Offizielle Webseite", retailer=name, category="Wochenangebote", step="Quelle verarbeitet", processed_sources=completed_sources, processed_products=processed_products)
 
@@ -902,6 +908,7 @@ class SupermarketEngine:
             ),
             "source_states": snapshot.get("source_states", {}),
             "unavailable_retailers": snapshot.get("unavailable_retailers", []),
+            "incomplete_retailers": snapshot.get("incomplete_retailers", []),
             "challenge_urls": snapshot.get("challenge_urls", {}),
             "warnings": list(dict.fromkeys([
                 *snapshot.get("request_errors", []),

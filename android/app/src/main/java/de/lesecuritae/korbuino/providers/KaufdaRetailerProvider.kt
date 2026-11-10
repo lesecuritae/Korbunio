@@ -37,6 +37,7 @@ class KaufdaRetailerProvider(
     private val regionalViewer: Boolean = false,
     private val viewerBaseUrl: String = "https://content-viewer-be.kaufda.de",
     private val geocodeUrl: String = "https://nominatim.openstreetmap.org/search",
+    private val publisherViewer: Boolean = false,
 
 ) : RetailerProvider {
     private val json = Json { ignoreUnknownKeys = true }
@@ -46,7 +47,8 @@ class KaufdaRetailerProvider(
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
         require(request.postalCode.matches(Regex("^\\d{5}$"))) { "Ungültige PLZ" }
         val html = read(sourceUrl)
-        if (regionalViewer) fetchRegionalViewer(html, request) else parse(html, request.week)
+        check(!(regionalViewer && publisherViewer)) { "KaufDA: widersprüchlicher Prospektmodus" }
+        if (regionalViewer || publisherViewer) fetchRegionalViewer(html, request) else parse(html, request.week)
     }
 
     private fun parse(html: String, week: OfferWeek): ProviderResult {
@@ -126,13 +128,51 @@ class KaufdaRetailerProvider(
             ?: error("KaufDA Ort fehlt")
         fun cityKey(value: String) = value.lowercase(Locale.GERMAN).replace("ä", "ae").replace("ö", "oe")
             .replace("ü", "ue").replace("ß", "ss")
-        val regionalUrl = Jsoup.parse(home, sourceUrl).select("a[href]").mapNotNull { link ->
+        val publisherRoutes = mutableSetOf<String>()
+        val candidates = Jsoup.parse(home, sourceUrl).select("a[href]").mapNotNull { link ->
             val url = runCatching { link.absUrl("href").toHttpUrl() }.getOrNull() ?: return@mapNotNull null
             val parts = url.pathSegments
-            if (url.host == baseUrl.toHttpUrl().host && parts.size == 3 && cityKey(parts[0]) == cityKey(city) &&
-                parts[1].equals(publisherSlug, true) && parts[2].matches(Regex("p-r\\d+"))) url.toString() else null
-        }.firstOrNull() ?: error("KaufDA: kein bestätigter Ortsprospekt für $city")
-        val doc = Jsoup.parse(read(regionalUrl), regionalUrl)
+            val requested = cityKey(city).replace(" ", "-")
+            if (url.host == baseUrl.toHttpUrl().host && url.scheme == baseUrl.toHttpUrl().scheme && parts.size == 3 &&
+                parts[1].equals(publisherSlug, true) && parts[2].matches(Regex("p-r\\d+"))) publisherRoutes += parts[2]
+            if (url.host == baseUrl.toHttpUrl().host && url.scheme == baseUrl.toHttpUrl().scheme && parts.size == 3 &&
+                (cityKey(parts[0]) == requested || cityKey(parts[0]).startsWith(requested + "-")) &&
+                parts[1].equals(publisherSlug, true) && parts[2].matches(Regex("p-r\\d+")))
+                url.newBuilder().query(null).fragment(null).build().toString() to (cityKey(parts[0]) == requested) else null
+        }.distinctBy { it.first }.toMutableList()
+        if (candidates.isEmpty() && publisherRoutes.size == 1) {
+            // Routing alias only; the linked page's own coordinates still have
+            // to match before any brochure is accepted.
+            val aliases = mapOf("oldenburg" to listOf("Oldenburg-Oldb"))
+            aliases[cityKey(city).replace(" ", "-")].orEmpty().forEach { alias ->
+                val url = baseUrl.toHttpUrl().newBuilder().addPathSegment(alias).addPathSegment(publisherSlug).addPathSegment(publisherRoutes.single()).build()
+                candidates += url.toString() to false
+            }
+        }
+        var regionalUrl = sourceUrl
+        var regionalHtml = home
+        if (!publisherViewer) {
+            val exact = candidates.filter { it.second }
+            check(candidates.isNotEmpty()) { "KaufDA: kein bestätigter Ortsprospekt für $city" }
+            check(exact.isNotEmpty() || candidates.size <= 4) { "KaufDA: Ortsnamen mehrdeutig" }
+            val verified = (exact.ifEmpty { candidates }).mapNotNull { candidate ->
+                val page = read(candidate.first)
+                if (exact.isEmpty()) {
+                    val body = Jsoup.parse(page, candidate.first).selectFirst("script#__NEXT_DATA__")?.data()
+                    val info = body?.let { runCatching { json.parseToJsonElement(it).jsonObject["props"]?.jsonObject?.get("pageProps")?.jsonObject?.get("pageInformation")?.jsonObject }.getOrNull() }
+                    val place = (info?.get("location") ?: info?.get("city")) as? JsonObject
+                    val otherLat = place?.text("lat")?.toDoubleOrNull()?.takeIf { it in -90.0..90.0 } ?: return@mapNotNull null
+                    val otherLon = place.text("lng")?.toDoubleOrNull()?.takeIf { it in -180.0..180.0 } ?: return@mapNotNull null
+                    val dlat = Math.toRadians(otherLat - lat); val dlon = Math.toRadians(otherLon - lon)
+                    val a = kotlin.math.sin(dlat / 2) * kotlin.math.sin(dlat / 2) + kotlin.math.cos(Math.toRadians(lat)) * kotlin.math.cos(Math.toRadians(otherLat)) * kotlin.math.sin(dlon / 2) * kotlin.math.sin(dlon / 2)
+                    if (6371 * 2 * kotlin.math.asin(kotlin.math.sqrt(a.coerceIn(0.0, 1.0))) > 5) return@mapNotNull null
+                }
+                candidate.first to page
+            }
+            check(verified.size == 1) { "KaufDA: kein eindeutiger Ortsnachweis für $city" }
+            regionalUrl = verified.single().first; regionalHtml = verified.single().second
+        }
+        val doc = Jsoup.parse(regionalHtml, regionalUrl)
         val payload = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: error("KaufDA Prospektdaten fehlen")
         val brochures = json.parseToJsonElement(payload).jsonObject["props"]?.jsonObject
             ?.get("pageProps")?.jsonObject?.get("pageInformation")?.jsonObject?.get("brochures")?.jsonObject
@@ -140,6 +180,7 @@ class KaufdaRetailerProvider(
         val ids = brochures.mapNotNull { raw ->
             val entry = raw.jsonObject
             val publisher = entry["publisher"]?.jsonObject?.text("name")
+            if (entry["publisher"]?.jsonObject?.text("type") !in listOf(null, "RETAILER")) return@mapNotNull null
             entry.text("id")?.takeIf { it.matches(Regex("\\d{6,12}")) && publisher.equals(publisherName, true) }
         }.distinct().take(2)
         check(ids.isNotEmpty()) { "KaufDA: kein regionaler Prospekt verfügbar" }
@@ -186,15 +227,17 @@ class KaufdaRetailerProvider(
                             validFrom = from.atZone(ZoneId.of("Europe/Berlin")).toLocalDate().toString(),
                             validUntil = until.atZone(ZoneId.of("Europe/Berlin")).toLocalDate().toString(),
                             sourceUrl = regionalUrl, imageUrl = image, description = description,
-                            loyaltyProgram = if (benefit != null) "lidl_plus" else null,
-                            loyaltyLabel = if (benefit != null) "Lidl Plus" else null,
+                            loyaltyProgram = if (benefit != null) when (publisherName) { "Lidl" -> "lidl_plus"; "Müller" -> "mueller_blueten"; else -> null } else null,
+                            loyaltyLabel = if (benefit != null) when (publisherName) { "Lidl" -> "Lidl Plus"; "Müller" -> "Müller App"; else -> null } else null,
                             loyaltyPriceCents = benefit?.let(ProviderParsing::cents),
                             packSize = ProviderParsing.packSize("$name $description"), cachedAt = System.currentTimeMillis())
                     }
                 }
             }
         }
-        return ProviderResult(products.values.toList(), offers.values.toList())
+        check(!publisherViewer || offers.isNotEmpty()) { "KaufDA: keine datierten Händlerangebote für die Zielwoche" }
+        return ProviderResult(products.values.toList(), offers.values.toList(), sourceWarnings = if (publisherViewer)
+            listOf("$displayName: datierter Händlerprospekt; Filialgeltung und lokaler Bestand nicht bestätigt.") else emptyList())
     }
 
     private fun viewerPrices(content: JsonObject, product: JsonObject, productCount: Int): Pair<Double, Double?>? {
@@ -219,9 +262,14 @@ class KaufdaRetailerProvider(
             if (raw !is JsonArray) return null
             return raw.joinToString(" ") { it.jsonObject.values.joinToString(" ") { v -> v.jsonPrimitive.content } }.trim().lowercase(Locale.GERMAN)
         }
-        val memberValues = if (publisherName == "Lidl") deals.mapNotNull { d ->
-            if (d.text("type") in listOf("SALES_PRICE", "SPECIAL_PRICE") && conditions(d) == "mit lidl plus") value(d) else null
-        }.distinct() else emptyList()
+        val memberConditions = when (publisherName) {
+            "Lidl" -> setOf("mit lidl plus")
+            "Müller" -> setOf("mit der müller app", "mit müller app", "im preis in der app", "m app")
+            else -> emptySet()
+        }
+        val memberValues = deals.mapNotNull { d ->
+            if (d.text("type") in listOf("SALES_PRICE", "SPECIAL_PRICE") && conditions(d) in memberConditions) value(d) else null
+        }.distinct()
         val member = memberValues.singleOrNull()
         val cash = deals.mapNotNull { d ->
             if (d.text("type") in listOf("SALES_PRICE", "SPECIAL_PRICE") &&

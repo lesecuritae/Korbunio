@@ -132,7 +132,8 @@ def test_dm_maps_only_official_clearance_products_and_caches_catalogue():
     assert again == offers
     assert len(offers) == 1
     offer = offers[0]
-    assert (offer.retailer, offer.price, offer.pack_signature) == ("dm", 1.95, "")
+    # The published title explicitly says "1 St"; it is a real quantity.
+    assert (offer.retailer, offer.price, offer.pack_signature) == ("dm", 1.95, "1stk")
     assert offer.category == "Haushalt & Reinigung"
     assert offer.description == "Vorher 2,55 €"
     assert "Filialverfügbarkeit unbekannt" in offer.coverage_note
@@ -202,7 +203,7 @@ def test_dm_follows_declared_pages_even_when_a_page_is_short_and_rejects_a_missi
             if page == 1 and self.fail:
                 raise ToolError("dm fixture timeout")
             data = copy.deepcopy(super().get_json(url, headers))
-            data.update(totalPages=2, currentPage=page)
+            data.update(totalPages=2, currentPage=page, count=4)  # API count is global, not per-page.
             for product in data["products"]:
                 if page:
                     product["dan"] = "fixture-second-page"
@@ -244,3 +245,22 @@ def test_mueller_regular_only_pages_do_not_hide_sale_articles_on_later_pages(mon
     offers = OfficialMuellerSource(Pages()).load("04109")
     assert [o.offer_id for o in offers] == ["mueller:fixture-3"]
     assert not offers.note
+
+
+def test_dm_rejects_a_syntactically_valid_but_truncated_catalogue():
+    class Truncated(FakeDmHttp):
+        def get_json(self, url, headers=None):
+            data = super().get_json(url, headers)
+            return {**data, "count": 3, "totalPages": 1}
+    with pytest.raises(ToolError, match="Teilantwort"):
+        OfficialDmSource(Truncated()).load("04109")
+
+
+def test_dm_empty_final_page_is_not_a_complete_catalogue_even_without_a_count():
+    class Pages(FakeDmHttp):
+        def get_json(self, url, headers=None):
+            data = super().get_json(url, headers)
+            data.pop("count")
+            return {**data, "products": [] if "currentPage=1" in url else data["products"], "totalPages": 2}
+    with pytest.raises(ToolError, match="Folgeseite"):
+        OfficialDmSource(Pages()).load("04109")
