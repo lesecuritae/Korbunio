@@ -247,6 +247,26 @@ Kiste ab zwei, 8,98 € für zwei, 4,99 € einzeln. ALDI-Puten-Ministeaks bleib
 Geltungsgrenzen konservativ `partial`, ohne daraus einen technischen Abruffehler
 zu erfinden. Diese Beobachtungszahlen beweisen keine landesweite Vollständigkeit.
 
+### Ergänzung: ausdrücklich veröffentlichter Sechserkarton
+
+Die gleiche reale HOL’AB!-Fixture nennt für Rauch Happy Day 1,99 € je Packung
+und ausdrücklich 10,00 € für den Sechserkarton. Backend und Android übernehmen
+diesen Mengenpreis als gesonderte Mehrkaufaktion. Für eine, sechs und sieben
+Packungen ergeben die Regressionstests 1,99 €, 10,00 € und 11,99 €.
+Es wird kein Preis aus dem Grundpreis errechnet. App-/Couponbedingungen,
+mehrdeutige Kartonpreise und ungültige Mengen sperren die automatische
+Zuordnung. Der veröffentlichte Detailtext bleibt erhalten.
+
+Der vollständige Backendlauf nach dieser Ergänzung besteht **804 Tests**, bei
+8 übersprungenen Live-/optionalen Tests. Android: **281 Standard- und 284
+F-Droid-Tests bestanden**, jeweils ein optionaler Test übersprungen; beide APKs
+und beide Lint-Läufe erfolgreich. Code `66095e21f51e17b0c170e5febab31ae82ad55a98`, Image
+`sha256:01af25f0e65fd2c7478b3a55d449b0e503195f07d7082193470e99e4d1679621`: Der zusätzliche tatsächliche API- und MCP-Abruf bestätigt
+6 Packungen für 10,00 € bei ausdrücklich erhaltenem Einzelpreis 1,99 €.
+Der separate Testcontainer samt temporärem DNS wurde anschließend entfernt.
+Dieser Nachweis ergänzt die oben an `0d2b193` gebundenen sechs Importe und
+zehn MCP-Suchen; er ersetzt sie nicht rückwirkend durch einen anderen Stand.
+
 **Noch offen:** abschließende Referenz-/Dublettenvergleiche, die in der Tabelle
 benannten Rohdaten-/Regionsnachweise, weitere unabhängige Händler-/Regionsnachweise und anschließender Git-Abschluss
 mit Push/PR/CI und bestätigtem Merge. Der hier getestete Code ist lokal committet;

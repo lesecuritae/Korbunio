@@ -1005,7 +1005,10 @@
     "verified": true,
     "scope": "five actual published weekly HTML cards; source-field contract, not complete leaflet or stock coverage",
     "source_sha256": "59c7bf8e8ec4bc2496861335325d58afb7e8acf2b39aea09d78efb9eaaf9525c",
-    "evidence_kind": "first_party_weekly_cards"
+    "evidence_kind": "first_party_weekly_cards",
+    "multi_buy_quantity": 6,
+    "multi_buy_total_price": 10.0,
+    "single_price": 1.99
   },
   {
     "retailer": "HOL’AB!",
