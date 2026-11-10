@@ -327,7 +327,7 @@ class SourceLoader:
             "Globus": ("official_globus", ("last_market_url", "last_market_label", "last_market", "scope_note")),
             "Netto schwarz": ("official_netto_scottie", ("last_market_url", "last_market_label")),
             "Kaufland": ("official_kaufland", ("last_store_url", "last_locality")),
-            "trinkgut": ("official_trinkgut", ("last_market_url", "last_market_label")),
+            "trinkgut": ("official_trinkgut", ("last_market_url", "last_market_label", "scope_note")),
             "Müller": ("official_mueller", ("last_market_url", "last_market_label", "source_label", "scope_note")),
         }
 

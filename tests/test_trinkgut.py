@@ -462,3 +462,20 @@ def test_proven_no_nearby_store_is_typed_absence_while_geocode_failure_is_not(mo
     monkeypatch.setattr(source, "_postal_coordinates", lambda _code: None)
     with pytest.raises(ToolError, match="Standort"):
         source.load("10115")
+
+
+@pytest.mark.parametrize("description,pack", [
+    ("und weitere Sorten, Kasten = 20 x 0,5 l / 24 x 0,3...", ""),
+    ("Kasten = 20 x 0,5 l / 24 x…", ""),
+    ("Kasten = 20 x 0,5 l / 24 x 0,33 l", "20x500ml/24x330ml"),
+    ("Pack = 6 x 0,33 l (1 l = € 1.76) zzgl. € 0.48 Pfan...", "6x330ml"),
+])
+def test_trinkgut_truncated_quantity_alternative_never_selects_first_crate(description, pack):
+    source = OfficialTrinkgutSource(SimpleNamespace())
+    card = BeautifulSoup(f'<div class="product-box"><a title="Getränk"></a><h3 class="product-name">Getränk</h3><p class="product-price"><span>10.99</span></p><div class="product-description">{description}</div></div>', 'html.parser').div
+    offer = source._parse_card(card, index=1, category="Getränke", market_id="test", market_url="https://www.trinkgut.de/markt/test", validity_label="Test", valid_from=date(2026,11,9), valid_until=date(2026,11,14))
+    assert offer is not None
+    assert offer.pack_signature == pack
+    if not pack:
+        assert offer.base_price is None and offer.base_unit == ""
+        assert "abgeschnitten" in offer.coverage_note

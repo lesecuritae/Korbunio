@@ -30,10 +30,11 @@ from ..common import (
 )
 from ..http import PostalCodeLocator
 from ..images import is_rejected_image_url, normalize_image_url
-from ..models import Offer, ToolError, NoLocalMarketError, NoLocalMarketOffers
+from ..models import Offer, ToolError, NoLocalMarketError, NoLocalMarketOffers, PartialOffers
 
 
 class OfficialTrinkgutSource:
+    scope_note = RequestState("")
     last_market_label = RequestState("")
     last_market_url = RequestState("")
 
@@ -538,7 +539,11 @@ class OfficialTrinkgutSource:
 
         base_price, base_unit = parse_base_price_text(description)
         deposit = parse_deposit_text(description) or self._parse_truncated_deposit(description)
-        pack = normalize_pack(f"{title} {description}")
+        # A truncated second crate quantity cannot justify choosing the first.
+        truncated_alternative = bool(re.search(r"[/|]\s*\d+\s*[x×]\s*(?:\d+(?:[,.]\d*)?)?\s*(?:\.{3}|…)", description, re.I))
+        pack = "" if truncated_alternative else normalize_pack(f"{title} {description}")
+        if truncated_alternative:
+            base_price, base_unit = None, ""
 
         image_url = ""
         img_node = card.select_one("img.product-image") or card.select_one("img")
@@ -573,6 +578,7 @@ class OfficialTrinkgutSource:
             image_url=image_url,
             deposit=deposit,
             benefits=(),
+            coverage_note="Packungsalternative in der Quelle abgeschnitten; kein eindeutiger Mengenvergleich" if truncated_alternative else "",
             valid_from=valid_from.isoformat() if valid_from else None,
             valid_until=valid_until.isoformat() if valid_until else None,
         )
@@ -693,6 +699,7 @@ class OfficialTrinkgutSource:
         except Exception as exc:
             raise ToolError(f"trinkgut benötigt BeautifulSoup: {exc}") from exc
 
+        self.scope_note = ""
         requested_market_id = clean_text(market_id)
         try:
             session, market_id, market_url, market_label, distance_km = self._find_market(
@@ -791,4 +798,8 @@ class OfficialTrinkgutSource:
         # Enrich deposits that could not be parsed from the truncated listing HTML
         offers = self._enrich_deposits(offers, session)
 
-        return deduplicate_offers(offers)
+        incomplete_packs = sum(bool(o.coverage_note) for o in offers)
+        if incomplete_packs:
+            self.scope_note = f"trinkgut: {incomplete_packs} abgeschnittene Packungsalternativen ohne eindeutigen Mengenvergleich"
+        parsed = deduplicate_offers(offers)
+        return PartialOffers(parsed, f"trinkgut: {unknown_cards} Angebotskarten nicht auswertbar") if unknown_cards else parsed
