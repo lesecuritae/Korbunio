@@ -90,9 +90,12 @@ Seiten nicht verdecken. Fehlende/wiederholte Seiten bleiben sichtbar unvollstän
 
 Der vollständige Abruf aller Produktkarten dauerte knapp zehn Minuten.
 Das ist eine gemessene Grenze des kalten Abrufs, keine zugesicherte Antwortzeit.
-Der Backend-Katalog wird für weitere PLZ wiederverwendet. Der erneute
-Sale-gefilterte Gesamtabruf und dessen abschließender Docker-Test stehen im
-Arbeitsstand noch aus. Die deutsche Parfümerie-Broschüre ist zusätzlich erfasst;
+Der Backend-Katalog wird für weitere PLZ wiederverwendet. Der erneute Abruf derselben neun Kategorien las 294 Seiten und übernahm
+**2.816 ausdrücklich als Sale markierte Artikel**, ohne gemeldete fehlende Seite
+(610,9 Sekunden). Das ist weder der vollständige Online-Sale noch der aktuelle
+Wochenprospekt. Im neuen Docker-Image bestätigt die echte gemischte
+Fünf-Karten-Fixture drei übernommene Sale- und zwei verworfene reguläre Artikel;
+ein erneuter vollständiger Liveabruf im Docker wurde nicht zusätzlich behauptet. Die deutsche Parfümerie-Broschüre ist zusätzlich erfasst;
 deren Filial-/Onlinegeltung wurde noch nicht ausreichend abgeglichen. Deshalb
 keine automatische Übernahme globaler Parfümeriepreise in regionale Angebote.
 
@@ -137,7 +140,7 @@ Stichprobe. „5 beobachtet“ bedeutet keinen abgeschlossenen Fünf-Artikel-Ver
 | HOL’AB! `holab` | nativ / ja | offizielle ausgewählte Wochen-HTML-Angebote | Oldenburg 26135 | 5 Karten; 5/5/5, Mengen nach Korrektur | `PARSER_LOSS`: Liter-Schreibweisen und Zwei-Kisten-Preis; 4,49 € ab 2, ausdrücklich 4,99 € einzeln, 8,98 € für 2. Kein Anspruch auf ganzen Prospekt. |
 | trinkgut `trinkgut` | nativ / ja | Backend offiziell; Android Marktguru/KaufDA | Köln; andere Testregionen ohne nahen Markt | 5 Produktseiten; Namen/Preise vorhanden, regionale Enddaten — | Öffentliche Produktseite nennt 13.11., ausgewählter Feed 14.11.; Marktgeltung vor Klassifizierung prüfen (`NOT_VERIFIED`). Kein Preis aus anderem Markt übernehmen. |
 | Rossmann `rossmann` | nativ / ja | offiziell gerendert; bestehende Fallbacks | Köln | 5 Spielwarenreferenzen; —/—/— | Testhost ohne Chromium nutzte Fallback. Spielwarenprospekt gilt nur bei entsprechendem Sortiment; kein erfundener Verlust außerhalb dieser Filialen (`NOT_VERIFIED`). |
-| Müller `mueller` | nativ / ja | offizielle Online-Seiten; bestehende Fallbacks | Online; regionale Parfümerie offen | 5 gemischte Karten: 3 Sale, 2 negative Kontrollen | `PARSER_LOSS`: reguläres Sortiment fälschlich als Angebot interpretiert. Sale-Filter und unabhängige Navigation korrigiert; abschließender Gesamtcount offen. |
+| Müller `mueller` | nativ / ja | offizielle Online-Seiten; bestehende Fallbacks | Online; regionale Parfümerie offen | 5 gemischte Karten: 3 Sale, 2 negative Kontrollen | `PARSER_LOSS`: reguläres Sortiment fälschlich als Angebot interpretiert. Sale-Filter und unabhängige Navigation korrigiert: 2.816 Sale aus neun Kategorien/294 Seiten. Datierten Prospekt weiterhin getrennt abgleichen. |
 | dm `dm` | nativ / ja | offizielle Ausverkaufs-API | Online, 04109/50939 geprüft | 5 API-Beobachtungen; Detailseiten-Challenge | 401 Live-Angebote, kein genereller Ausfall. Mehrseiten-/Schema-Vertrag erweitert; unabhängige Detailprüfung `SOURCE_UNAVAILABLE`. |
 
 ## Gemeinsame Korrekturen
