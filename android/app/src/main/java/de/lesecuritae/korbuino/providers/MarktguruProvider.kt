@@ -3,6 +3,7 @@ package de.lesecuritae.korbuino.providers
 import de.lesecuritae.korbuino.data.OfferEntity
 import de.lesecuritae.korbuino.data.ProductEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -50,19 +51,33 @@ class MarktguruProvider(
         val offers = linkedMapOf<String, OfferEntity>()
         var offset = 0
         val seenPages = mutableSetOf<String>()
+        var expectedTotal: Int? = null
         for (pageIndex in 0 until 50) {
-            val root = fetchPage(request.postalCode, offset, credentials)
-            val rows = root["results"] as? JsonArray ?: error("Marktguru Angebotsformat unbekannt")
-            check(rows.all { it is JsonObject }) { "Marktguru Angebotsformat unbekannt" }
-            if (rows.isNotEmpty()) check(seenPages.add(rows.toString())) { "Marktguru wiederholt eine Seite; Import unvollständig" }
-            val page = parse(root, request.week)
-            page.products.forEach { products[it.id] = it }
-            page.offers.forEach { offers[it.id] = it }
-            val count = root["results"]?.jsonArray?.size ?: 0
-            val total = root["totalResults"]?.jsonPrimitive?.intOrNull ?: 0
-            if (count == 0 || count < 100 || (total > 0 && offset + count >= total)) break
-            check(pageIndex < 49) { "Marktguru Seitenlimit erreicht; Import unvollständig" }
-            offset += count
+            try {
+                val root = fetchPage(request.postalCode, offset, credentials)
+                val rows = root["results"] as? JsonArray ?: error("Marktguru Angebotsformat unbekannt")
+                check(rows.all { it is JsonObject }) { "Marktguru Angebotsformat unbekannt" }
+                val total = root["totalResults"]?.jsonPrimitive?.intOrNull
+                check(root["totalResults"] == null || (total != null && total in 0..5000)) { "Marktguru Gesamtzahl unbekannt oder Seitenlimit überschritten" }
+                check(total == null || expectedTotal == null || total == expectedTotal) { "Marktguru Gesamtzahl während des Abrufs verändert" }
+                if (total != null) expectedTotal = total
+                val declared = expectedTotal
+                check(declared == null || (offset + rows.size <= declared && (rows.isNotEmpty() || offset >= declared))) { "Marktguru Teilantwort: angekündigte Treffer fehlen" }
+                if (rows.isNotEmpty()) check(seenPages.add(rows.toString())) { "Marktguru wiederholt eine Seite; Import unvollständig" }
+                val page = parse(root, request.week)
+                page.products.forEach { products[it.id] = it }
+                page.offers.forEach { offers[it.id] = it }
+                offset += rows.size
+                if (rows.isEmpty() || (expectedTotal != null && offset == expectedTotal) || (expectedTotal == null && rows.size < 100)) break
+                check(pageIndex < 49) { "Marktguru Seitenlimit erreicht; Import unvollständig" }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (offers.isEmpty()) throw error
+                val reason = error.message?.takeIf { it.startsWith("Marktguru") }?.take(180) ?: error.javaClass.simpleName
+                return@withContext ProviderResult(products.values.toList(), offers.values.toList(),
+                    preserveMissingOffers = true, sourceWarnings = listOf("Marktguru: Seite ${pageIndex + 1} unvollständig ($reason)"))
+            }
         }
         ProviderResult(products.values.toList(), offers.values.toList())
     }

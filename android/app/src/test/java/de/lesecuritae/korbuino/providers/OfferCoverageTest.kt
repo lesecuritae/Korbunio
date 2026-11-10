@@ -315,7 +315,11 @@ class OfferCoverageTest {
             val rows = (1..100).joinToString(",") { """{"id":$it,"product":{"name":"Fixture $it"},"price":1} """ }
             server.enqueue(MockResponse().setBody("""{"results":[$rows],"totalResults":101}"""))
             server.enqueue(MockResponse().setResponseCode(503))
-            assertTrue(runCatching { MarktguruProvider("Lidl", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString(), now = now).fetch(RetailerRequest("04109")) }.isFailure)
+            val partial = MarktguruProvider("Lidl", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString(), now = now).fetch(RetailerRequest("04109"))
+            assertEquals(100, partial.offers.size)
+            assertTrue(partial.preserveMissingOffers)
+            assertTrue(partial.sourceWarnings.any { it.contains("503") })
+            assertFalse(partial.paginationComplete)
         }
     }
 
