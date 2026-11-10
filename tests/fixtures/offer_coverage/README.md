@@ -63,3 +63,9 @@ Passing fixtures does not establish national or complete leaflet coverage.
   parsing and distance logic; it does not itself prove nationwide absence.
   An optional private full-catalogue replay and separately recorded live
   Berlin/Oldenburg lookups provide the broader operational evidence.
+
+- `globus_published_prices.json`: six minimal published Köln-Marsdorf article
+  records from the official KW46/2026 `pageitems.json`. The official cover
+  independently shows the five food offers and the 9–14 November validity.
+  The pan record explicitly binds three diameters to three prices. `mgprice`
+  denotes the separately published mein GLOBUS price; ranges are retained.

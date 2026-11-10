@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import urlencode
 
-from ..common import build_match_key, clean_text, format_validity, normalize_pack, parse_iso_date, parse_number
+from ..common import build_match_key, clean_text, format_validity, normalize_pack, pack_metric, parse_iso_date, parse_number
 from ..http import HttpClient
 from ..images import is_rejected_image_url, normalize_image_url
-from ..models import Offer, ToolError, NoLocalMarketOffers
+from ..models import Offer, ToolError, NoLocalMarketOffers, LoyaltyBenefit
 
 @dataclass(frozen=True)
 class GlobusMarket:
@@ -83,6 +83,7 @@ class OfficialGlobusSource:
     last_market_label = RequestState("")
     last_market_url = RequestState("")
     last_market = RequestState(None)
+    scope_note = RequestState("")
 
     FLYER_URL = "https://www.globus.de/faltblatt_online/aktuelle_woche/{code}/pageitems.json"
     def __init__(self, http_client: HttpClient, resolver: Optional[GlobusMarketResolver] = None) -> None:
@@ -91,12 +92,17 @@ class OfficialGlobusSource:
         self.last_market: Optional[GlobusMarket] = None
 
     def load(self, postal_code: str) -> list[Offer]:
+        self.scope_note = ""
         market = self.resolver.resolve(postal_code)
         if market is None: return NoLocalMarketOffers()
         self.last_market = market
         self.last_market_label, self.last_market_url = f"Globus {market.name}", market.url
         url = self.FLYER_URL.format(code=market.code)
-        return self.parse(self.http.get_json(url, {"Accept": "application/json"}), market, url)
+        offers = self.parse(self.http.get_json(url, {"Accept": "application/json"}), market, url)
+        unresolved = sum(offer.price is None for offer in offers)
+        if unresolved:
+            self.scope_note = f"Globus: {unresolved} ab-Preisgruppen ohne eindeutig zugeordneten Variantenpreis; nicht als Festpreis vergleichbar"
+        return offers
 
     @classmethod
     def parse(cls, payload: dict[str, Any], market: GlobusMarket, source_url: str = "") -> list[Offer]:
@@ -106,7 +112,7 @@ class OfficialGlobusSource:
         for page in pages:
             if not isinstance(page, dict) or not isinstance(page.get("articles"), list): continue
             page_no = clean_text(page.get("page"))
-            for item in page["articles"]:
+            for item in (variant for raw in page["articles"] if isinstance(raw, dict) for variant in _variants(raw)):
                 if not isinstance(item, dict): continue
                 name, price = _text(item.get("title")), _price(item.get("price"))
                 if not name or price is None or price <= 0: continue
@@ -117,11 +123,17 @@ class OfficialGlobusSource:
                 dedupe = (identity, round(price, 2), start, end)
                 if dedupe in seen: continue
                 seen.add(dedupe)
-                base_price, base_unit = _base_price(description, quantity, price)
-                offer_id, pack = f"globus:{market.market_id}:{identity}", normalize_pack(quantity or description)
+                starting = _starting_price(item)
+                benefits = ()
+                member_text = _text(item.get("mgprice"))
+                member = _price(member_text) if re.fullmatch(r"\d+(?:[,.]\d{1,2})?\s*(?:€|EUR)?", member_text) else None
+                if not starting and member is not None and 0 < member < price and not re.search(r"coupon|aktivier|personalisiert", description, re.I):
+                    benefits = (LoyaltyBenefit("mein_globus", "direct_price", member, "mein GLOBUS"),)
+                base_price, base_unit = (None, "") if starting else _base_price(description, quantity, price)
+                offer_id, pack = f"globus:{market.market_id}:{identity}", normalize_pack(quantity or description) or ("1stk" if re.search(r"\b(?:pro|je)\s+Stück\b", quantity, re.I) else "")
                 url = source_url or cls.FLYER_URL.format(code=market.code)
                 image_url = _article_image(item, url)
-                result.append(Offer(offer_id=offer_id, retailer="Globus", category="Aktuelle Wochenangebote", name=name, brand="", description=description, price=price, base_price=base_price, base_unit=base_unit, pack_signature=pack, validity_label=format_validity(start, end), match_key=build_match_key("", name, pack, offer_id), source_url=url, image_url=image_url, source_category=f"Prospektseite {page_no}" if page_no else "Prospekt", product_url=url, retailer_url=market.url, coverage_note=f"Offizieller Globus-Prospekt für {market.name}", valid_from=start.isoformat() if start else None, valid_until=end.isoformat() if end else None))
+                result.append(Offer(offer_id=offer_id, retailer="Globus", category="Aktuelle Wochenangebote", name=name, brand="", description=description, price=None if starting else price, benefits=benefits, comparison_eligible=not starting, offer_condition=f"Ab {price:.2f} EUR; Variantenpreis nicht eindeutig zugeordnet" if starting else "", base_price=base_price, base_unit=base_unit, pack_signature=pack, validity_label=format_validity(start, end), match_key=build_match_key("", name, pack, offer_id), source_url=url, image_url=image_url, source_category=f"Prospektseite {page_no}" if page_no else "Prospekt", product_url=url, retailer_url=market.url, coverage_note=f"Offizieller Globus-Prospekt für {market.name}", valid_from=start.isoformat() if start else None, valid_until=end.isoformat() if end else None))
         return result
 
 
@@ -150,15 +162,41 @@ def _price(value: Any) -> Optional[float]:
     number = match.group(0).replace(" ", "")
     if "," in number: number = number.replace(".", "")
     return parse_number(number)
+def _starting_price(item: dict[str, Any]) -> bool:
+    return any(re.match(r"^ab\b", _text(item.get(field)), re.I) for field in ("menge", "price", "priceinfo"))
+
+
+def _variants(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """Split only explicitly bound diameter/price pairs; never distribute a group minimum."""
+    if not _starting_price(item):
+        return [item]
+    pairs = re.findall(r"[Øø]\s*(\d+(?:[,.]\d+)?)\s*cm\s*:\s*(\d+[,.]\d{2})(?![\d.–-]|,\d)", _text(item.get("subtitle")))
+    if len(pairs) != len(re.findall(r"[Øø]\s*\d+(?:[,.]\d+)?\s*cm\s*:", _text(item.get("subtitle")))):
+        return [item]
+    prices: dict[str, float] = {}
+    for diameter, raw in pairs:
+        diameter = diameter.replace(",", ".")
+        value = _price(raw)
+        if value is None or value <= 0 or (diameter in prices and prices[diameter] != value):
+            return [item]
+        prices[diameter] = value
+    if len(prices) < 2 or min(prices.values()) != _price(item.get("price")) or not _text(item.get("article_id")):
+        return [item]
+    return [dict(item, article_id=f"{item['article_id']}:diameter:{diameter}",
+                 title=f"{_text(item.get('title'))} Ø {diameter} cm", price=str(price),
+                 menge=f"Ø {diameter} cm", mgprice="", priceinfo="") for diameter, price in prices.items()]
+
+
 def _base_price(description: str, quantity: str, price: float) -> tuple[Optional[float], str]:
-    match = re.search(r"1\s*(kg|l|100\s*g|100\s*ml)\s*(?:=|:)\s*(\d+[,.]\d{1,2})", f"{description} {quantity}", re.I)
-    if match: return parse_number(match.group(2)), re.sub(r"\s+", " ", match.group(1).lower())
-    amount = re.search(r"(\d+(?:[,.]\d+)?)\s*(kg|g|l|ml)\b", quantity, re.I)
-    if not amount: return None, ""
-    value, unit = parse_number(amount.group(1)), amount.group(2).lower()
-    if not value or value <= 0: return None, ""
-    factor = value if unit in {"kg", "l"} else value / 1000
-    return round(price / factor, 2), "kg" if unit in {"kg", "g"} else "l"
+    # Ranges/slash alternatives cannot be represented by one scalar unit price.
+    metric = pack_metric(normalize_pack(quantity))
+    if metric is None or metric[1] not in {"kg", "l"}:
+        return None, ""
+    match = re.search(r"1\s*(kg|l|100\s*g|100\s*ml)\s*(?:=|:)\s*(\d+[,.]\d{1,2})(?!\d)", f"{description} {quantity}", re.I)
+    if match and not re.match(r"\s*[-–/+]", f"{description} {quantity}"[match.end():]):
+        return parse_number(match.group(2)), re.sub(r"\s+", " ", match.group(1).lower())
+    return round(price / metric[0], 2), metric[1]
+
 def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     p1, p2, dlat, dlon = map(math.radians, (lat1, lat2, lat2-lat1, lon2-lon1))
     a = math.sin(dlat/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlon/2)**2

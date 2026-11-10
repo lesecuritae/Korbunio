@@ -1,0 +1,81 @@
+{
+  "pages": [
+    {
+      "page": "1",
+      "articles": [
+        {
+          "article_id": "77900000035932",
+          "title": "Kinder Maxi Mix Adventskalender ",
+          "subtitle": "1 kg = 37.01",
+          "custom": "",
+          "menge": "351 g",
+          "price": "12,99 €",
+          "mgprice": "",
+          "priceinfo": "",
+          "begin": "2026-11-09",
+          "end": "2026-11-14"
+        },
+        {
+          "article_id": "77000099004246",
+          "title": "Eisbergsalat Ursprung Spanien, KL I",
+          "subtitle": "",
+          "custom": "",
+          "menge": "pro St&#x00fc;ck",
+          "price": "0,99 €",
+          "mgprice": "",
+          "priceinfo": "",
+          "begin": "2026-11-09",
+          "end": "2026-11-14"
+        },
+        {
+          "article_id": "77900000013772",
+          "title": "Geramont Weichkäse, Le Snack oder feine Bressohäppchen  ",
+          "subtitle": "Verschiedene Sorten, 1 kg: 11.45–22.90 1 kg: 9.95–19.90",
+          "custom": "je 100&#x2013;200 g",
+          "menge": "je 100&#x2013;200 g",
+          "price": "2,29 €",
+          "mgprice": "1,99 €",
+          "priceinfo": "",
+          "begin": "2026-11-09",
+          "end": "2026-11-14"
+        },
+        {
+          "article_id": "77632000000030",
+          "title": "Dr. Oetker Pizza Ristorante, Flammkuchen oder Piccola 2er-Pack ",
+          "subtitle": "Verschiedene Sorten, tiefgefroren, 1 kg: 4.37–6.63 1 kg: 4.12–6.26",
+          "custom": "je 270&#x2013;410 g",
+          "menge": "je 270&#x2013;410 g",
+          "price": "1,79 €",
+          "mgprice": "1,69 €",
+          "priceinfo": "",
+          "begin": "2026-11-09",
+          "end": "2026-11-14"
+        },
+        {
+          "article_id": "77000099002845",
+          "title": "Mandarinen Ursprung Spanien, Sorte siehe Etikett, KL I",
+          "subtitle": "",
+          "custom": "",
+          "menge": "1 kg-Netz",
+          "price": "1,59 €",
+          "mgprice": "",
+          "priceinfo": "",
+          "begin": "2026-11-09",
+          "end": "2026-11-14"
+        },
+        {
+          "article_id": "77900000022161",
+          "title": "Pfanne Easy Cook & Clean ",
+          "subtitle": "Aluminium, antihaftbeschichtet, spülmaschinengeeignet, für alle Herdarten geeignet, außer Induktion, Ø 20 cm: 9.99, Ø 24 cm: 11.99 oder Ø 28 cm: 13.99",
+          "custom": "",
+          "menge": "ab",
+          "price": "9,99 €",
+          "mgprice": "",
+          "priceinfo": "",
+          "begin": "2026-11-09",
+          "end": "2026-11-14"
+        }
+      ]
+    }
+  ]
+}
