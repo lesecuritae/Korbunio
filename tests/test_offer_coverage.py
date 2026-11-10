@@ -385,3 +385,24 @@ def test_published_city_suffix_requires_its_own_nearby_coordinates(published_loc
 def test_public_quantity_reference_units_are_not_additional_packages(published, pack):
     from supermarkt.common import normalize_pack
     assert normalize_pack(published) == pack
+
+
+def test_current_publisher_brochure_is_not_hidden_by_next_week_viewer():
+    payload = json.loads((FIXTURES / "kaufda_week_selection.json").read_text())
+    page = f'<script id="__NEXT_DATA__">{json.dumps(payload)}</script>'
+    source = KaufdaRetailerSource(None, "Lidl", "Lidl", "Lidl", use_viewer=True)
+    assert source._brochure_ids(page, True, date(2026, 11, 10)) == ["2501324792"]
+    assert source._brochure_ids(page, True, date(2026, 11, 16)) == ["2501324813"]
+    # Earlier publication of the preview never makes its future validity current.
+    payload['props']['pageProps']['pageInformation']['brochures']['publisher'] = []
+    page = f'<script id="__NEXT_DATA__">{json.dumps(payload)}</script>'
+    assert source._brochure_ids(page, True, date(2026, 11, 10)) == []
+
+
+def test_actual_next_week_dessert_is_not_imported_as_current_week():
+    raw = json.loads((FIXTURES / "kaufda_lidl_next_week.json").read_text())
+    source = KaufdaRetailerSource(None, "Lidl", "Lidl", "Lidl", use_viewer=True)
+    assert source.parse_viewer(raw, "2501324813", date(2026, 11, 10)) == []
+    offer, = source.parse_viewer(raw, "2501324813", date(2026, 11, 16))
+    assert (offer.price, offer.benefits[0].value, offer.pack_signature) == (2.49, 1.99, "125g")
+    assert (offer.valid_from, offer.valid_until) == ("2026-11-16", "2026-11-21")

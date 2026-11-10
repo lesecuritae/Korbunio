@@ -1,0 +1,82 @@
+{
+  "contents": [
+    {
+      "offers": [
+        {
+          "content": {
+            "id": "3ce9edcf-f87c-4766-89e8-0c229a380425",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1013",
+              "name": "Lidl",
+              "images": []
+            },
+            "products": [
+              {
+                "name": "Dessert",
+                "brandName": "DELUXE",
+                "description": [
+                  {
+                    "paragraph": "Versch. Sorten. Enthält teilweise Alkohol. Gekühlt. In Glastasse 125 g"
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-48989303",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-106949053",
+                    "name": "Marken Lebensmittel"
+                  },
+                  {
+                    "id": "DE-110893526",
+                    "name": "Deluxe"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SPECIAL_PRICE",
+                "conditions": [
+                  {
+                    "other": "Mit Lidl Plus"
+                  }
+                ],
+                "currencyCode": "EUR",
+                "max": 1.99,
+                "min": 1.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "1 kg = 15.92",
+                "description": ""
+              },
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 2.49,
+                "min": 2.49,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "1 kg = 19.92",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-15T23:00:00.000+0000",
+                  "endDate": "2026-11-21T22:59:59.000+0000"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

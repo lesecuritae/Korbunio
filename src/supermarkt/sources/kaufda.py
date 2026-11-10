@@ -4,7 +4,7 @@ from __future__ import annotations
 import html
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from math import isfinite, radians, sin, cos, asin, sqrt
 from typing import Any, Optional
 from urllib.parse import quote, urlsplit, urljoin
@@ -12,7 +12,7 @@ from urllib.parse import quote, urlsplit, urljoin
 from bs4 import BeautifulSoup
 
 from ..categories import category_decision
-from ..common import build_match_key, clean_brand, clean_text, format_validity, normalize_pack, parse_number, offer_validity
+from ..common import build_match_key, clean_brand, clean_text, format_validity, normalize_pack, parse_number, offer_validity, offer_reference_date
 from ..config import BERLIN
 from ..http import HttpClient
 from ..images import is_rejected_image_url, normalize_image_url
@@ -304,28 +304,66 @@ class KaufdaRetailerSource:
             raise ToolError(f"KaufDA-{self.retailer}: kein regionaler Prospekt verfügbar")
         return self._viewer_offers(text, target, regional_url, coordinates)
 
-    def _brochure_ids(self, page: str, require_publisher: bool = False) -> list[str]:
+    def _brochure_ids(self, page: str, require_publisher: bool = False, target: Optional[date] = None) -> list[str]:
         match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', page, flags=re.IGNORECASE | re.DOTALL)
         if not match:
             return []
         try:
-            brochures = json.loads(html.unescape(match.group(1)))["props"]["pageProps"]["pageInformation"]["brochures"]["viewer"]
+            groups = json.loads(html.unescape(match.group(1)))["props"]["pageProps"]["pageInformation"]["brochures"]
         except (json.JSONDecodeError, KeyError, TypeError):
             return []
-        ids = []
-        for entry in brochures if isinstance(brochures, list) else []:
-            publisher = entry.get("publisher") if isinstance(entry, dict) and isinstance(entry.get("publisher"), dict) else {}
-            name = clean_text(publisher.get("name"))
-            if publisher.get("type") not in (None, "RETAILER"):
-                continue
-            if isinstance(entry, dict) and re.fullmatch(r"\d{6,12}", str(entry.get("id", ""))) and ((not name and not require_publisher) or name.casefold() == self.publisher_name.casefold()):
-                ids.append(str(entry["id"]))
-        return ids[:2]
+        if not isinstance(groups, dict):
+            raise ToolError("KaufDA Prospektgruppen haben ein unerwartetes Format")
+        candidates = {}
+        # The highlighted viewer can already show next week while the current
+        # own-publisher brochure remains in the publisher list. Sector/other
+        # publishers do not establish retailer or regional provenance.
+        for group in ("viewer", "publisher"):
+            rows = groups.get(group, [])
+            if not isinstance(rows, list):
+                raise ToolError("KaufDA Prospektliste hat ein unerwartetes Format")
+            for entry in rows:
+                if not isinstance(entry, dict):
+                    continue
+                publisher = entry.get("publisher") if isinstance(entry.get("publisher"), dict) else {}
+                name = clean_text(publisher.get("name"))
+                if publisher.get("type") not in (None, "RETAILER"):
+                    continue
+                identifier = str(entry.get("id", ""))
+                if re.fullmatch(r"\d{6,12}", identifier) and ((not name and not require_publisher) or name.casefold() == self.publisher_name.casefold()):
+                    candidates.setdefault(identifier, entry)
+        if target is not None:
+            reference = offer_reference_date(target)
+            week_end = reference + timedelta(days=6 - reference.weekday())
+            active, undated = {}, {}
+            for identifier, entry in candidates.items():
+                start, end = _local_date(entry.get("validFrom")), _local_date(entry.get("validUntil"))
+                if start is None and end is None and not entry.get("validFrom") and not entry.get("validUntil"):
+                    undated[identifier] = entry  # Legacy: individual offers still need valid dates.
+                elif start is None or end is None or start > end:
+                    raise ToolError("KaufDA Prospektgültigkeit unbekannt oder widersprüchlich")
+                elif start <= week_end and reference <= end:
+                    active[identifier] = (start, end)
+            # Prefer the weekly leaflets over a simultaneously advertised
+            # permanent-price guide or Christmas catalogue. Keep simultaneous
+            # leaflets; never treat the carousel's publication date as validity.
+            weekly = {key: period for key, period in active.items() if period[1] <= week_end}
+            selected = weekly or active
+            if selected and not weekly:
+                latest = max(period[0] for period in selected.values())
+                selected = {key: period for key, period in selected.items() if period[0] == latest}
+            candidates = {key: candidates[key] for key in selected} if selected else undated
+        if len(candidates) > 6:
+            raise ToolError("KaufDA Prospektlimit überschritten; Auswahl nicht vollständig")
+        return list(candidates)
 
     def _viewer_offers(self, page: str, target: Optional[date], source_url: str = "", coordinates: tuple[float, float] | None = None) -> list[Offer]:
         offers: list[Offer] = []
         query = self.VIEWER_QUERY if coordinates is None else {"partner": "kaufda_web", "lat": str(coordinates[0]), "lng": str(coordinates[1])}
-        for brochure in self._brochure_ids(page, require_publisher=bool(source_url)):
+        ids = self._brochure_ids(page, require_publisher=bool(source_url), target=target)
+        if source_url and not ids:
+            raise ToolError(f"KaufDA-{self.retailer}: kein eigener Prospekt für die angefragte Woche")
+        for brochure in ids:
             url = self.VIEWER_API.format(brochure=brochure) + "?" + "&".join(f"{k}={v}" for k, v in query.items())
             payload = self.http.get_bytes(url, {"Accept": "application/json"})
             if len(payload) > self.MAX_VIEWER_RESPONSE:

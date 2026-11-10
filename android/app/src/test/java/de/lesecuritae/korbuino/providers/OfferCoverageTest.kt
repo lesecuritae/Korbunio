@@ -101,7 +101,7 @@ class OfferCoverageTest {
             server.start()
             server.enqueue(MockResponse().setBody("<a href='${server.url("/Leipzig/Lidl/p-r74")}'>Lidl</a>"))
             server.enqueue(MockResponse().setBody("""[{"lat":"51.34","lon":"12.37","address":{"city":"Leipzig"}}]"""))
-            server.enqueue(MockResponse().setBody("""<script id="__NEXT_DATA__">{"props":{"pageProps":{"pageInformation":{"brochures":{"viewer":[{"id":"2501324792","publisher":{"name":"Lidl"}}]}}}}}</script>"""))
+            server.enqueue(MockResponse().setBody("<script id=\"__NEXT_DATA__\">${fixture("kaufda_week_selection.json")}</script>"))
             server.enqueue(MockResponse().setBody(fixture("kaufda_kania.json")))
             val result = KaufdaRetailerProvider("marktguru-lidl", "Lidl", "Lidl", "Lidl", OkHttpClient(), server.url("/").toString().trimEnd('/'), now,
                 regionalViewer = true, viewerBaseUrl = server.url("/").toString().trimEnd('/'), geocodeUrl = server.url("/geocode").toString()).fetch(RetailerRequest("04109"))
@@ -116,6 +116,7 @@ class OfferCoverageTest {
             assertTrue(OfferMatcher.matches("Hirschgulasch", listOf(display)).isEmpty())
             repeat(3) { server.takeRequest() }
             val viewerRequest = server.takeRequest().requestUrl!!
+            assertTrue(viewerRequest.encodedPath.contains("/2501324792/"))
             assertEquals("51.34", viewerRequest.queryParameter("lat"))
             assertEquals("12.37", viewerRequest.queryParameter("lng"))
         }
@@ -337,6 +338,27 @@ class OfferCoverageTest {
                 assertTrue(hit.description.contains("400 g"))
                 println("LIVE_CAPTURE_REPLAY postal=$postal raw=${rows.size} imported=${result.offers.size} kania=present")
             }
+        }
+    }
+
+    @Test fun `selected next-week Lidl viewer keeps actual future regular and member prices`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setBody("<a href='${server.url("/Leipzig/Lidl/p-r74")}'>Lidl</a>"))
+            server.enqueue(MockResponse().setBody("""[{"lat":"51.34","lon":"12.37","address":{"city":"Leipzig"}}]"""))
+            server.enqueue(MockResponse().setBody("<script id=\"__NEXT_DATA__\">${fixture("kaufda_week_selection.json")}</script>"))
+            server.enqueue(MockResponse().setBody(fixture("kaufda_lidl_next_week.json")))
+            val base = server.url("/").toString().trimEnd('/')
+            val result = KaufdaRetailerProvider("marktguru-lidl", "Lidl", "Lidl", "Lidl", OkHttpClient(), base, now,
+                regionalViewer = true, viewerBaseUrl = base, geocodeUrl = server.url("/geo").toString())
+                .fetch(RetailerRequest("04109", week = OfferWeek.NEXT))
+            val offer = result.offers.single()
+            assertEquals(249, offer.priceCents)
+            assertEquals(199, offer.loyaltyPriceCents)
+            assertEquals("2026-11-16", offer.validFrom)
+            assertEquals("2026-11-21", offer.validUntil)
+            repeat(3) { server.takeRequest() }
+            assertTrue(server.takeRequest().path!!.contains("/2501324813/"))
         }
     }
 }

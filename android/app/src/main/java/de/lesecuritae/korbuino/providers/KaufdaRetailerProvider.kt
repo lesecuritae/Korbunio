@@ -174,15 +174,10 @@ class KaufdaRetailerProvider(
         }
         val doc = Jsoup.parse(regionalHtml, regionalUrl)
         val payload = doc.selectFirst("script#__NEXT_DATA__")?.data() ?: error("KaufDA Prospektdaten fehlen")
-        val brochures = json.parseToJsonElement(payload).jsonObject["props"]?.jsonObject
+        val groups = json.parseToJsonElement(payload).jsonObject["props"]?.jsonObject
             ?.get("pageProps")?.jsonObject?.get("pageInformation")?.jsonObject?.get("brochures")?.jsonObject
-            ?.get("viewer") as? JsonArray ?: error("KaufDA Prospektformat unbekannt")
-        val ids = brochures.mapNotNull { raw ->
-            val entry = raw.jsonObject
-            val publisher = entry["publisher"]?.jsonObject?.text("name")
-            if (entry["publisher"]?.jsonObject?.text("type") !in listOf(null, "RETAILER")) return@mapNotNull null
-            entry.text("id")?.takeIf { it.matches(Regex("\\d{6,12}")) && publisher.equals(publisherName, true) }
-        }.distinct().take(2)
+            ?: error("KaufDA Prospektformat unbekannt")
+        val ids = selectedBrochures(groups, request.week)
         check(ids.isNotEmpty()) { "KaufDA: kein regionaler Prospekt verfügbar" }
         val products = linkedMapOf<String, ProductEntity>()
         val offers = linkedMapOf<String, OfferEntity>()
@@ -238,6 +233,44 @@ class KaufdaRetailerProvider(
         check(!publisherViewer || offers.isNotEmpty()) { "KaufDA: keine datierten Händlerangebote für die Zielwoche" }
         return ProviderResult(products.values.toList(), offers.values.toList(), sourceWarnings = if (publisherViewer)
             listOf("$displayName: datierter Händlerprospekt; Filialgeltung und lokaler Bestand nicht bestätigt.") else emptyList())
+    }
+
+    private fun selectedBrochures(groups: JsonObject, week: OfferWeek): List<String> {
+        val candidates = linkedMapOf<String, JsonObject>()
+        for (group in listOf("viewer", "publisher")) {
+            val rows = groups[group] ?: continue
+            check(rows is JsonArray) { "KaufDA Prospektliste unbekannt" }
+            rows.forEach { raw ->
+                val entry = raw as? JsonObject ?: return@forEach
+                val publisher = entry["publisher"] as? JsonObject ?: return@forEach
+                if (publisher.text("type") !in listOf(null, "RETAILER") || !publisher.text("name").equals(publisherName, true)) return@forEach
+                entry.text("id")?.takeIf { it.matches(Regex("\\d{6,12}")) }?.let { candidates.putIfAbsent(it, entry) }
+            }
+        }
+        val zone = ZoneId.of("Europe/Berlin")
+        var reference = now().atZone(zone).toLocalDate()
+        if (reference.dayOfWeek == java.time.DayOfWeek.SUNDAY) reference = reference.plusDays(1)
+        if (week == OfferWeek.NEXT) reference = reference.plusWeeks(1)
+        val weekEnd = reference.plusDays((7 - reference.dayOfWeek.value).toLong())
+        val active = linkedMapOf<String, Pair<java.time.LocalDate, java.time.LocalDate>>()
+        val undated = mutableListOf<String>()
+        candidates.forEach { (id, entry) ->
+            val start = entry.instant("validFrom")?.atZone(zone)?.toLocalDate()
+            val end = entry.instant("validUntil")?.atZone(zone)?.toLocalDate()
+            if (start == null && end == null && entry.text("validFrom").isNullOrBlank() && entry.text("validUntil").isNullOrBlank()) undated += id
+            else {
+                check(start != null && end != null && start <= end) { "KaufDA Prospektgültigkeit unbekannt oder widersprüchlich" }
+                if (start <= weekEnd && reference <= end) active[id] = start to end
+            }
+        }
+        val weekly = active.filterValues { it.second <= weekEnd }
+        val selected = if (weekly.isNotEmpty()) weekly.keys.toList()
+            else if (active.isNotEmpty()) {
+                val latest = active.values.maxOf { it.first }
+                active.filterValues { it.first == latest }.keys.toList()
+            } else undated
+        check(selected.size <= 6) { "KaufDA Prospektlimit überschritten; Auswahl unvollständig" }
+        return selected
     }
 
     private fun viewerPrices(content: JsonObject, product: JsonObject, productCount: Int): Pair<Double, Double?>? {
