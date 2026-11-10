@@ -42,7 +42,7 @@ class ServerProvider(
         require(request.postalCode.matches(Regex("^\\d{5}$"))) { "Ungültige PLZ" }
         val offerItems = mutableListOf<JsonObject>()
         val unavailableNames = mutableSetOf<String>()
-        val unavailableIdsByName = mapOf("ALDI Nord" to "aldi-nord", "ALDI Süd" to "aldi-sued", "aktiv & irma" to "aktiv-irma", "Globus" to "globus", "trinkgut" to "trinkgut")
+        val unavailableIdsByName = mapOf("ALDI Nord" to "aldi-nord", "ALDI Süd" to "aldi-sued", "aktiv & irma" to "aktiv-irma", "Globus" to "globus", "trinkgut" to "trinkgut", "Netto schwarz" to "netto-schwarz")
         val incomplete = mutableSetOf<String>()
         val warnings = mutableSetOf<String>()
         val seen = mutableSetOf<String>()

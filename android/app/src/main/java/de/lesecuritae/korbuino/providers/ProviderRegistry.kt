@@ -55,10 +55,10 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                     MarktguruProvider("trinkgut", http, providerId = "trinkgut", providerDisplayName = "trinkgut"),
                     KaufdaRetailerProvider("trinkgut", "trinkgut", "trinkgut", "Trinkgut", http),
                 ),
-                FallbackRetailerProvider(
+                MarketGateProvider(FallbackRetailerProvider(
                     HtmlFlyerProvider("netto-schwarz", "Netto schwarz", "https://netto.de/angebote/", http),
                     MarktguruProvider("Netto mit dem Scottie", http),
-                ),
+                ), hasMarket = NettoScottieMarkets(http)::hasMarket),
                 MarktguruProvider(
                     "Netto Marken-Discount",
                     http,

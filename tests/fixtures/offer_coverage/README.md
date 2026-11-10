@@ -58,3 +58,8 @@ Passing fixtures does not establish national or complete leaflet coverage.
   an app price of €0.59 and separately labelled per-litre prices; it does not
   publish a normal checkout price. Neither an upper bound nor rounded unit
   pricing is converted into an invented normal price.
+- `netto_black_stores.html`: three minimal real store rows out of the 338
+  entries in the official `initialStores` Flight catalogue. The excerpt tests
+  parsing and distance logic; it does not itself prove nationwide absence.
+  An optional private full-catalogue replay and separately recorded live
+  Berlin/Oldenburg lookups provide the broader operational evidence.

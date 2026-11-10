@@ -1,6 +1,6 @@
 from datetime import date
 
-from supermarkt.models import LoyaltyBenefit
+from supermarkt.models import LoyaltyBenefit, ToolError
 from supermarkt.sources.netto_scottie import NettoScottieMarketResolver, OfficialNettoScottieSource
 
 
@@ -73,20 +73,22 @@ def test_public_flight_store_data_replaces_removed_script_api_key_without_execut
     import json
     stores = [{"id": "fixture-berlin", "name": "Fixture market", "brand": "netto",
                "address": {"zip": "10115", "city": "Berlin", "country": "DE"}, "coordinates": [13.38, 52.53]}]
-    flight = "1:" + json.dumps(["$", "component", None, {"stores": stores}]) + "\n"
+    flight = "1:" + json.dumps(["$", "component", None, {"initialStores": stores}]) + "\n"
     html = '<script>self.__next_f.push(' + json.dumps([1, flight]) + ')</script>'
     assert NettoScottieMarketResolver.embedded_stores(html) == stores
     assert NettoScottieMarketResolver.embedded_stores("<script>throw new Error('not executed')</script>") == []
     class Http:
         def get_bytes(self, url, headers=None):
             if "nominatim" in url:
-                return b'[{"lat":"52.53","lon":"13.38"}]'
+                return b'[{"lat":"52.53","lon":"13.38","address":{"postcode":"10115","country_code":"de"}}]'
             assert url == NettoScottieMarketResolver.SEARCH_URL
             return html.encode()
     resolver = NettoScottieMarketResolver(Http())
     selected = resolver.resolve("10115")
     assert selected["id"] == "fixture-berlin" and selected["distance_km"] == 0
-    assert resolver.resolve("80331") is not None  # The stub coordinates deliberately remain Berlin.
+    import pytest
+    with pytest.raises(ToolError, match="PLZ"):
+        resolver.resolve("80331")  # A Berlin response cannot prove a Munich location.
 
 
 def test_unknown_flight_format_cannot_be_reported_as_confirmed_market_absence():
@@ -94,7 +96,7 @@ def test_unknown_flight_format_cannot_be_reported_as_confirmed_market_absence():
     from supermarkt.models import ToolError
     class Http:
         def get_bytes(self, url, headers=None):
-            return b'[{"lat":"52.53","lon":"13.38"}]' if "nominatim" in url else b'<html>changed</html>'
+            return b'[{"lat":"52.53","lon":"13.38","address":{"postcode":"10115","country_code":"de"}}]' if "nominatim" in url else b'<html>changed</html>'
     with pytest.raises(ToolError, match="Zugriffskonfiguration"):
         NettoScottieMarketResolver(Http()).resolve("10115")
 
@@ -143,3 +145,33 @@ def test_actual_app_card_keeps_unknown_normal_price_and_does_not_swap_app_and_no
     assert offer.pack_signature == "400ml"
     assert offer.base_price == 1.73  # Published normal unit price, not the app's 1.48.
     assert offer.benefits == (LoyaltyBenefit("netto_scottie_plus", "direct_price", .59, "Netto+ App-Preis"),)
+
+
+def test_only_authoritative_initial_store_data_can_confirm_a_region():
+    from pathlib import Path
+    page = (Path(__file__).parent / "fixtures/offer_coverage/netto_black_stores.html").read_text()
+    stores = NettoScottieMarketResolver.embedded_stores(page)
+    assert len(stores) == 3 and {s["address"]["country"] for s in stores} == {"DE"}
+    assert NettoScottieMarketResolver.embedded_stores(page.replace("initialStores", "nearbyStores")) == []
+
+
+def test_successful_market_absence_is_typed_and_geocode_failure_is_not_absence():
+    import pytest
+    from supermarkt.models import NoLocalMarketOffers
+    assert isinstance(OfficialNettoScottieSource(object(), market_resolver=lambda _p: None).load("26135"), NoLocalMarketOffers)
+    class Http:
+        def get_bytes(self, url, headers=None):
+            return b'[{"lat":"52.53","lon":"13.38","address":{"postcode":"80331","country_code":"de"}}]'
+    with pytest.raises(ToolError, match="PLZ"):
+        NettoScottieMarketResolver(Http()).resolve("10115")
+
+
+def test_malformed_official_store_rows_do_not_become_an_incomplete_absence_catalogue():
+    import json
+    import pytest
+    good = {"id": "fixture", "brand": "netto", "address": {"zip": "10115", "country": "DE"}, "coordinates": [13.38, 52.53]}
+    for invalid in [{**good, "coordinates": None}, {**good, "address": {"country": "DE"}}]:
+        packet = "1:" + json.dumps(["$", "component", None, {"initialStores": [good, invalid]}]) + "\n"
+        page = "<script>self.__next_f.push(" + json.dumps([1, packet]) + ")</script>"
+        with pytest.raises(ToolError):
+            NettoScottieMarketResolver.embedded_stores(page)

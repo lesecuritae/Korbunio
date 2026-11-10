@@ -4,6 +4,7 @@ from ..request_state import RequestState
 
 import re
 import json
+import math
 from datetime import date
 from bs4 import BeautifulSoup
 from ..region import AldiRegionResolver
@@ -20,7 +21,7 @@ from ..common import (
 )
 from ..http import HttpClient
 from ..loyalty import parse_public_loyalty_prices
-from ..models import LoyaltyBenefit, Offer, ToolError
+from ..models import LoyaltyBenefit, Offer, ToolError, NoLocalMarketOffers
 
 
 class NettoScottieMarketResolver:
@@ -67,36 +68,66 @@ class NettoScottieMarketResolver:
                     chunks.extend(value for value in packet if isinstance(value, str))
         stores = {}
 
-        def walk(value):
+        visited = 0
+
+        def walk(value, depth=0):
+            nonlocal visited
+            visited += 1
+            if depth > 64 or visited > 100_000:
+                raise ToolError("Netto schwarz: Filialformat zu komplex")
             if isinstance(value, dict):
-                address = value.get("address")
-                coordinates = value.get("coordinates")
-                if (value.get("brand") == "netto" and isinstance(address, dict)
-                        and address.get("country") == "DE" and re.fullmatch(r"\d{5}", str(address.get("zip", "")))
-                        and isinstance(coordinates, list) and len(coordinates) == 2 and value.get("id")):
-                    stores[str(value["id"])] = value
-                for child in value.values():
-                    walk(child)
+                if "initialStores" in value:
+                    rows = value["initialStores"]
+                    if not isinstance(rows, list):
+                        raise ToolError("Netto schwarz: Filialkatalog hat ein unbekanntes Format")
+                    for row in rows:
+                        if not isinstance(row, dict) or not isinstance(row.get("address"), dict) or not row.get("brand") or not row["address"].get("country"):
+                            raise ToolError("Netto schwarz: Filialzuordnung unvollständig")
+                        if row["brand"] != "netto" or row["address"]["country"] != "DE":
+                            continue
+                        coords = row.get("coordinates")
+                        if not (row.get("id") and re.fullmatch(r"\d{5}", str(row["address"].get("zip", "")))
+                                and isinstance(coords, list) and len(coords) == 2
+                                and all(isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c) for c in coords)
+                                and -180 <= coords[0] <= 180 and -90 <= coords[1] <= 90):
+                            raise ToolError("Netto schwarz: Filialkoordinaten oder PLZ nicht bestätigt")
+                        key = str(row["id"])
+                        old = stores.get(key)
+                        if old and (old["coordinates"] != coords or old["address"]["zip"] != row["address"]["zip"]):
+                            raise ToolError("Netto schwarz: widersprüchliche Filialdaten")
+                        stores[key] = row
+                for key, child in value.items():
+                    if key == "initialStores":
+                        continue
+                    walk(child, depth + 1)
             elif isinstance(value, list):
                 for child in value:
-                    walk(child)
+                    walk(child, depth + 1)
 
         for line in "".join(chunks).splitlines():
             match = re.match(r"^[0-9a-f]+:(.*)", line)
             if match:
                 try:
-                    walk(json.loads(match[1]))
+                    value = json.loads(match[1])
                 except (ValueError, RecursionError):
                     continue
+                walk(value)
         return list(stores.values())
 
     def _stores(self, postal_code: str) -> list[dict]:
         location_url = "https://nominatim.openstreetmap.org/search?" + urlencode({
-            "postalcode": postal_code, "country": "Germany", "format": "jsonv2", "limit": 1,
+            "postalcode": postal_code, "country": "Germany", "countrycodes": "de", "addressdetails": 1, "format": "jsonv2", "limit": 1,
         })
         try:
             locations = json.loads(self.http.get_bytes(location_url, {"Accept": "application/json"}).decode("utf-8"))
+            address = locations[0]["address"]
+            if not isinstance(address, dict) or address.get("country_code") != "de" or address.get("postcode") != postal_code:
+                raise ValueError("PLZ nicht bestätigt")
+            if any(isinstance(locations[0][key], bool) for key in ("lat", "lon")):
+                raise ValueError("Ungültige PLZ-Koordinaten")
             latitude, longitude = float(locations[0]["lat"]), float(locations[0]["lon"])
+            if not (math.isfinite(latitude) and math.isfinite(longitude) and -90 <= latitude <= 90 and -180 <= longitude <= 180):
+                raise ValueError("Ungültige PLZ-Koordinaten")
         except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as exc:
             raise ToolError(f"Netto schwarz konnte PLZ {postal_code} nicht geokodieren") from exc
         page = self.http.get_bytes(self.SEARCH_URL, {"Accept": "text/html"})
@@ -216,7 +247,7 @@ class OfficialNettoScottieSource:
     def load(self, postal_code: str, market_id: str = "") -> list[Offer]:
         market = self.market_resolver(postal_code, market_id) if market_id else self.market_resolver(postal_code)
         if not market:
-            return []
+            return NoLocalMarketOffers()
         address = market.get("address") or {}
         self.last_market_label = clean_text(market.get("name")) or f"Netto schwarz {postal_code}"
         self.last_market_url = self.BASE_URL + "/marktsuche/"
