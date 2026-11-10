@@ -47,3 +47,14 @@ Passing fixtures does not establish national or complete leaflet coverage.
   https://prospekt.aldi-sued.de/kw46-26-op-mp/ (09–14 November), captured on
   10 November using an operator-authorized, process-local public DNS test.
   TLS verification remained enabled. No resolver override ships in the app.
+- `netto_black_integer_price.html`: the actual Trefl Spielesammlung card from
+  https://netto.de/angebote/ captured 10 November, with the published `8.–`
+  whole-euro price and weekly dates. This is not an inferred missing decimal.
+- `rossmann_published_cards.html`: five actual advertised products from the
+  official rendered weekly page, 09–13 November, including coffee, hair care,
+  household paper, baby wipes and hair colour. The separately published toy
+  leaflet is not treated as evidence for general branch assortment.
+- `netto_black_app_price.html`: the actual advertised Müllermilch card has
+  an app price of €0.59 and separately labelled per-litre prices; it does not
+  publish a normal checkout price. Neither an upper bound nor rounded unit
+  pricing is converted into an invented normal price.

@@ -25,6 +25,7 @@ data class ProviderResult(
     val sourceWarnings: List<String> = emptyList(),
     val paginationComplete: Boolean = false,
     val preserveMissingOffers: Boolean = false,
+    val preserveRetailerIds: List<String> = emptyList(),
 ) {
     init {
         require(!noLocalMarket || (products.isEmpty() && offers.isEmpty()))
@@ -32,6 +33,9 @@ data class ProviderResult(
     }
     fun unavailableRetailers(providerId: String): List<String> =
         unavailableRetailerIds + if (noLocalMarket) listOf(providerId) else emptyList()
+
+    fun preservedRetailers(providerId: String): List<String> = if (!preserveMissingOffers) emptyList()
+        else preserveRetailerIds.ifEmpty { listOf(providerId) + offers.map { it.retailerId } }.distinct()
 }
 
 object ProviderImportPolicy {

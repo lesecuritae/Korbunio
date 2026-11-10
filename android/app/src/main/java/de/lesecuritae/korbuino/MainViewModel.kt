@@ -650,21 +650,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val imported = database.withTransaction {
                     if (secureStore.get("postal_code") != current.postalCode) return@withTransaction null
                     val rawProducts = successes.flatMap { it.second.products }
-                    val canonicalProducts = LinkedHashMap<String, ProductEntity>()
-                    database.productDao().all().forEach { canonicalProducts.putIfAbsent(it.normalizedKey, it) }
-                    rawProducts.forEach { product -> canonicalProducts.putIfAbsent(product.normalizedKey, product) }
-                    val productIds = rawProducts.associate { it.id to canonicalProducts.getValue(it.normalizedKey).id }
-                    val products = rawProducts.map { canonicalProducts.getValue(it.normalizedKey) }.distinctBy { it.id }
-                    val offers = successes.flatMap { it.second.offers }.map { offer ->
-                        productIds[offer.productId]?.let { canonicalId -> offer.copy(productId = canonicalId) } ?: offer
-                    }.distinctBy { it.id }
+                    val prepared = de.lesecuritae.korbuino.data.prepareProductImport(
+                        database.productDao().all(), database.offerDao().all(), rawProducts,
+                        successes.flatMap { it.second.offers },
+                    )
+                    val products = prepared.products
+                    val offers = prepared.offers
                     database.productDao().upsertAll(products)
                     val previousOfferPostal = secureStore.get("offer_postal_code").orEmpty()
                     if (previousOfferPostal.isNotBlank() && previousOfferPostal != current.postalCode) {
                         database.offerDao().deleteAll()
                     }
                     database.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) },
-                        successes.filter { it.second.preserveMissingOffers }.map { it.first.id })
+                        successes.flatMap { it.second.preservedRetailers(it.first.id) })
                     products to offers
                 }
                 if (imported == null) {

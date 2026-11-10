@@ -103,10 +103,6 @@ class ServerProvider(
         } while (page <= pageCount)
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
-        val ambiguousNames = offerItems.groupBy { it.text("product") ?: it.text("name") }.filterValues { rows ->
-            rows.map { listOf(it.text("brand"), it.text("pack_size") ?: it.text("pack_signature") ?: it.text("pack"), it["product_gtins"]?.toString()) }.distinct().size > 1
-        }.keys
-        val hashCollisions = offerItems.mapNotNull { it.text("product") ?: it.text("name") }.distinct().groupBy { it.lowercase().hashCode() }.filterValues { it.size > 1 }.keys
         offerItems.forEachIndexed { index, item ->
             val name = item.text("product") ?: item.text("name") ?: return@forEachIndexed
             val price = item.number("regular_price") ?: item.number("price") ?: error("Korbuino: kein belegter Normalpreis")
@@ -114,8 +110,15 @@ class ServerProvider(
             val benefits = LoyaltyBenefits.parse(item["benefits"]?.toString().orEmpty())
             val retailer = localId ?: item.text("retailer") ?: "Unbekannt"
             val external = item.text("offer_id") ?: "$index-${name.lowercase().hashCode()}"
-            val productId = if (name in ambiguousNames || name.lowercase().hashCode() in hashCollisions) "server-product-$retailer-$external" else "server-product-${name.lowercase().hashCode()}"
             val gtins = item["product_gtins"]?.takeUnless { it is JsonNull }?.jsonArray.orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { v -> v.isString }?.content }
+            // Stable across repricing and weekly offer IDs; different source,
+            // pack or variety metadata must not collide on Java's name hash.
+            val identity = kotlinx.serialization.json.JsonArray(listOf(retailer, name, item.text("brand").orEmpty(),
+                (item.text("pack_size") ?: item.text("pack_signature") ?: item.text("pack")).orEmpty(),
+                item.text("description").orEmpty(), gtins.distinct().sorted().joinToString(",")).map { JsonPrimitive(it) }).toString()
+            val fingerprint = java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
+                .joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+            val productId = "server-product-$fingerprint"
             products += ProductEntity(productId, name, brand = item.text("brand").orEmpty(), normalizedKey = productId, gtin = gtins.singleOrNull())
             val quantity = item.number("multi_buy_quantity")?.let {
                 check(it.isFinite() && it % 1 == 0.0 && it in 2.0..10_000.0) { "Korbuino: ungültige Mehrkaufmenge" }; it.toInt()
@@ -151,6 +154,7 @@ class ServerProvider(
             noLocalMarket = retailerName in unavailableNames && offers.isEmpty(),
             unavailableRetailerIds = unavailableIds,
             preserveMissingOffers = if (retailerName == null) incomplete.isNotEmpty() else retailerName in incomplete,
+            preserveRetailerIds = if (retailerName == null) incomplete.toList() else if (retailerName in incomplete) listOfNotNull(localId) else emptyList(),
             sourceWarnings = warnings.toList())
     }
 

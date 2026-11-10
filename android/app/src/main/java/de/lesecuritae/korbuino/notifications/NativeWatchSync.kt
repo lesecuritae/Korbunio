@@ -54,21 +54,18 @@ object NativeWatchSync {
             // Canonicalize against the durable product index as well as this response.
             database.withTransaction {
                 if (!regionStillCurrent()) return@withTransaction
-                val canonical = database.productDao().all().associateBy { it.normalizedKey }.toMutableMap()
-                val ids = result.products.associate { product ->
-                    val existing = canonical.getOrPut(product.normalizedKey) { product }
-                    product.id to existing.id
-                }
-                database.productDao().upsertAll(result.products.map { canonical.getValue(it.normalizedKey) }.distinctBy { it.id })
                 val existingOffers = database.offerDao().all()
-                val dated = offers.map { offer ->
+                val prepared = de.lesecuritae.korbuino.data.prepareProductImport(
+                    database.productDao().all(), existingOffers, result.products, offers,
+                )
+                database.productDao().upsertAll(prepared.products)
+                val dated = prepared.offers.map { offer ->
                     val suffix = "@${offer.validFrom}:${offer.validUntil}"
                     val existing = existingOffers.firstOrNull {
                         it.retailerId == offer.retailerId && it.externalId.removeSuffix(suffix) == offer.externalId &&
                             it.validFrom == offer.validFrom && it.validUntil == offer.validUntil
                     }
-                    offer.copy(id = existing?.id ?: (offer.id + suffix), externalId = existing?.externalId ?: (offer.externalId + suffix),
-                        productId = ids[offer.productId] ?: offer.productId)
+                    offer.copy(id = existing?.id ?: (offer.id + suffix), externalId = existing?.externalId ?: (offer.externalId + suffix))
                 }
                 database.offerDao().storeWeekRefresh(provider.id, from.toString(), until.toString(), dated, preserveMissing = result.preserveMissingOffers)
             }

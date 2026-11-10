@@ -146,6 +146,7 @@ class ServerProviderTest {
         server.enqueue(MockResponse().setBody("""{"incomplete_retailers":["Lidl"],"unavailable_retailers":["trinkgut","Globus"],"warnings":["fixture page timeout"],"offers":[{"offer_id":"x","retailer":"Lidl","product":"Fixture","regular_price":1.99}]}"""))
         val result = ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109"))
         org.junit.Assert.assertTrue(result.preserveMissingOffers)
+        assertEquals(listOf("Lidl"), result.preservedRetailers("korbuino-server"))
         org.junit.Assert.assertTrue(result.unavailableRetailerIds.containsAll(listOf("trinkgut", "Globus", "globus")))
         assertEquals(listOf("fixture page timeout"), result.sourceWarnings)
     }
@@ -190,6 +191,22 @@ class ServerProviderTest {
         server.enqueue(MockResponse().setBody("""{"offers":[]}"""))
         ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109", week = OfferWeek.NEXT))
         org.junit.Assert.assertTrue(server.takeRequest().body.readUtf8().contains("\"offer_week\":\"next\""))
+    }
+
+    @Test fun `fallback product identity is source-bound and stable across new weekly prices and offer IDs`() = runTest {
+        fun body(id: String, price: Double) = """{"offers":[{"offer_id":"$id","product":"Same fixture","regular_price":$price,"pack":"500 g"}]}"""
+        val first = ServerProvider(server.url("/").toString(), "", OkHttpClient(), "Lidl", "marktguru-lidl")
+        val other = ServerProvider(server.url("/").toString(), "", OkHttpClient(), "PENNY", "marktguru-penny")
+        server.enqueue(MockResponse().setBody(body("week-a", 1.99)))
+        val a = first.fetch(RetailerRequest("04109"))
+        server.enqueue(MockResponse().setBody(body("week-b", 2.49)))
+        val b = first.fetch(RetailerRequest("04109"))
+        server.enqueue(MockResponse().setBody(body("week-a", 1.99)))
+        val c = other.fetch(RetailerRequest("04109"))
+        assertEquals(a.products.single().id, b.products.single().id)
+        org.junit.Assert.assertNotEquals(a.products.single().id, c.products.single().id)
+        val imported = de.lesecuritae.korbuino.data.prepareProductImport(emptyList(), emptyList(), a.products + c.products, a.offers + c.offers)
+        assertEquals(2, imported.products.size)
     }
 
 }

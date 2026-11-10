@@ -196,18 +196,22 @@ class OfficialNettoScottieSource:
         parts = list(node.stripped_strings)
         if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
             return parse_number(f"{parts[0]}.{parts[1]}")
-        match = re.search(r"(\d+)\s*[.,]\s*(\d{2})", clean_text(node.get_text(" ", strip=True)))
+        text = clean_text(node.get_text(" ", strip=True))
+        whole = re.fullmatch(r"(\d{1,4})\s*[.,]\s*[-–—]\s*€?", text)
+        if whole:
+            return float(whole[1])
+        match = re.search(r"(\d+)\s*[.,]\s*(\d{2})", text)
         return parse_number(f"{match[1]}.{match[2]}") if match else None
 
     @staticmethod
     def _regular_price(text: str) -> float | None:
         matches = re.findall(
-            r"(?:Nicht[- ]Mitgliederpreis|statt)\s*(?:bis\s+zu\s*)?(\d+[.,]\d{2})",
+            r"Nicht[- ]Mitgliederpreis\s*(\d+[.,]\d{2})(?!\d)(?!\s*€?\s*[-–—/]\s*\d)",
             text,
             flags=re.IGNORECASE,
         )
         values = [value for value in (parse_number(item) for item in matches) if value and value > 0]
-        return max(values) if values else None
+        return values[0] if len(set(values)) == 1 else None
 
     def load(self, postal_code: str, market_id: str = "") -> list[Offer]:
         market = self.market_resolver(postal_code, market_id) if market_id else self.market_resolver(postal_code)
@@ -226,6 +230,8 @@ class OfficialNettoScottieSource:
             raise ToolError("Netto-schwarz-Antwort überschreitet das Größenlimit")
         page = BeautifulSoup(payload.decode("utf-8", errors="replace"), "html.parser")
         start, end = self._dates(page.get_text(" ", strip=True))
+        if not start or not end or start > end:
+            raise ToolError("Netto schwarz: veröffentlichte Angebotsgültigkeit nicht lesbar oder widersprüchlich")
         offers: list[Offer] = []
         for index, card in enumerate(page.select('[aria-label^="product-"]'), 1):
             title = card.select_one("h4")
@@ -251,14 +257,20 @@ class OfficialNettoScottieSource:
                 )
             elif not is_app:
                 benefits = parse_public_loyalty_prices(card_text, regular_price, "Netto schwarz")
-            base_price, base_unit = parse_base_price_text(description)
+            regular_details = re.sub(
+                r"App:\s*(?:1\s*(?:kg|Liter|l)|100\s*(?:g|ml))\s*=\s*\d+[.,]\d+",
+                " ", description, flags=re.I,
+            )
+            base_price, base_unit = parse_base_price_text(regular_details)
             pack_text = re.sub(
                 r"(?:App:\s*)?(?:1\s*(?:kg|Liter|l)|100\s*(?:g|ml))\s*=\s*\d+[.,]\d+",
                 " ",
                 description,
                 flags=re.IGNORECASE,
             )
-            pack = normalize_pack(f"{name} {pack_text}")
+            declared = {clean_text(node.get_text(" ", strip=True)) for node in card.select("span")
+                if re.fullmatch(r"(?:\d+\s*[x×]\s*)?\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l|Liter|Stück|Stk\.?)", clean_text(node.get_text(" ", strip=True)), re.I)}
+            pack = normalize_pack(next(iter(declared)) if len(declared) == 1 else f"{name} {pack_text}")
             image = card.select_one("img[src]")
             image_url = urljoin(self.BASE_URL, clean_text(image.get("src"))) if image else ""
             offer_id = f"netto-scottie:{index}:{re.sub(r'[^a-z0-9]+', '-', name.casefold()).strip('-')}"

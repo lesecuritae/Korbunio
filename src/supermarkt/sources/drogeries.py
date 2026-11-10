@@ -71,7 +71,9 @@ class OfficialRossmannSource:
         if not match:
             return None, None
         try:
-            return date(int(match[5]), int(match[2]), int(match[1])), date(int(match[5]), int(match[4]), int(match[3]))
+            end_year = int(match[5])
+            start_year = end_year - (int(match[2]) > int(match[4]))
+            return date(start_year, int(match[2]), int(match[1])), date(end_year, int(match[4]), int(match[3]))
         except ValueError:
             return None, None
 
@@ -83,6 +85,8 @@ class OfficialRossmannSource:
             raise ToolError(f"Rossmann benötigt BeautifulSoup: {exc}") from exc
         page = BeautifulSoup(self.renderer(self.OFFERS_URL), "html.parser")
         start, end = self._validity(page.get_text(" ", strip=True))
+        if not start or not end or start > end:
+            raise ToolError("Rossmann: veröffentlichte Angebotsgültigkeit nicht lesbar oder widersprüchlich")
         result: list[Offer] = []
         for index, card in enumerate(page.select('[data-testid="product-card"]'), 1):
             text = clean_text(card.get_text(" ", strip=True))
@@ -108,7 +112,10 @@ class OfficialRossmannSource:
                 detail_match = re.search(r"(\d+(?:[,.]\d+)?\s*(?:ml|l|g|kg|Stk\.?|Stück)[^€]{0,20}\([^)]*€[^)]*\))", text, re.I)
                 details = clean_text(detail_match[1]) if detail_match else text
             base_price, base_unit = parse_base_price_text(details)
-            pack = normalize_pack(details)
+            # The dedicated field starts with the published pack quantity.
+            # Its later unit-price and "3 x 60 per pack" explanation are not
+            # additional packs to add to an already stated total of 180.
+            pack = normalize_pack(details.split("(", 1)[0] if details_node else details)
             offer_id = f"rossmann:{index}:{_slug(name)}"
             product_url = urljoin(self.OFFERS_URL, clean_text(link.get("href")) if link else "")
             result.append(Offer(

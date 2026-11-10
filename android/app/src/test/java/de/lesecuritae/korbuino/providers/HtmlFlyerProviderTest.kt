@@ -67,6 +67,7 @@ class HtmlFlyerProviderTest {
 
     @Test fun `Netto Scottie reads its accessible weekly offer cards`() = runTest {
         server.enqueue(MockResponse().setBody("""
+            <h2>Angebote vom: 09-11-2026 bis 14-11-2026</h2>
             <section aria-label="product-4711">
               <h4><span>BioBio</span><span>Haferdrink</span></h4>
               <p>1 Liter</p>
@@ -76,17 +77,21 @@ class HtmlFlyerProviderTest {
         """))
         val result = HtmlFlyerProvider(
             "netto-schwarz", "Netto schwarz", server.url("/angebote/").toString(), OkHttpClient(),
+            now = { java.time.LocalDate.of(2026, 11, 10) },
         ).fetch(RetailerRequest("26122"))
 
         assertEquals(1, result.offers.size)
         assertEquals(129, result.offers.single().priceCents)
         assertEquals(server.url("/images/haferdrink.webp").toString(), result.offers.single().imageUrl)
+        assertEquals("1 l", result.offers.single().packSize)
     }
 
     @Test fun `Rossmann uses the current article price instead of the earlier base price`() = runTest {
         server.enqueue(MockResponse().setBody("""
+            <p>Gültig ab Montag: 09.11. - 13.11.2026</p>
             <article data-testid="product-card" data-item-id="031160" data-item-ean="8011530001865"
                      data-item-brand="Laura Biagiotti" data-item-name="Roma Rosa, EdT 25 ml">
+              <span>Aus der Werbung</span>
               <img src="https://www.rossmann.de/media-neu/roma.png">
               <div data-testid="product-baseprice">25 ml (1L = 919.6)</div>
               <div data-testid="product-price">
@@ -97,6 +102,7 @@ class HtmlFlyerProviderTest {
         """))
         val result = HtmlFlyerProvider(
             "rossmann", "Rossmann", server.url("/angebote/").toString(), OkHttpClient(),
+            now = { java.time.LocalDate.of(2026, 11, 10) },
         ).fetch(RetailerRequest("26122"))
 
         assertEquals(1, result.offers.size)
@@ -117,8 +123,11 @@ class HtmlFlyerProviderTest {
                 "src=\"javascript:alert(1)\"" to null,
                 "src=\"\"" to null,
             )) {
-                server.enqueue(MockResponse().setBody("<article data-product-id='fixture'><span class='product-badges__text'>Sale</span><h3 class='product-tile__product-name'>Shampoo</h3><span class='price' data-testid='plp-currentPrice-label'>1,49 €</span><img $attribute></article>"))
-                val result = HtmlFlyerProvider(retailer, retailer, server.url("/offers").toString(), OkHttpClient())
+                // Weekly sources now require their actually published period;
+                // keep this image-only contract inside a fixed valid week.
+                val heading = if (retailer == "netto-schwarz") "<h4>Shampoo</h4><h3>1,49</h3>" else "<h3 class='product-tile__product-name'>Shampoo</h3>"
+                server.enqueue(MockResponse().setBody("<p>Angebote vom: 09-11-2026 bis 14-11-2026</p><p>Gültig ab Montag: 09.11. - 13.11.2026</p><article data-product-id='fixture'><span>Aus der Werbung</span><span class='product-badges__text'>Sale</span>$heading<span class='price' data-testid='plp-currentPrice-label'>1,49 €</span><img $attribute></article>"))
+                val result = HtmlFlyerProvider(retailer, retailer, server.url("/offers").toString(), OkHttpClient(), now = { java.time.LocalDate.of(2026, 11, 10) })
                     .fetch(RetailerRequest("12345"))
                 assertEquals("$retailer: $attribute", expected, result.offers.single().imageUrl)
             }

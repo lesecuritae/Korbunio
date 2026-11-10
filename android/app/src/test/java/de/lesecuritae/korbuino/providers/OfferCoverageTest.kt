@@ -191,6 +191,83 @@ class OfferCoverageTest {
         }
     }
 
+    @Test fun `actual Netto black integer price is retained without guessing unknown symbols`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setBody(fixture("netto_black_integer_price.html")))
+            val result = HtmlFlyerProvider("netto-schwarz", "Netto schwarz", server.url("/angebote/").toString(), OkHttpClient(), now = { java.time.LocalDate.of(2026, 11, 10) }).fetch(RetailerRequest("10115"))
+            assertEquals(1, result.offers.size)
+            assertEquals("Trefl Spielesammlung", result.products.single().name)
+            assertEquals(800, result.offers.single().priceCents)
+        }
+    }
+
+    @Test fun `five actual Rossmann advertisements keep price pack and published Friday expiry`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse().setBody(fixture("rossmann_published_cards.html")))
+            val result = HtmlFlyerProvider("rossmann", "Rossmann", server.url("/offers").toString(), OkHttpClient(),
+                now = { java.time.LocalDate.of(2026, 11, 10) }).fetch(RetailerRequest("50939"))
+            assertEquals(mapOf("712569" to (549 to "500 g"), "222650" to (249 to "200 ml"),
+                "135928" to (249 to "4 Stück"), "211448" to (625 to "180 Stück"), "053212" to (599 to "1 Stück")),
+                result.offers.associate { it.externalId to (it.priceCents to it.packSize) })
+            assertTrue(result.offers.all { it.validFrom == "2026-11-09" && it.validUntil == "2026-11-13" })
+            assertFalse(de.lesecuritae.korbuino.OfferMatcher.isShown("2026-11-09", "2026-11-13", "2026-11-14", false))
+        }
+    }
+
+    @Test fun `published weekly HTML does not become next week or undated after schema changes`() = runTest {
+        for ((id, file) in listOf("rossmann" to "rossmann_published_cards.html", "netto-schwarz" to "netto_black_integer_price.html")) {
+            MockWebServer().use { server ->
+                server.start()
+                val html = fixture(file)
+                val provider = HtmlFlyerProvider(id, id, server.url("/offers").toString(), OkHttpClient(),
+                    now = { java.time.LocalDate.of(2026, 11, 10) })
+                server.enqueue(MockResponse().setBody(html))
+                assertTrue(provider.fetch(RetailerRequest("50939", week = OfferWeek.NEXT)).offers.isEmpty())
+                server.enqueue(MockResponse().setBody(html.replace(Regex("<h2>.*?</h2>|<p>Gültig ab Montag:.*?</p>"), "")))
+                assertTrue(runCatching { provider.fetch(RetailerRequest("50939")) }.isFailure)
+            }
+        }
+    }
+
+    @Test fun `actual Netto app-only card never becomes a made-up normal price or a unit-price inference`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val app = fixture("netto_black_app_price.html")
+            val regular = fixture("netto_black_integer_price.html")
+            val provider = HtmlFlyerProvider("netto-schwarz", "Netto schwarz", server.url("/offers").toString(), OkHttpClient(),
+                now = { java.time.LocalDate.of(2026, 11, 10) })
+            for (extra in listOf("", "<p>Nicht-Mitgliederpreis bis zu 1.29</p>", "<p>Nicht-Mitgliederpreis 1.29–1.39</p>")) {
+                server.enqueue(MockResponse().setBody(app.replace("</div>", "$extra</div>") + regular))
+                val result = provider.fetch(RetailerRequest("10115"))
+                assertEquals(1, result.offers.size)
+                assertEquals(800, result.offers.single().priceCents)
+                assertTrue(result.sourceWarnings.any { it.contains("Normalpreis") })
+                // This is a known invalid normal-price import, not a transient
+                // source failure: do not resurrect the old mispriced row.
+                assertFalse(result.preserveMissingOffers)
+            }
+            server.enqueue(MockResponse().setBody(app.replace("</div>", "<p>Nicht-Mitgliederpreis 1.29</p></div>")))
+            val known = provider.fetch(RetailerRequest("10115")).offers.single()
+            assertEquals(129, known.priceCents)
+            assertEquals(59, known.loyaltyPriceCents)
+            assertEquals("netto_scottie_plus", known.loyaltyProgram)
+        }
+    }
+
+    @Test fun `unknown Netto price glyphs cannot fall back to a deposit or a base price`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val html = fixture("netto_black_integer_price.html").replace(">-</span>", ">?</span>")
+                .replace("</p>", " zzgl. 0.25 Pfand; 1 kg = 2.50</p>")
+            server.enqueue(MockResponse().setBody(html))
+            val result = runCatching { HtmlFlyerProvider("netto-schwarz", "Netto schwarz", server.url("/offers").toString(), OkHttpClient(),
+                now = { java.time.LocalDate.of(2026, 11, 10) }).fetch(RetailerRequest("10115")) }
+            assertTrue(result.isFailure)
+        }
+    }
+
     private fun provider(result: ProviderResult? = null) = object : RetailerProvider {
         override val id = "marktguru-lidl"
         override val displayName = "Lidl"

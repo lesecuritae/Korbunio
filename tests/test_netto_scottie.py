@@ -19,7 +19,7 @@ HTML = """
   <h4>Kingsway Kirsch-Banane</h4>
   <p>1 Liter</p>
   <h3>0<!-- -->.<span>59</span></h3>
-  <p>Nicht-Mitgliederpreis bis zu 1.29</p>
+  <p>Nicht-Mitgliederpreis 1.29</p>
 </div>
 </body></html>
 """
@@ -97,3 +97,49 @@ def test_unknown_flight_format_cannot_be_reported_as_confirmed_market_absence():
             return b'[{"lat":"52.53","lon":"13.38"}]' if "nominatim" in url else b'<html>changed</html>'
     with pytest.raises(ToolError, match="Zugriffskonfiguration"):
         NettoScottieMarketResolver(Http()).resolve("10115")
+
+
+def test_actual_integer_price_card_is_not_lost_and_unknown_symbols_remain_unpriced():
+    from pathlib import Path
+    from bs4 import BeautifulSoup
+    html = (Path(__file__).parent / "fixtures/offer_coverage/netto_black_integer_price.html").read_text()
+    class Http:
+        def get_bytes(self, *args, **kwargs):
+            return html.encode()
+    offers = OfficialNettoScottieSource(Http(), market_resolver=lambda _p: {
+        "name": "Fixture market", "address": {"city": "Berlin"},
+    }).load("10115")
+    assert len(offers) == 1
+    assert offers[0].name == "Trefl Spielesammlung" and offers[0].price == 8.0
+    assert (offers[0].valid_from, offers[0].valid_until) == ("2026-11-09", "2026-11-14")
+    for value in ["8 . ?", "8 . ab", "100 Spielmöglichkeiten", "8 - 10"]:
+        card = BeautifulSoup(f"<div><h3>{value}</h3></div>", "html.parser")
+        assert OfficialNettoScottieSource._card_price(card) is None
+
+
+def test_scottie_weekly_source_without_published_dates_is_a_visible_failure():
+    import pytest
+    from supermarkt.models import ToolError
+    class Http:
+        def get_bytes(self, *args, **kwargs):
+            return HTML.replace("Angebote vom:", "Unbekannte Wochenangabe:").encode()
+    with pytest.raises(ToolError, match="(?i)gültigkeit"):
+        OfficialNettoScottieSource(Http(), market_resolver=lambda _p: {"name": "Fixture"}).load("10115")
+
+
+def test_a_member_price_upper_bound_or_previous_price_is_not_a_known_checkout_price():
+    for text in ["Nicht-Mitgliederpreis bis zu 1.29", "statt 1.29", "Nicht-Mitgliederpreis 1.29 / Nicht-Mitgliederpreis 1.39", "Nicht-Mitgliederpreis 1.29–1.39"]:
+        assert OfficialNettoScottieSource._regular_price(text) is None
+    assert OfficialNettoScottieSource._regular_price("Nicht-Mitgliederpreis 1.29") == 1.29
+
+
+def test_actual_app_card_keeps_unknown_normal_price_and_does_not_swap_app_and_normal_unit_prices():
+    from pathlib import Path
+    class Http:
+        def get_bytes(self, *args, **kwargs):
+            return (Path(__file__).parent / "fixtures/offer_coverage/netto_black_app_price.html").read_bytes()
+    offer = OfficialNettoScottieSource(Http(), market_resolver=lambda _p: {"name": "Fixture"}).load("10115")[0]
+    assert offer.price is None
+    assert offer.pack_signature == "400ml"
+    assert offer.base_price == 1.73  # Published normal unit price, not the app's 1.48.
+    assert offer.benefits == (LoyaltyBenefit("netto_scottie_plus", "direct_price", .59, "Netto+ App-Preis"),)
