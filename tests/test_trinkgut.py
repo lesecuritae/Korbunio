@@ -479,3 +479,54 @@ def test_trinkgut_truncated_quantity_alternative_never_selects_first_crate(descr
     if not pack:
         assert offer.base_price is None and offer.base_unit == ""
         assert "abgeschnitten" in offer.coverage_note
+
+
+def test_trinkgut_payback_points_badge_is_a_bonus_and_never_the_price():
+    """Minimal real card (KW46/2026): the points badge precedes the price paragraph."""
+    source = OfficialTrinkgutSource(SimpleNamespace())
+    html = """
+    <div class="product-box box-boxed">
+      <div class="product-image-wrapper">
+        <a class="product-image-link" href="https://www.trinkgut.de/aktuelle-angebote/grasovka-vodka" title="Grasovka Vodka">
+          <img alt="Grasovka Vodka" class="product-image is-standard" src="https://media.trinkgut.de/media/products_md/uploads/promotions/trinkgut-grasovka-wodka-38-0-5l-national-46-2026-temp-6aea050d74e2b156694834.png"/>
+        </a>
+      </div>
+      <div class="product-info">
+        <div class="product-price-wrapper">
+          <p class="product-price product-price--payback"><span><small>250 Extra °P</small></span></p>
+          <p class="product-price"><span>
+              8.99
+          </span></p>
+        </div>
+        <p class="h4 product-name">Grasovka Vodka</p>
+        <p class="product-description">Original oder Pure, 38% Vol., 0,5 l Flasche (1 l =...</p>
+      </div>
+    </div>
+    """
+    card = BeautifulSoup(html, "html.parser").select_one(".product-box")
+    offer = source._parse_card(card, index=1, category="Spirituosen", market_id="m", market_url="https://www.trinkgut.de/markt/m", validity_label="09.11.–14.11.2026", valid_from=date(2026, 11, 9), valid_until=date(2026, 11, 14))
+    assert offer is not None
+    assert offer.name == "Grasovka Vodka"
+    assert offer.price == 8.99
+    assert offer.pack_signature == "500ml"
+    assert offer.base_price is None  # truncated "(1 l =..." publishes no value
+    assert offer.benefits == ()
+    assert offer.offer_condition == "PAYBACK: 250 Extra °P (Punkte, kein Preisnachlass)"
+
+
+def test_trinkgut_points_badge_without_a_price_stays_unknown():
+    source = OfficialTrinkgutSource(SimpleNamespace())
+    card = BeautifulSoup('<div class="product-box"><p class="product-price product-price--payback"><span><small>250 Extra °P</small></span></p><p class="product-name">Wodka</p></div>', "html.parser").div
+    assert source._parse_card(card, index=1, category="x", market_id="m", market_url="https://www.trinkgut.de/markt/m", validity_label="", valid_from=None, valid_until=None) is None
+
+
+@pytest.mark.parametrize("text,pack", [
+    ("Vodka 0,5 l Flasche (1 l =...", "500ml"),
+    ("Vodka 0,7 l Flasche (1 l =…", "700ml"),
+    ("Pack = 6 x 0,33 l (1 l...", "6x330ml"),
+    ("Vodka 0,5 l Flasche (1 l = € 17.98)", "500ml"),
+    ("Kasten 20 x 0,5 l (auch als 1 l Flasche", "20x500ml/1000ml"),
+])
+def test_truncated_unit_price_reference_is_not_a_second_pack(text, pack):
+    from supermarkt.common import normalize_pack
+    assert normalize_pack(text) == pack

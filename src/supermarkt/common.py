@@ -312,6 +312,15 @@ def normalize_pack(value: str) -> str:
         r"\s*=\s*[^)]*\)",
         " ", value, flags=re.IGNORECASE,
     )
+    # A listing may cut the same reference off before its closing bracket
+    # ("0,5 l Flasche (1 l =..."). The reference unit is still no package.
+    value = re.sub(
+        r"\(\s*(?:grundpreis\s*)?\d+(?:[.,]\d+)?\s*"
+        r"(?:kg|kilogramm|l|liter|ltr\.?|g|gramm|ml|milliliter|"
+        r"stk\.?|st\.?|stück|portion(?:en)?|anwendung(?:en)?|wl|waschladungen?|rollen?|blatt)"
+        r"\s*(?:=[^)]*|\.{3}|…)\s*$",
+        " ", value, flags=re.IGNORECASE,
+    )
 
     # Reverse unit-price notation is not another package: "23,96 € / 1 l".
     value = re.sub(r"(?:\d+[.,]\d{2}\s*€|€\s*\d+[.,]\d{2})\s*/\s*(?:1|100)\s*(?:kg|g|ml|ltr\.?|l)\b", " ", value, flags=re.IGNORECASE)

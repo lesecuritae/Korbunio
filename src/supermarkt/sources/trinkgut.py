@@ -529,10 +529,22 @@ class OfficialTrinkgutSource:
         if not title:
             return None
 
-        price_node = card.select_one(".product-price span") or card.select_one(".product-price")
-        price = parse_number(price_node.get_text(" ", strip=True) if price_node else None)
+        # A PAYBACK points badge shares the price class; it is a bonus, never the price.
+        price = None
+        bonus_labels: list[str] = []
+        for price_node in card.select(".product-price"):
+            label = clean_text(price_node.get_text(" ", strip=True))
+            if any("payback" in name.lower() for name in price_node.get("class", [])) or "°P" in label:
+                if label:
+                    bonus_labels.append(label)
+                continue
+            if price is None:
+                price = parse_number(label)
         if price is None or price <= 0:
             return None
+        bonus_condition = (
+            f"PAYBACK: {', '.join(bonus_labels)} (Punkte, kein Preisnachlass)" if bonus_labels else ""
+        )
 
         desc_node = card.select_one(".product-description")
         description = clean_text(desc_node.get_text(" ", strip=True) if desc_node else "")
@@ -578,6 +590,7 @@ class OfficialTrinkgutSource:
             image_url=image_url,
             deposit=deposit,
             benefits=(),
+            offer_condition=bonus_condition,
             coverage_note="Packungsalternative in der Quelle abgeschnitten; kein eindeutiger Mengenvergleich" if truncated_alternative else "",
             valid_from=valid_from.isoformat() if valid_from else None,
             valid_until=valid_until.isoformat() if valid_until else None,
