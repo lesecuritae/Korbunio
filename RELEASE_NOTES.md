@@ -1,3 +1,22 @@
+## 0.1.76
+
+- Angebotsabdeckung aller 19 Händler geprüft, ausgehend von fehlenden Lidl-Angeboten;
+  Ursachen, Stichproben und Grenzen stehen in `docs/offer-coverage-audit.md`.
+- Lidl und ALDI Nord: Der regionale Händlerprospekt ergänzt jetzt auch einen bereits gefüllten
+  Katalog; der Prospekt der laufenden Woche bleibt erhalten, wenn die Quelle schon die
+  Folgewoche hervorhebt.
+- Müller: datierte Prospektangebote statt des allgemeinen Sortiments. dm: vollständige
+  Seitenabfrage, Mengenangaben auch in der Android-App.
+- REWE, EDEKA, Marktkauf, Globus, Netto, HOL’AB!, aktiv & irma, Rossmann, trinkgut: App-,
+  Kunden- und Mehrkaufpreise, Pfand, Mengen und Aktionsstarts werden getrennt und nur so
+  übernommen, wie sie veröffentlicht sind. Karten mit PAYBACK-Punkten bei trinkgut gehen nicht
+  mehr verloren.
+- Teilweise ausgefallene Quellen werden als solche angezeigt; noch gültige Angebote derselben
+  Region bleiben offline erhalten.
+- Android: Datenbank-Schema 8 (Migration erhält Favoriten, Listen und Angebote). Gleichnamige
+  Produkte mit unterschiedlicher GTIN oder Quelle bleiben getrennt; Beschreibungen werden
+  gespeichert und durchsucht.
+
 ## 0.1.75
 
 - Push über UnifiedPush (zum Beispiel NextPush): Die Android-App kann sich bei einem
