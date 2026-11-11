@@ -858,20 +858,24 @@
     "valid_until": "2026-11-14",
     "postal_code": "50939",
     "source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/pageitems.json",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Köln-Marsdorf official KW46 cover independently confirms product, regular price and 9–14 November validity; no stock guarantee",
+    "corroborating_source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/ressources/img/fbs/46_nat_kmd_ueg_tit__14651401793954333_OFBT.jpg",
+    "corroborating_source_sha256": "105d7fedf0829598b02913752f06cf5a30ec8f2fc0f07606ebdc094b4e72e4ed"
   },
   {
     "retailer": "Globus",
     "name": "Eisbergsalat Ursprung Spanien, KL I",
     "price": 0.99,
-    "pack": "",
+    "pack": "1stk",
     "valid_from": "2026-11-09",
     "valid_until": "2026-11-14",
     "postal_code": "50939",
     "source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/pageitems.json",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Köln-Marsdorf official KW46 cover independently confirms product, regular price and 9–14 November validity; no stock guarantee",
+    "corroborating_source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/ressources/img/fbs/46_nat_kmd_ueg_tit__14651401793954333_OFBT.jpg",
+    "corroborating_source_sha256": "105d7fedf0829598b02913752f06cf5a30ec8f2fc0f07606ebdc094b4e72e4ed"
   },
   {
     "retailer": "Globus",
@@ -882,8 +886,11 @@
     "valid_until": "2026-11-14",
     "postal_code": "50939",
     "source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/pageitems.json",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Köln-Marsdorf official KW46 cover independently confirms product, regular price and 9–14 November validity; no stock guarantee",
+    "corroborating_source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/ressources/img/fbs/46_nat_kmd_ueg_tit__14651401793954333_OFBT.jpg",
+    "corroborating_source_sha256": "105d7fedf0829598b02913752f06cf5a30ec8f2fc0f07606ebdc094b4e72e4ed",
+    "member_price": 1.99
   },
   {
     "retailer": "Globus",
@@ -894,8 +901,11 @@
     "valid_until": "2026-11-14",
     "postal_code": "50939",
     "source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/pageitems.json",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Köln-Marsdorf official KW46 cover independently confirms product, regular price and 9–14 November validity; no stock guarantee",
+    "corroborating_source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/ressources/img/fbs/46_nat_kmd_ueg_tit__14651401793954333_OFBT.jpg",
+    "corroborating_source_sha256": "105d7fedf0829598b02913752f06cf5a30ec8f2fc0f07606ebdc094b4e72e4ed",
+    "member_price": 1.69
   },
   {
     "retailer": "Globus",
@@ -906,8 +916,10 @@
     "valid_until": "2026-11-14",
     "postal_code": "50939",
     "source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/pageitems.json",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Köln-Marsdorf official KW46 cover independently confirms product, regular price and 9–14 November validity; no stock guarantee",
+    "corroborating_source_url": "https://www.globus.de/faltblatt_online/aktuelle_woche/kmd/ressources/img/fbs/46_nat_kmd_ueg_tit__14651401793954333_OFBT.jpg",
+    "corroborating_source_sha256": "105d7fedf0829598b02913752f06cf5a30ec8f2fc0f07606ebdc094b4e72e4ed"
   },
   {
     "retailer": "aktiv & irma",
@@ -1059,13 +1071,13 @@
     "retailer": "trinkgut",
     "name": "Beck’s Pils o. Blue Alkoholfrei",
     "price": 10.99,
-    "pack": "20x500ml",
+    "pack": "20x500ml/24x330ml",
     "valid_from": "2026-11-09",
     "valid_until": "2026-11-14",
     "postal_code": "50939",
     "source_url": "https://www.trinkgut.de/aktuelle-angebote/beck-s-pils-o.-blue-alkoholfrei",
     "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "scope": "Unselected public detail page publishes full crate alternatives and ends13 November; selected listing ends14 November and truncates second quantity. No independent exact-market validity proof; never transfer other-page dates to selected store."
   },
   {
     "retailer": "trinkgut",
@@ -1116,64 +1128,116 @@
     "scope": "observed source/import sample; independent field/region comparison still required"
   },
   {
+    "retailer": "trinkgut",
+    "name": "Grasovka Vodka",
+    "price": 8.99,
+    "pack": "500ml",
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-14",
+    "postal_code": "50939",
+    "source_url": "https://www.trinkgut.de/aktuelle-angebote/grasovka-vodka",
+    "verified": false,
+    "scope": "Official selected-market listing card with a 250 Extra °P PAYBACK badge before the 8.99 price; previously dropped (PARSER_LOSS), now imported with the points kept as a condition and no price reduction. Raw card versus import compared; no independent printed-leaflet or exact-market validity proof."
+  },
+  {
     "retailer": "dm",
     "name": "Vase aus Glas geriffelt, transparent (14,5x14,5x19,5 cm), 1 St",
     "price": 11.95,
-    "pack": "",
+    "pack": "1stk",
     "valid_from": null,
     "valid_until": null,
     "postal_code": "04109",
     "source_url": "https://www.dm.de/p/d/3135003/dm-home-vase-aus-glas-geriffelt-transparent-14-5x14-5x19-5-cm",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Official public clearance API fields manually compared: title, stated single-piece quantity, current price and explicit Ausverkauf marker; product detail page challenged; branch stock and expiry not established",
+    "verified_fields": [
+      "name",
+      "price",
+      "pack",
+      "clearance_marker"
+    ],
+    "corroborating_source_url": "https://product-search.services.dmtech.com/de/search?query=ausverkauf&pageSize=500&currentPage=0",
+    "corroborating_source_sha256": "141faf0a56de3fcabcc4034acc90bd3f583d8c9dd79574b3f1b3c49eab87f554"
   },
   {
     "retailer": "dm",
     "name": "Make-Up Schwamm & Case Care Bears 01 Kindness Always Wins, 1 St",
     "price": 2.95,
-    "pack": "",
+    "pack": "1stk",
     "valid_from": null,
     "valid_until": null,
     "postal_code": "04109",
     "source_url": "https://www.dm.de/p/d/3156065/essence-make-up-schwamm-und-case-care-bears-01-kindness-always-wins",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Official public clearance API fields manually compared: title, stated single-piece quantity, current price and explicit Ausverkauf marker; product detail page challenged; branch stock and expiry not established",
+    "verified_fields": [
+      "name",
+      "price",
+      "pack",
+      "clearance_marker"
+    ],
+    "corroborating_source_url": "https://product-search.services.dmtech.com/de/search?query=ausverkauf&pageSize=500&currentPage=0",
+    "corroborating_source_sha256": "141faf0a56de3fcabcc4034acc90bd3f583d8c9dd79574b3f1b3c49eab87f554"
   },
   {
     "retailer": "dm",
     "name": "Spiegel mit Holzrahmen, organisch (40x30x2 cm), 1 St",
     "price": 9.95,
-    "pack": "",
+    "pack": "1stk",
     "valid_from": null,
     "valid_until": null,
     "postal_code": "04109",
     "source_url": "https://www.dm.de/p/d/3134976/dm-home-spiegel-mit-holzrahmen-organisch-40x30x2-cm",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Official public clearance API fields manually compared: title, stated single-piece quantity, current price and explicit Ausverkauf marker; product detail page challenged; branch stock and expiry not established",
+    "verified_fields": [
+      "name",
+      "price",
+      "pack",
+      "clearance_marker"
+    ],
+    "corroborating_source_url": "https://product-search.services.dmtech.com/de/search?query=ausverkauf&pageSize=500&currentPage=0",
+    "corroborating_source_sha256": "141faf0a56de3fcabcc4034acc90bd3f583d8c9dd79574b3f1b3c49eab87f554"
   },
   {
     "retailer": "dm",
     "name": "Seifendose stapelbar, 1 St",
     "price": 1.95,
-    "pack": "",
+    "pack": "1stk",
     "valid_from": null,
     "valid_until": null,
     "postal_code": "04109",
     "source_url": "https://www.dm.de/p/d/3061034/ebelin-seifendose-stapelbar",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Official public clearance API fields manually compared: title, stated single-piece quantity, current price and explicit Ausverkauf marker; product detail page challenged; branch stock and expiry not established",
+    "verified_fields": [
+      "name",
+      "price",
+      "pack",
+      "clearance_marker"
+    ],
+    "corroborating_source_url": "https://product-search.services.dmtech.com/de/search?query=ausverkauf&pageSize=500&currentPage=0",
+    "corroborating_source_sha256": "141faf0a56de3fcabcc4034acc90bd3f583d8c9dd79574b3f1b3c49eab87f554"
   },
   {
     "retailer": "dm",
     "name": "Bettwäsche-Set aus Musselin, grün, 155 x 220 + 80 x 80 cm, 1 St",
     "price": 31.9,
-    "pack": "",
+    "pack": "1stk",
     "valid_from": null,
     "valid_until": null,
     "postal_code": "04109",
     "source_url": "https://www.dm.de/p/d/3061622/alana-bettwaesche-set-aus-musselin-gruen-155-x-220-80-x-80-cm",
-    "verified": false,
-    "scope": "observed source/import sample; independent field/region comparison still required"
+    "verified": true,
+    "scope": "Official public clearance API fields manually compared: title, stated single-piece quantity, current price and explicit Ausverkauf marker; product detail page challenged; branch stock and expiry not established",
+    "verified_fields": [
+      "name",
+      "price",
+      "pack",
+      "clearance_marker"
+    ],
+    "corroborating_source_url": "https://product-search.services.dmtech.com/de/search?query=ausverkauf&pageSize=500&currentPage=0",
+    "corroborating_source_sha256": "141faf0a56de3fcabcc4034acc90bd3f583d8c9dd79574b3f1b3c49eab87f554"
   },
   {
     "retailer": "Marktkauf",
@@ -1477,5 +1541,219 @@
     "scope": "actual first-party weekly brochure product fields; process-local authorized DNS diagnostic; not branch stock proof",
     "verified": true,
     "evidence_kind": "first_party_brochure_fields"
+  },
+  {
+    "retailer": "Rossmann",
+    "name": "Melitta Kaffee Auslese Klassisch gemahlen",
+    "price": 5.49,
+    "pack": "500g",
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-13",
+    "postal_code": "50939",
+    "source_url": "https://www.rossmann.de/de/angebote/m/angebote/",
+    "source_sha256": "e9548e1c3c3e2e73784e9d724c82417d71e9c5daf4c9233ab5bcd6959b71e88c",
+    "verified": true,
+    "scope": "Official advertised web card and published validity; online sample, local branch stock unverified"
+  },
+  {
+    "retailer": "Rossmann",
+    "name": "Wella Wellaflex Schaumfestiger Volumen Fülle & Style 5",
+    "price": 2.49,
+    "pack": "200ml",
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-13",
+    "postal_code": "50939",
+    "source_url": "https://www.rossmann.de/de/angebote/m/angebote/",
+    "source_sha256": "e9548e1c3c3e2e73784e9d724c82417d71e9c5daf4c9233ab5bcd6959b71e88c",
+    "verified": true,
+    "scope": "Official advertised web card and published validity; online sample, local branch stock unverified"
+  },
+  {
+    "retailer": "Rossmann",
+    "name": "Zewa Haushaltstücher Wisch & Weg Reinweiß",
+    "price": 2.49,
+    "pack": "4stk",
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-13",
+    "postal_code": "50939",
+    "source_url": "https://www.rossmann.de/de/angebote/m/angebote/",
+    "source_sha256": "e9548e1c3c3e2e73784e9d724c82417d71e9c5daf4c9233ab5bcd6959b71e88c",
+    "verified": true,
+    "scope": "Official advertised web card and published validity; online sample, local branch stock unverified"
+  },
+  {
+    "retailer": "Rossmann",
+    "name": "Pampers Feuchttücher 99% Wasser",
+    "price": 6.25,
+    "pack": "180stk",
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-13",
+    "postal_code": "50939",
+    "source_url": "https://www.rossmann.de/de/angebote/m/angebote/",
+    "source_sha256": "e9548e1c3c3e2e73784e9d724c82417d71e9c5daf4c9233ab5bcd6959b71e88c",
+    "verified": true,
+    "scope": "Official advertised web card and published validity; online sample, local branch stock unverified"
+  },
+  {
+    "retailer": "Rossmann",
+    "name": "L’Oréal Paris Excellence Crème Coloration 5 Hellbraun",
+    "price": 5.99,
+    "pack": "1stk",
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-13",
+    "postal_code": "50939",
+    "source_url": "https://www.rossmann.de/de/angebote/m/angebote/",
+    "source_sha256": "e9548e1c3c3e2e73784e9d724c82417d71e9c5daf4c9233ab5bcd6959b71e88c",
+    "verified": true,
+    "scope": "Official advertised web card and published validity; online sample, local branch stock unverified"
+  },
+  {
+    "retailer": "PENNY",
+    "name": "Dallmayr Prodomo",
+    "pack": "500g",
+    "price": 6.49,
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-14",
+    "postal_code": "04109",
+    "source_url": "https://content-media.bonial.biz/ec46686c-cc9d-4fad-8d9f-eeec46662334/zoomlarge_page_0.jpg?impolicy=zoomlarge",
+    "source_sha256": "7bf608693cd9e687f6329e612e2eb5440c63c6f52f04037fe4f9ff9ab02b030d",
+    "verified": true,
+    "scope": "Published German cover visually checked; matching Leipzig source sample, no selected-branch stock guarantee"
+  },
+  {
+    "retailer": "PENNY",
+    "name": "Zott Sahnejoghurt",
+    "pack": "140g",
+    "price": 0.44,
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-14",
+    "postal_code": "04109",
+    "source_url": "https://content-media.bonial.biz/ec46686c-cc9d-4fad-8d9f-eeec46662334/zoomlarge_page_0.jpg?impolicy=zoomlarge",
+    "source_sha256": "7bf608693cd9e687f6329e612e2eb5440c63c6f52f04037fe4f9ff9ab02b030d",
+    "verified": true,
+    "scope": "Published German cover visually checked; matching Leipzig source sample, no selected-branch stock guarantee",
+    "member_price": 0.39
+  },
+  {
+    "retailer": "PENNY",
+    "name": "Barilla Pasta",
+    "pack": "500g",
+    "price": 0.89,
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-14",
+    "postal_code": "04109",
+    "source_url": "https://content-media.bonial.biz/ec46686c-cc9d-4fad-8d9f-eeec46662334/zoomlarge_page_0.jpg?impolicy=zoomlarge",
+    "source_sha256": "7bf608693cd9e687f6329e612e2eb5440c63c6f52f04037fe4f9ff9ab02b030d",
+    "verified": true,
+    "scope": "Published German cover visually checked; matching Leipzig source sample, no selected-branch stock guarantee",
+    "member_price": 0.79
+  },
+  {
+    "retailer": "PENNY",
+    "name": "Hohes C Saft",
+    "pack": "1000ml",
+    "price": 1.79,
+    "valid_from": "2026-11-09",
+    "valid_until": "2026-11-14",
+    "postal_code": "04109",
+    "source_url": "https://content-media.bonial.biz/ec46686c-cc9d-4fad-8d9f-eeec46662334/zoomlarge_page_0.jpg?impolicy=zoomlarge",
+    "source_sha256": "7bf608693cd9e687f6329e612e2eb5440c63c6f52f04037fe4f9ff9ab02b030d",
+    "verified": true,
+    "scope": "Published German cover visually checked; matching Leipzig source sample, no selected-branch stock guarantee",
+    "member_price": 1.49
+  },
+  {
+    "retailer": "PENNY",
+    "name": "Tonies Toniebox",
+    "pack": "1stk",
+    "price": 69.99,
+    "valid_from": "2026-11-12",
+    "valid_until": "2026-11-14",
+    "postal_code": "04109",
+    "source_url": "https://content-media.bonial.biz/ec46686c-cc9d-4fad-8d9f-eeec46662334/zoomlarge_page_0.jpg?impolicy=zoomlarge",
+    "source_sha256": "7bf608693cd9e687f6329e612e2eb5440c63c6f52f04037fe4f9ff9ab02b030d",
+    "verified": true,
+    "scope": "Published German cover visually checked; matching Leipzig source sample, no selected-branch stock guarantee",
+    "source_limitation": "Published je Stück is absent from the structured source description; not invented by parser"
+  },
+  {
+    "retailer": "REWE",
+    "name": "Ben & Jerry’s Eiscreme Sticks Cookie Dough",
+    "pack": "260ml",
+    "price": 3.79,
+    "postal_code": "50939",
+    "source_url": "https://www.rewe.de/angebote/koeln-klettenberg/1940016/rewe-luxemburger-str-299/",
+    "source_product_id": "7396458",
+    "source_sha256": "9dbdc97eab0beaacbf0b61576cf741d3c19c67864b6dee8fe7fee9b8f7425b85",
+    "hash_scope": "exact captured public card HTML fragment",
+    "verified": true,
+    "scope": "Selected official market 1940016; published name/price/pack verified, no stock guarantee; week 2026/46, exact daily endpoints not independently printed on card",
+    "valid_from": null,
+    "valid_until": null,
+    "published_week": "2026/46"
+  },
+  {
+    "retailer": "REWE",
+    "name": "Landliebe Joghurt",
+    "pack": "500g",
+    "price": 1.19,
+    "postal_code": "50939",
+    "source_url": "https://www.rewe.de/angebote/koeln-klettenberg/1940016/rewe-luxemburger-str-299/",
+    "source_product_id": "6737188",
+    "source_sha256": "44d6d1999b48ef05e5e4ccab0ce96b9e6124b17191080b329ca2b78d00c8a72e",
+    "hash_scope": "exact captured public card HTML fragment",
+    "verified": true,
+    "scope": "Selected official market 1940016; published name/price/pack verified, no stock guarantee; week 2026/46, exact daily endpoints not independently printed on card",
+    "valid_from": null,
+    "valid_until": null,
+    "published_week": "2026/46"
+  },
+  {
+    "retailer": "REWE",
+    "name": "Mon Chéri",
+    "pack": "157g",
+    "price": 2.79,
+    "postal_code": "50939",
+    "source_url": "https://www.rewe.de/angebote/koeln-klettenberg/1940016/rewe-luxemburger-str-299/",
+    "source_product_id": "3211738",
+    "source_sha256": "e75ea8bc58b38ffaf4dde7078f3e0f403fb05c7b226a8d83eadb90f0d2392acf",
+    "hash_scope": "exact captured public card HTML fragment",
+    "verified": true,
+    "scope": "Selected official market 1940016; published name/price/pack verified, no stock guarantee; week 2026/46, exact daily endpoints not independently printed on card",
+    "valid_from": null,
+    "valid_until": null,
+    "published_week": "2026/46"
+  },
+  {
+    "retailer": "REWE",
+    "name": "Mumm Jahrgangssekt",
+    "pack": "750ml",
+    "price": 3.99,
+    "postal_code": "50939",
+    "source_url": "https://www.rewe.de/angebote/koeln-klettenberg/1940016/rewe-luxemburger-str-299/",
+    "source_product_id": "416754",
+    "source_sha256": "54d7cb2a1a1dcceee4cff2039cd84456cb741b786bd1f5a24423540ea6b4b035",
+    "hash_scope": "exact captured public card HTML fragment",
+    "verified": true,
+    "scope": "Selected official market 1940016; published name/price/pack verified, no stock guarantee; week 2026/46, exact daily endpoints not independently printed on card",
+    "valid_from": null,
+    "valid_until": null,
+    "published_week": "2026/46"
+  },
+  {
+    "retailer": "REWE",
+    "name": "Like vegane Fleischalternative",
+    "pack": "180g",
+    "price": 2.49,
+    "postal_code": "50939",
+    "source_url": "https://www.rewe.de/angebote/koeln-klettenberg/1940016/rewe-luxemburger-str-299/",
+    "source_product_id": "7704499",
+    "source_sha256": "ece9ddec383300f776d4d0a814a006faca4807c1a74dcf18df7311ba980d6855",
+    "hash_scope": "exact captured public card HTML fragment",
+    "verified": true,
+    "scope": "Selected official market 1940016; published name/price/pack verified, no stock guarantee; week 2026/46, exact daily endpoints not independently printed on card",
+    "valid_from": null,
+    "valid_until": null,
+    "published_week": "2026/46"
   }
 ]

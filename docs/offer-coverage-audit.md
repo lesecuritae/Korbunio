@@ -8,7 +8,7 @@ Stand: 10.11.2026. Ausgangsrevision: `1479643ff66bc54184ff9cdca27b5f1247ce2635`
 Das Backend registriert 19 Händler. Android besitzt 18 eigenständige native
 Provider; Marktkauf ist bisher über den Server erreichbar. Die vollständige
 Stichprobenliste steht in [offer-coverage-samples.json](offer-coverage-samples.json):
-112 dokumentierte Beobachtungen für alle 19 Händler, darunter ausdrücklich
+128 dokumentierte Beobachtungen für alle 19 Händler, darunter ausdrücklich
 unverifizierte Regionen und Gegenproben regulärer Müller-Artikel. Diese Daten
 werden niemals als Angebote in die Anwendung importiert.
 
@@ -154,25 +154,25 @@ Stichprobe. „5 beobachtet“ bedeutet keinen abgeschlossenen Fünf-Artikel-Ver
 
 | Händler / Provider-ID | Android / Docker | Primärquelle; Ergänzung/Fallback | geprüfte Region | Referenzen; R/I/S | Fehler / Status / Korrektur |
 |---|---|---|---|---|---|
-| REWE `rewe` | nativ / ja | offiziell; Marktguru/KaufDA bei Fehler | Köln, Berlin, Leipzig | 5; —/—/— | `SOURCE_UNAVAILABLE`: direkte Referenzabrufe 403; regionaler Prospekt vorhanden, konkrete Marktgeltung offen. Native Metadaten/Preisrundung korrigiert. |
+| REWE `rewe` | nativ / ja | offiziell; Marktguru/KaufDA bei Fehler | Köln, Berlin, Leipzig | 5 alte regionale + 5 neue marktgebundene Referenzen; neuer direkter Markt-Abruf 188 Karten / 184 Angebote / 4 reine Bonuskarten | Frühere 403-Detailseiten nicht auf den erreichbaren Marktadapter übertragen. Drei alte allgemeine Referenzen sind im ausgewählten Markt nicht belegt (`NOT_VERIFIED`); kein nachgewiesener Parserverlust. Native Metadaten/Preisrundung korrigiert. |
 | ALDI Nord `aldi-nord` | nativ / ja | offiziell + kontrollierter KaufDA-Ortsprospekt | Berlin 10115 | 5; 0→5 / 0→5 / 0→5 in regionalem Replay | `UPSTREAM_MISSING`: Viba, Riesa, Eberswalder, Ileburger und Mühlhäuser fehlen im offiziellen Standardfeed, im eigenen Berlin-Prospekt vorhanden. Ergänzung bei gefülltem Katalog getestet. Live-Gesamtabnahme offen. |
 | ALDI Süd `aldi-sued` | nativ / ja | offizielle Webangebote/strukturierter Wochenprospekt | Köln; separater temporärer DNS-Gegentest | 5 Produktseiten + 5 echte Prospektdatensätze; 151 Prospektimporte | `SOURCE_UNAVAILABLE` im normalen NextDNS-Testnetz; mit temporärer öffentlicher Auflösung HTTPS und Parser erfolgreich. Kein TLS-Bypass oder produktiver DNS-Wechsel. |
 | Lidl `marktguru-lidl` | nativ / ja | Marktguru + regionaler KaufDA-Viewer | Leipzig, Köln | 5; 5/5/5 Grundstichprobe | `CACHE_STALE`/partielle Quellabrufe und Varianten-Suchlücke behoben; Hirsch-Metadaten `UPSTREAM_MISSING`; weitere Dublettenprüfung offen. |
-| PENNY `marktguru-penny` | nativ / ja | Marktguru | Leipzig | 5; 5/5/5 Backwaren | `PARSER_LOSS`: 1.000 g wurde 1 g; expliziter „ohne App“-Preis ergänzt. Donnerstag-Toniebox als Vorschau vorhanden. Weitere Produktgruppen offen. |
+| PENNY `marktguru-penny` | nativ / ja | Marktguru | Leipzig | 5 Backwaren + 5 weitere Warengruppen; Name/Preis in Quelle vorhanden | `PARSER_LOSS`: 1.000 g wurde 1 g; expliziter „ohne App“-Preis ergänzt. Donnerstag-Toniebox als Vorschau vorhanden. Zusätzlicher Coverabgleich: Kaffee, Joghurt, Pasta, Saft und Toniebox. Je-Stück-Angabe der Toniebox fehlt im strukturierten Ausgangsdatensatz (`UPSTREAM_MISSING`). |
 | Netto Marken-Discount `netto-marken` | nativ / ja | Marktguru, bestehende Filialwahl | Leipzig | 5; 5/5/5 Name/Preis | `PARSER_LOSS`: ausdrücklich „NETTO APP“ ohne „PLUS“ wurde nicht erkannt; korrigiert. Nicht auf Cashback als Barpreis anwenden. |
-| Netto schwarz `netto-schwarz` | nativ / ja | offiziell; vorhandener Marktguru-Fallback | Berlin, Leipzig | 5 Prospektartikel; Filialgeltung —/—/— | Filialsuche aus öffentlichem eingebettetem Store-JSON repariert, 31 Live-Angebote; spezifische Händlerzuordnung vor generischem Netto. Prospektstichprobe noch `NOT_VERIFIED`. |
+| Netto schwarz `netto-schwarz` | nativ / ja | offiziell; vorhandener Marktguru-Fallback | Berlin, Leipzig | 5 Prospektartikel; 338 reale Filialdatensätze geprüft | `DATE_REGION_FILTER`/`PARSER_LOSS`: autoritatives initialStores, bestätigte deutsche PLZ-Koordinaten und 15-km-Grenze; Android prüft vor sämtlichen Fallbacks. Berlin positiv/Oldenburg negativ. Ganze Europreise erhalten; vier App-only-Karten ohne eindeutigen Normalpreis nicht als regulär erfinden. Zwei alte Prospektreferenzen fehlen schon in der offiziellen Angebotsseite (`UPSTREAM_MISSING`). |
 | Kaufland `kaufland` | nativ / ja | offiziell, filialspezifisch | Köln-Ehrenfeld 4130, Thebäerstraße 9 | 5; 5/5/5 Name/Preis/Pack | Filialadresse unabhängig bestätigt und passend zum regionalen Prospekt. Unabhängige Mitgliedspreis-/Folgewoche-Abnahme offen (`NOT_VERIFIED`). |
 | EDEKA `edeka` | nativ / ja | offizieller ausgewählter Markt, moderne HTML-Angebote vor Legacy-API | Köln Romano 070696/12145; Berlin/Leipzig Legacy | 9 reale Dialoge im Vertrag, 224 live | `PARSER_LOSS`: Legacy verlor App-Preise. Reguläre/App-Preise, Pfand, GTIN und Packung aus marktgebundener HTML-Seite; 220/220 bestehende IDs eindeutig weiterverwendbar. Kein fremder Markt als Ersatz. |
 | Marktkauf `marktkauf` | Servermodus / ja | offizieller Marktadapter + eigene Markt-HTML für fehlende Mengen | Markkleeberg; Frechen | 5; 5/5/5 Name/Preis, nun 5/5 Mengen | `PARSER_LOSS`/Quellenlücke: Philadelphia 100–195 g aus derselben offiziellen Wochenkarte ergänzt. Nur fehlende, eindeutig zuordenbare Mengen; keine Preis-/Datumsüberschreibung. |
-| Globus `globus` | nativ / ja | offizieller Markt-/Faltblattadapter; bestehende Bild-Ergänzung | Köln, Leipzig | 5 beobachtet; —/—/— unabhängig | Native Gültigkeitsdaten und Beschreibung übernommen. Vollständiger unabhängiger Referenzabgleich offen (`NOT_VERIFIED`). |
+| Globus `globus` | nativ / ja | offizieller Markt-/Faltblattadapter; bestehende Bild-Ergänzung | Köln, Leipzig | 5 unabhängig auf dem marktgebundenen Cover geprüft; 5/5 Import im gespeicherten Replay | `PARSER_LOSS`: mein-GLOBUS-Preispaare und Packungs-/Grundpreisspannen korrigiert. Explizite Durchmesser-/Preispaare einzeln, andere ab-Gruppen ohne erfundenen Festpreis. Neuer Docker-Live-Lauf offen. |
 | famila Nordwest `marktguru-famila-nordwest` | nativ / ja | Marktguru | Oldenburg 26135 | 5; 5/5/5 Name/Preis/Pack | `PARSER_LOSS`: explizite MOIN-CARD-Preise erkannt. Prospekt nennt beim 14.11. falschen Wochentag; keine künstliche Datumsänderung. Weitere Region offen. |
 | aktiv & irma `aktiv-irma` | nativ / ja | offizielle Wochen-HTML-Seite | Oldenburg 26135; 26122 negativ | 5 offizielle Karten; 5/5/5 | `DATE_REGION_FILTER`: „gültig ab Donnerstag“ wurde Wochenmontag zugeordnet; produktspezifische Korrektur und Tests ergänzt. |
 | Combi `marktguru-combi` | nativ / ja | Marktguru | Oldenburg 26135 | 5; 5/5/5 Namen/Preise | MOIN CARD korrigiert. Prospekt-Varianten 140/150 g bzw. zwei Kistengrößen sind nicht vollständig im Rohdatensatz ausformuliert (`UPSTREAM_MISSING`/Variantenprüfung offen). |
 | HOL’AB! `holab` | nativ / ja | offizielle ausgewählte Wochen-HTML-Angebote | Oldenburg 26135 | 5 Karten; 5/5/5, Mengen nach Korrektur | `PARSER_LOSS`: Liter-Schreibweisen und Zwei-Kisten-Preis; 4,49 € ab 2, ausdrücklich 4,99 € einzeln, 8,98 € für 2. Hemelinger-Kisten bleiben Alternativen statt Summenpack; Pfand/Grundpreis ohne Variantenwahl nicht eindeutig. Kein Anspruch auf ganzen Prospekt. |
-| trinkgut `trinkgut` | nativ / ja | Backend offiziell; Android Marktguru/KaufDA | Köln; andere Testregionen ohne nahen Markt | 5 Produktseiten; Namen/Preise vorhanden, regionale Enddaten — | Öffentliche Produktseite nennt 13.11., ausgewählter Feed 14.11.; Marktgeltung vor Klassifizierung prüfen (`NOT_VERIFIED`). Kein Preis aus anderem Markt übernehmen. |
-| Rossmann `rossmann` | nativ / ja | offiziell gerendert; vorhandene Fallbacks | Docker-Chromium; regionale Filialgeltung offen | 24 reale offiziell gerenderte Angebote | Quelle im Docker erreichbar. Alte Spielwarenreferenzen belegen keine allgemeine Filialgeltung; unabhängige Fünf-Artikel-/Filial-Abnahme bleibt `NOT_VERIFIED`. |
+| trinkgut `trinkgut` | nativ / ja | Backend offiziell; Android Marktguru/KaufDA | Köln; andere Testregionen ohne nahen Markt | 5 Produktseiten + 1 Bonuskarte; Namen/Preise vorhanden, regionale Enddaten —; live 73 Karten, 0 unlesbar | `PARSER_LOSS` behoben (`00f4b6e`): Karte mit PAYBACK-Punkteplakette vor dem Preis ging verloren; abgeschnittener Grundpreisbezug „(1 l =...“ galt als zweite Packung. Punkte bleiben Bedingung, kein Preisnachlass. Öffentliche Produktseite nennt 13.11., ausgewählter Feed 14.11.; Marktgeltung `NOT_VERIFIED`. Kein Preis aus anderem Markt übernehmen. |
+| Rossmann `rossmann` | nativ / ja | offiziell gerendert; vorhandene Fallbacks | Docker-Chromium; regionale Filialgeltung offen | 24 reale offiziell gerenderte Angebote; 5 aktuelle Werbekarten mit Preis/Pack/Datum | `PARSER_LOSS`/`DATE_REGION_FILTER`: primäre Packung statt addierter Erläuterungen, nur datierte Werbeangebote, aktuelle/Folgewoche getrennt. Fünf zusätzliche tatsächliche Online-Referenzen; örtlicher Filialbestand bleibt `NOT_VERIFIED`. |
 | Müller `mueller` | nativ / ja | datierter eigener KaufDA-Händlerprospekt; kein allgemeiner Sale-Ersatz | reale PLZ-Koordinaten; Filialgeltung ausdrücklich offen | 7 veröffentlichte Artikel im Vertrag; 89 live | `PARSER_LOSS` behoben: Sortiment nicht länger als Wochenangebote. Eigener Herausgeber, Datierung und App-Preis geprüft; örtlicher Bestand `NOT_VERIFIED`. |
-| dm `dm` | nativ / ja | offizielle Ausverkaufs-API | Online; Leipzig/Köln | 5 API-Beobachtungen; Detailseiten-Challenge | `PARSER_LOSS`: native Mengen und Server-Nullwerte korrigiert. 401 beobachtete Ausverkaufsangebote; deklarierte Gesamtzahl und fehlende letzte Seite geprüft. Detailseiten weiterhin `SOURCE_UNAVAILABLE`. |
+| dm `dm` | nativ / ja | offizielle Ausverkaufs-API | Online; Leipzig/Köln | 5 offiziell abgeglichene API-Preis-/Mengen-/Ausverkaufskennzeichnungen; Detailseiten-Challenge | `PARSER_LOSS`: native Mengen und Server-Nullwerte korrigiert. 401 beobachtete Ausverkaufsangebote; deklarierte Gesamtzahl und fehlende letzte Seite geprüft. Detailseiten weiterhin `SOURCE_UNAVAILABLE`. |
 
 ## Gemeinsame Korrekturen
 
@@ -273,3 +273,261 @@ mit Push/PR/CI und bestätigtem Merge. Der hier getestete Code ist lokal committ
 ein Push, Merge oder produktives Release hat noch nicht stattgefunden. Die produktive Installation
 wurde für die Diagnose lesend abgefragt; die Test-Images sind keine bereits
 veröffentlichte oder produktiv ausgerollte Version.
+
+
+### Nachprüfung: Identität, Pagination und regionale Autorität
+
+Die Room-Migration allein verhinderte keine Namens-Kollisionen beim Import.
+Alle drei nativen Importpfade nutzen jetzt dieselbe Identitätsprüfung: GTIN
+oder quellgebundene Produkt-ID, niemals nur den Namen. Bereits vorhandene
+Favoriten behalten ihre eindeutige Zuordnung; widersprüchliche GTINs werden
+nicht überschrieben. Der Serveradapter erzeugt stabile Produktidentitäten aus
+den Produktmerkmalen, unabhängig von Wochenpreis und Reihenfolge. Ein
+Teilimport erhält die betroffenen tatsächlichen Händler-IDs, statt allein die
+technische Server-Provider-ID zu markieren.
+
+Marktguru-Pagination prüft jetzt auch die deklarierte Gesamtzahl: Eine kurze
+Seite vor dem angekündigten Ende ist kein vollständiger Abruf. Fehlende Seiten,
+widersprüchliche Zähler und spätere HTTP-Fehler erhalten nachweislich schon
+empfangene Daten mit sichtbarem Teilstatus. Ein einzelner erfolgreicher Aufruf
+belegt weiterhin keine vollständige Prospektabdeckung.
+
+Netto schwarz verwendet in Android und Backend nur den öffentlichen
+`initialStores`-Filialkatalog. Exakte Filial-PLZ ist unmittelbar belegbar;
+ansonsten müssen Land, PLZ und Koordinaten der Geocodierung bestätigt sein.
+Bestätigte Markt-Abwesenheit löst keinen überregionalen Aggregator-Fallback
+aus. Der reale neue Backend-Abruf bestätigte Berlin 10115 positiv und Oldenburg
+26135 negativ. Die optionale native Wiederholung des gespeicherten vollständigen
+338-Filialkatalogs bestand ebenfalls. Fehlerhafte Geocodierung bleibt ein Fehler
+und wird nicht als fehlende Filiale ausgegeben.
+
+### Nachprüfung: Globus-Preisvarianten
+
+Das offizielle Köln-Marsdorfer Cover bestätigt die fünf Lebensmittelreferenzen
+und die Gültigkeit 09.–14.11. Geramont kostet 2,29 € regulär / 1,99 € mit mein
+GLOBUS; Dr. Oetker 1,79 € / 1,69 €. Der Adapter hatte `mgprice` bislang verloren.
+Die Mengen 100–200 g und 270–410 g bleiben Spannen: Ihr unterer Grundpreis ist
+kein allgemeingültiger einzelner Grundpreis.
+
+Explizit gebundene Pfannendurchmesser 20/24/28 cm werden mit den veröffentlichten
+9,99/11,99/13,99 € getrennt übernommen. Uneindeutige Preisbereiche, fehlende
+Zuordnungen oder widersprüchliche Paare werden nicht aus dem Gruppenminimum
+berechnet. Backend führt solche Gruppen als ungepreist/nicht vergleichbar mit
+Hinweis; Android verweigert ihren Festpreisimport mit Quellenwarnung. Der
+vollständige gespeicherte offizielle Antwort-Replay ergab vor der letzten
+Verschärfung 37 solche Gruppen; dies ist kein neuer Live-Abruf und kein Beleg
+vollständiger Variantenabdeckung. Neue Regressionen verhindern auch eine
+stillschweigend abgeschnittene, nur teilweise eindeutige Variantenliste.
+
+Aktueller Backend-Nachlauf: **834 bestanden, 8 übersprungen**. Die älteren
+Abnahmezahlen und Image-SHAs oben dokumentieren ihre jeweils bezeichneten
+Zwischenrevisionen; sie gelten nicht automatisch für den neuesten Code.
+Android-Nachlauf: Standard **302 bestanden, 2 übersprungen**, F-Droid
+**305 bestanden, 2 übersprungen**, jeweils keine Fehler. Beide APKs und beide
+Lint-Prüfungen erfolgreich. Die zwei optionalen Live-Rohdaten-Replays waren
+in diesem Lauf nicht aktiviert; der vollständige Netto-Katalog-Replay wurde
+separat erfolgreich ausgeführt. Code-Revision: `0cab3e6`. Die Docker-Endabnahme
+dieser Revision ist noch offen. Keine produktive Installation wurde
+durch diese lokalen Änderungen ersetzt.
+
+
+### Native REWE-Nachladung und verbleibende Prüfgrenzen
+
+Die offizielle Seite des gewählten REWE-Markts 1940016 besitzt 188 eindeutige
+NAN-Referenzen, aber nur einen kleinen fertig gerenderten Ausschnitt. Android
+lädt fehlende Karten jetzt über REWEs bestehenden öffentlichen
+`/api/frontend-includes` nach, in begrenzten 25er-Batches mit exakter
+Markt-/Anfrage-ID-Prüfung. Fehlende, fremde und doppelte Antworten sind Fehler.
+Vollständig gelesene offizielle Marktdaten werden nicht mehr wegen einer
+höheren Aggregator-Anzahl ersetzt. Ein nötiger regionaler Ersatz trägt die
+Warnung fehlender bestätigter Filialgeltung.
+
+Ein vollständiger gespeicherter Katalogtest deckte eine zusätzliche Themenkarte
+mit derselben NAN auf einem untergeordneten Link auf. Diese war keine neue
+Produktvariante. Platzhalter werden von solchen Links getrennt und anhand der
+veröffentlichten NAN dedupliziert. Erwartung: 184 normale Angebote und vier
+reine Bonuskarten ohne erfundenen Barpreis. Produktidentitäten folgen der
+Markt-/NAN-Kombination statt Titel oder Kartenreihenfolge. Eine nachträgliche
+Zuordnung alter ausschließlich namensbasierter Favoriten wird ohne eindeutige
+Quellidentität nicht erfunden; vorhandene Datensätze bleiben erhalten.
+
+Backend: Unbekannte Karten bei ansonsten gefülltem REWE-Katalog liefern jetzt
+sichtbar `PartialOffers`, statt einen stillschweigend vollständigen Import zu
+behaupten. Fünf neue tatsächliche Marktreferenzen ergänzen die drei alten,
+nicht für diesen Markt belegten Prospektbeobachtungen. Die genaue tägliche
+Gültigkeit ist auf den einzelnen Karten nicht unabhängig aufgedruckt; die
+Anwendung verwendet ihre geprüfte Kalenderwochen-Regel, die Referenzdatei
+kennzeichnet diese Grenze ausdrücklich.
+
+Der neueste Backendlauf besteht **836 Tests, 8 übersprungen**. Kleine Fixtures
+und vollständige gespeicherte Antworten sind Offline-Nachweise, keine echte
+Android-Geräteabnahme. Der gesamte Händler-Liveabruf im unveränderten Image
+`sha256:464285209f50e659e42e57116e0c66de921b0ed7a4da8a64e41c53ea3120bb27`
+(Code `0cab3e6`) lief in 26135, 10115, 50939 und 04109 erfolgreich bis zum
+Ergebnis durch. Reale Marktguru-Timeouts in Berlin, nicht vorhandene passende
+Marktkauf-/REWE-Märkte in Oldenburg und unbestätigte EDEKA-Marktanzeige blieben
+sichtbar; erfolgreicher Controllerabschluss bedeutet keinen Erfolg jeder Quelle.
+Drei reale API- und zwei MCP-Prüfungen dieses Images bestätigten Globus-
+Normal-/Kundenpreis, die drei individuellen Pfannenpreise und bestätigte
+Netto-schwarz-Abwesenheit in Oldenburg. Testcontainer und temporärer DNS wurden
+entfernt. Der nachfolgende REWE-Patch benötigt seine eigene endgültige Image-
+Abnahme; die alte Image-SHA wird nicht als Beleg für neueren Code verwendet.
+
+
+### Letzter geprüfter Codestand
+
+`6097286` enthält den nachgeprüften REWE-Fix. Vollständige native Abnahme mit
+aktiviertem 188-Karten-Replay: **Standard 306 bestanden, F-Droid 309 bestanden,
+jeweils 2 optionale andere Rohdaten-Replays übersprungen, keine Fehler**.
+Beide Debug-APKs und beide Lint-Varianten sind erfolgreich. Der erste volle
+Replay hatte die oben beschriebene Dublette aufgedeckt; erst der korrigierte
+Nachlauf wurde als bestanden gewertet.
+
+`6e647f5` verhindert zusätzlich einen falschen Literpreis bei einer von trinkgut
+serverseitig abgeschnittenen zweiten Kistenmenge (`20 x 0,5 l / 24 x 0,3...`).
+Die bekannte erste Menge wird dann nicht stellvertretend für die unbekannte
+Alternative verwendet. Vollständig lesbare Alternativen und vollständig lesbare
+Packungen mit später abgeschnittenem Pfandtext bleiben erhalten. Quellenhinweis
+und fehlende Menge bleiben sichtbar. Die abweichende Datierung 13./14.11.
+zwischen ungewählter Detailseite und Markt-Liste wird nicht künstlich gleichgesetzt.
+
+Nach diesem letzten Backend-Fix: **840 bestanden, 8 übersprungen**, Ruff,
+Bandit und `git diff --check` erfolgreich. `pip-audit --local` meldet keine
+bekannte Schwachstelle in den geprüften Abhängigkeiten; das eigene lokale
+Projektpaket besitzt keinen passenden PyPI-Auditdatensatz und wird ausdrücklich
+als nicht prüfbar angezeigt. Die fünf dm-API-Beobachtungen wurden gegen die
+tatsächlichen Rohfelder für Titel, Einzelmenge, Preis und Ausverkaufskennzeichnung
+abgeglichen. Das hebt die Detailseiten-Challenge und fehlende Filialbestands-
+prüfung nicht auf.
+
+### Unveränderter letzter Docker-Stand
+
+Code `6e647f55d471b4a169d3f01d544d4abfd15683a3`, Image
+`sha256:a07b3d3573368c75f16512d99113472e0dcaa6be4490057f854e61b7c09b1f82`.
+Kein Quellcode-Overlay, alle 19 registrierten Händler im jeweiligen regionalen
+Loader-Lauf berücksichtigt. Die Zahlen unten sind Loader-Importmengen vor der
+API-Auswahl, keine behauptete Prospektvollständigkeit.
+
+| PLZ | importierte Datensätze | Dauer | sichtbare Einschränkungen |
+|---|---:|---:|---|
+| 26135 | 3689 | 20,4 s | kein passender offizieller REWE-/Marktkauf-Markt; REWE-Ersatzquelle gekennzeichnet |
+| 10115 | 3123 | 60,4 s | unter anderem Marktguru-Timeouts und nicht unabhängig abgeglichene EDEKA-Marktanzeige |
+| 50939 | 3589 | 89,4 s | Marktguru-Teilabrufe; 37 ungeklärte Globus-ab-Gruppen; zwei abgeschnittene trinkgut-Packungsalternativen |
+| 04109 | 3761 | 29,7 s | EDEKA-/HOL’AB!-Grenzen und 43 ungeklärte Globus-ab-Gruppen |
+
+Die optionalen KaufDA-Globus-Bildabrufe lieferten teilweise HTTP 404. Der
+Bildfehler verwirft keine offiziellen Angebote und wird nicht mit einem
+beliebigen anderen Produktbild verdeckt. Das ist kein Nachweis erfolgreicher
+Bildversorgung sämtlicher Artikel.
+
+
+### Im Endlauf zusätzlich reproduziert: KaufDA hebt bereits die Folgewoche hervor
+
+Der Endlauf von `6e647f5` bestand den vollständigen Loader-Abruf, aber **nicht**
+die anschließende Wildschwein-Suchabnahme: Kania Wildgerichte war vorhanden,
+Wildschwein fehlte. Der fehlgeschlagene Test wurde nicht als Erfolg gewertet.
+Die live erfasste Leipziger Seite zeigte unter `brochures.viewer` bereits
+Prospekt 2501324813 mit Gültigkeit 16.–21.11.; der weiterhin verlinkte aktuelle
+Prospekt 2501324792 (09.–14.11.) stand unter `brochures.publisher`. Die bisherige
+Auswahl las nur `viewer`. Auch das frühere Publikationsdatum der Vorschau darf
+nicht als aktuelle Angebotsgültigkeit verstanden werden.
+
+Die Korrektur liest beide eigenen Herausgeberlisten, prüft Herausgeber und
+Gültigkeit für die angefragte Woche und bevorzugt passende Wochenprospekte vor
+parallel verlinkten langfristigen Preis-/Geschenkekatalogen. Fehlende Wochen-
+prospekte und überschrittene Grenzen werden als Fehler gemeldet, statt die
+Liste still auf zwei Prospekte zu kürzen. Kein anderes Händler-/Themenkarussell
+wird zur vermeintlichen regionalen Herkunft erklärt.
+
+Der reale erneute Abruf mit tatsächlich ermittelten PLZ-Koordinaten lieferte
+**393** passende KaufDA-Angebote einschließlich Kania Wildschwein 3,99 €,
+400 g, 09.–14.11. und der veröffentlichten spezifischen Quellkategorie
+Wildschweingulasch. Die neue minimale Metadaten-Fixture reproduziert den
+Karussellwechsel. Eine echte Dessert-Referenz aus dem Folgeprospekt prüft
+zusätzlich 2,49 € normal / 1,99 € mit Lidl Plus, 125 g, 16.–21.11.; sie darf
+nicht rückwirkend in die laufende Woche aufgenommen werden.
+
+Diese Korrektur erfordert einen neuen getesteten Docker-Stand. Die oben
+festgehaltenen Importzahlen des vorherigen Images bleiben als Zwischenstand
+erhalten und werden nicht in neue Erfolgsnachweise umbenannt.
+
+
+### Bestätigter Nachlauf nach dem Karussell-Fix
+
+Coderevision `ddd47d6f2a91f3f9a60e383f700bae17cd72c460`, unverändertes Image
+`sha256:864dd70df50d277bc16fa6dde86e826a7c1533ce81ae9b5a7941a4f8c2af5382`.
+**842 Backendtests bestanden, 8 übersprungen; Android Standard 307 bestanden,
+F-Droid 310 bestanden, jeweils 2 übersprungen**, mit aktiviertem vollständigen
+REWE-Replay. Beide APKs und Lint-Varianten, Ruff, Bandit und Diff-Prüfung bestanden.
+
+**14 reale API-Prüfungen und 7 reale MCP-Prüfungen dieses Images bestanden.**
+Kania-Wildschwein ist nach der Wochenprospekt-Korrektur wieder über Docker/API
+und MCP suchbar. Nur auf dm oder Müller begrenzte Wildschwein-Suchen bleiben
+leer. Hirschgulasch wird weiterhin nicht aus einem generischen Kania-Datensatz
+erfunden. Weitere tatsächlich geprüfte Fälle: Globus-Normal-/Kundenpreis und
+drei individuelle Pfannenpreise, EDEKA 1,11/0,88 €, Rauch-Mehrkauf 6 für 10 €,
+REWE-Joghurt 1,19 € plus 0,15 € Pfand, trinkgut ohne falschen Literpreis,
+Netto-Trefl 8 € und bestätigte Markt-Abwesenheit in Oldenburg. Netto schwarz
+wurde außerdem in Berlin 10115 und 13353 positiv geprüft; ALDI Süd in 50939
+und 80331. Produktpreise sind Test-Erwartungen aus den datierten veröffentlichten
+Referenzen, keine Laufzeitkonstanten.
+
+Testcontainer und temporäre DNS-Einstellung wurden danach entfernt. Die
+produktive Installation wurde nicht ersetzt; ein signiertes neues APK-Release
+wird durch diese lokalen Debug-Builds nicht behauptet. Der abschließende
+Vier-Regionen-Loader-Nachlauf dieser Revision wird separat protokolliert.
+
+
+### Abschließender Stand: trinkgut-Bonuskarte und endgültiger Nachlauf
+
+Der Loader-Lauf von `ddd47d6` meldete für den Kölner trinkgut-Markt 72 Angebote
+und eine nicht auswertbare Karte. Die gespeicherte Karte zeigte sichtbar
+„250 Extra °P“, 8.99 und Grasovka Vodka 0,5 l. Ursache war kein fehlender
+Quelldatensatz: Die PAYBACK-Punkteplakette trägt dieselbe Klasse wie der Preis
+und steht davor; der Parser las den ersten Treffer, fand darin keinen Preis und
+verwarf die Karte (`PARSER_LOSS`). `00f4b6e` überspringt Bonusplaketten beim
+Preislesen und führt die veröffentlichten Punkte als Angebotsbedingung
+„Punkte, kein Preisnachlass“. Es wird kein Euro-Gegenwert berechnet. Eine Karte,
+die nur eine Punkteplakette und keinen Preis enthält, bleibt unlesbar und
+sichtbar teilweise.
+
+Der Regressionstest deckte einen zweiten, allgemeinen Fehler auf: Ein vor der
+schließenden Klammer abgeschnittener Grundpreisbezug („0,5 l Flasche (1 l =...“)
+wurde als zweite Packung 1000 ml gewertet. Die Packungserkennung entfernt nun
+auch die abgeschnittene Form; ein nicht als Grundpreis erkennbarer Klammertext
+bleibt unverändert.
+
+Coderevision `00f4b6edabf0ea10ea7ca5c9466e19e9c3c9c406`, Image
+`sha256:6ed3d3f4fb8efe7c4511fc667fcd9830559db5585ab580ba267980e8439a7aa9`.
+**849 Backendtests bestanden, 8 übersprungen**; Ruff, Bandit und Diff-Prüfung
+bestanden. Der Android-Code ist gegenüber `ddd47d6` unverändert (trinkgut läuft
+nativ über Marktguru/KaufDA, nicht über diesen Parser); die dortigen
+Ergebnisse 307/310 wurden deshalb nicht erneut erzeugt.
+
+**15 reale API- und 8 reale MCP-Prüfungen dieses Images bestanden**: alle
+vorherigen 14/7 sowie Grasovka 8,99 €, 500 ml, 17,98 €/l, ohne Bonuspreis. Ein
+erster Lauf brach an einer falschen Erwartung des Prüfskripts ab (Anzeigeformat
+„500 ml“ statt „500ml“); er wird nicht als bestanden gezählt. Die MCP-Antwort
+nennt die Punkte nicht; die API führt sie unter `offer_condition`.
+
+Vier-Regionen-Loader-Lauf desselben Images, kein Quellcode-Overlay, temporärer
+DNS nur im Wegwerfcontainer:
+
+| PLZ | importierte Datensätze | Dauer | sichtbare Einschränkungen |
+|---|---:|---:|---|
+| 26135 | 4022 | 41,5 s | kein passender offizieller REWE-/Marktkauf-Markt; ein Marktguru-Timeout (Getränke); ALDI Süd, Globus, Netto schwarz, trinkgut ohne Markt |
+| 10115 | 3454 | 75,0 s | kein Marktkauf-Markt; EDEKA-Marktanzeige nicht abgeglichen; zwei Marktguru-Timeouts |
+| 50939 | 3954 | 70,7 s | ein Marktguru-Timeout (Saft); trinkgut 73 statt 72, keine unlesbare Karte |
+| 04109 | 4093 | 19,8 s | EDEKA-Marktanzeige nicht abgeglichen; HOL’AB! ohne Markt |
+
+Die höhere Leipziger Zahl gegenüber dem Lauf von `ddd47d6` (4021) stammt aus
+PENNY 309 statt 238 ohne Marktguru-Teilausfall in diesem Lauf, nicht aus einer
+Codeänderung. Zwei optionale KaufDA-Globus-Bildabrufe lieferten HTTP 404.
+Importmengen sind keine Aussage über Prospektvollständigkeit.
+
+Unverändert offen: strukturierte Hirsch-Details bei Lidl (`UPSTREAM_MISSING`),
+ungeklärte Globus-ab-Gruppen, ALDI-Süd-Prospekt unter dem normalen Host-DNS
+(`SOURCE_UNAVAILABLE`, nur mit temporärem öffentlichem DNS geprüft), fehlende
+exakte Märkte in einzelnen PLZ, Drittanbieter-Timeouts sowie die mit
+`NOT_VERIFIED` markierten Filial- und Datumsabgleiche. Es gab keine produktive
+Installation und kein neues signiertes APK-Release.
