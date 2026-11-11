@@ -52,7 +52,7 @@ class UserDataMigrationTest {
         } finally { helper.close() }
     }
 
-    @Test fun exportedSchemaSixUpgradesAndRoomValidatesSchemaSeven() = runBlocking {
+    @Test fun exportedSchemaSixUpgradesAndRoomValidatesCurrentSchema() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val name = "issue58-real-schema-migration.db"
         context.deleteDatabase(name)
@@ -80,9 +80,9 @@ class UserDataMigrationTest {
             }).build())
         helper.writableDatabase
         helper.close()
-        val db = Room.databaseBuilder(context,KorbuinoDatabase::class.java,name).addMigrations(KorbuinoDatabase.MIGRATION_6_7).build()
+        val db = Room.databaseBuilder(context,KorbuinoDatabase::class.java,name).addMigrations(KorbuinoDatabase.MIGRATION_6_7, KorbuinoDatabase.MIGRATION_7_8).build()
         try {
-            assertEquals(7, db.openHelper.writableDatabase.version)
+            assertEquals(8, db.openHelper.writableDatabase.version)
             val row = db.shoppingListDao().allItems().single()
             assertEquals(6,row.quantity); assertTrue(row.checked); assertEquals("preserve",row.note)
             assertEquals("Coca-Cola",db.favoriteDao().all().single().query)
