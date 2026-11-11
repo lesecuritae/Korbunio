@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ProviderCacheEntity::class, ProductImageEntity::class,
         SettingEntity::class, SyncStateEntity::class, WatchNotificationReceipt::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class KorbuinoDatabase : RoomDatabase() {
@@ -35,7 +35,19 @@ abstract class KorbuinoDatabase : RoomDatabase() {
             "korbuino.db",
         // Never erase user data on a downgrade. Future schema changes must ship
         // an explicit Room migration; otherwise startup fails safely.
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build()
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Additive migration: preserve offers, lists, favorites and offline data.
+                database.execSQL("ALTER TABLE offers ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+                // A display name is not product identity: retain distinct GTINs/providers.
+                database.execSQL("DROP INDEX IF EXISTS index_products_normalizedKey")
+                database.execSQL("CREATE INDEX index_products_normalizedKey ON products (normalizedKey)")
+                // Re-fetch corrected source metadata without deleting offline offers.
+                database.execSQL("UPDATE provider_cache SET lastSuccess = NULL")
+            }
+        }
 
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(database: SupportSQLiteDatabase) {

@@ -1,0 +1,308 @@
+{
+  "contents": [
+    {
+      "offers": [
+        {
+          "content": {
+            "id": "2b251726-9999-40dc-a9d5-0be82ca46e95",
+            "type": "offer",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 4.99,
+                "min": 4.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": "Springform"
+              },
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 4.99,
+                "min": 4.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": "Backform Königskuchenform"
+              },
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 4.99,
+                "min": 4.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": "Backform Gugelhupfform"
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:00:00.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Backform Springform",
+                "brandName": "SILVERCREST",
+                "description": [
+                  {
+                    "paragraph": "Aus Stahlblech. Mit ILAG®-Antihaftbeschichtung. Ofenfest bis +230 °C. ca. Ø 26,5 x H 8 cm"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/2b251726-9999-40dc-a9d5-0be82ca46e95/dccc0b52-8dda-4261-b505-0793d4ada7eb.jpg",
+                    "dimensions": {
+                      "width": 263,
+                      "height": 132
+                    }
+                  },
+                  {
+                    "url": "https://content-media.bonial.biz/2b251726-9999-40dc-a9d5-0be82ca46e95/12d044f8-9b4b-413d-bba7-bab5c68c3fd1.jpg",
+                    "dimensions": {
+                      "width": 201,
+                      "height": 126
+                    }
+                  },
+                  {
+                    "url": "https://content-media.bonial.biz/2b251726-9999-40dc-a9d5-0be82ca46e95/d7657c63-b04a-4f7a-b2d2-43375b3ee199.jpg",
+                    "dimensions": {
+                      "width": 213,
+                      "height": 144
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-48989170",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-106949113",
+                    "name": "Marken Haushalt"
+                  },
+                  {
+                    "id": "DE-109916351",
+                    "name": "SilverCrest"
+                  }
+                ]
+              },
+              {
+                "name": "Backform Königskuchenform",
+                "brandName": "SILVERCREST",
+                "description": [
+                  {
+                    "paragraph": "Aus Stahlblech. Mit ILAG®-Antihaftbeschichtung. Ofenfest bis +230 °C. ca. L 32 x B 13 x H 7 cm"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-48989170",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-106949113",
+                    "name": "Marken Haushalt"
+                  },
+                  {
+                    "id": "DE-109916351",
+                    "name": "SilverCrest"
+                  }
+                ]
+              },
+              {
+                "name": "Backform Gugelhupfform",
+                "brandName": "SILVERCREST",
+                "description": [
+                  {
+                    "paragraph": "Aus Stahlblech. Mit ILAG®-Antihaftbeschichtung. Ofenfest bis +230 °C. ca. Ø 22 x H 12 cm"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-855",
+                    "name": "Möbel und Wohnen"
+                  },
+                  {
+                    "id": "DE-856",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-134103689",
+                    "name": "Möbel"
+                  },
+                  {
+                    "id": "DE-104462843",
+                    "name": "Küche"
+                  },
+                  {
+                    "id": "DE-104530373",
+                    "name": "Küchenutensilien "
+                  },
+                  {
+                    "id": "DE-33334575",
+                    "name": "Backzubehör"
+                  },
+                  {
+                    "id": "DE-6010",
+                    "name": "Backformen"
+                  },
+                  {
+                    "id": "DE-157730183",
+                    "name": "Kuchenform"
+                  },
+                  {
+                    "id": "DE-59261",
+                    "name": "Gugelhupf-Form"
+                  },
+                  {
+                    "id": "DE-661182450",
+                    "name": "Mini-Gugelhupfform"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "content": {
+            "id": "ca19b673-fc97-46de-b27e-58890c3f3dcd",
+            "type": "offer",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [
+                  {
+                    "other": "Auch online "
+                  }
+                ],
+                "currencyCode": "EUR",
+                "max": 11.99,
+                "min": 11.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": "Kochfeste Bettdecke ca. 135 x 200 cm"
+              },
+              {
+                "type": "REGULAR_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 14.99,
+                "min": 14.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": "Kochfeste Bettdecke ca. 135 x 200 cm"
+              },
+              {
+                "type": "SALES_PRICE",
+                "conditions": [
+                  {
+                    "other": "Auch online"
+                  }
+                ],
+                "currencyCode": "EUR",
+                "max": 14.99,
+                "min": 14.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": "Kochfeste Bettdecke ca. 155 x 220 cm"
+              },
+              {
+                "type": "REGULAR_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 19.99,
+                "min": 19.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": "Kochfeste Bettdecke ca. 155 x 220 cm"
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-11T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:00.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Kochfeste Bettdecke ca. 135 x 200 cm",
+                "brandName": "Livarno",
+                "description": [
+                  {
+                    "paragraph": "Auch als Ganzjahresdecke nutzbar. Ideal für Hausstaubmilbenallergiker. Hohlfaser-Füllung aus 100 % Polyester (recycelt). Bezug: 100 % Polyester. Füllgewicht ca. 925 g"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/ca19b673-fc97-46de-b27e-58890c3f3dcd/b4e509d6-7bca-42b9-a9e8-f8332b36e23c.jpg",
+                    "dimensions": {
+                      "width": 302,
+                      "height": 136
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-855",
+                    "name": "Möbel und Wohnen"
+                  },
+                  {
+                    "id": "DE-49940538",
+                    "name": "Marken Möbel und Wohnen"
+                  },
+                  {
+                    "id": "DE-128822602",
+                    "name": "Livarno"
+                  }
+                ]
+              },
+              {
+                "name": "Kochfeste Bettdecke ca. 155 x 220 cm",
+                "brandName": "Livarno",
+                "description": [
+                  {
+                    "paragraph": "Auch als Ganzjahresdecke nutzbar. Ideal für Hausstaubmilbenallergiker. Hohlfaser-Füllung aus 100 % Polyester (recycelt). Bezug: 100 % Polyester. Füllgewicht ca. 925 g"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-855",
+                    "name": "Möbel und Wohnen"
+                  },
+                  {
+                    "id": "DE-49940538",
+                    "name": "Marken Möbel und Wohnen"
+                  },
+                  {
+                    "id": "DE-128822602",
+                    "name": "Livarno"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

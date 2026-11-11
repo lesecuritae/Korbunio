@@ -1,0 +1,424 @@
+{
+  "contents": [
+    {
+      "offers": [
+        {
+          "content": {
+            "id": "7b83a5f2-c478-42e5-b3e5-aadc863e4794",
+            "type": "offer",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 1.69,
+                "min": 1.69,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "(kg = 3.76)",
+                "description": ""
+              },
+              {
+                "type": "REGULAR_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 2.49,
+                "min": 2.49,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Pflaumenmus",
+                "brandName": "MÜHLHÄUSER",
+                "description": [
+                  {
+                    "paragraph": "Original oder Stückig; 450-g-Glas"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/7b83a5f2-c478-42e5-b3e5-aadc863e4794/c7a9245c-f837-41ec-ac29-7605024ecdb8.jpg",
+                    "dimensions": {
+                      "width": 374,
+                      "height": 456
+                    }
+                  },
+                  {
+                    "url": "https://content-media.bonial.biz/7b83a5f2-c478-42e5-b3e5-aadc863e4794/132af507-e1dd-4b6d-af1c-9551352c9218.jpg",
+                    "dimensions": {
+                      "width": 319,
+                      "height": 392
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-48989303",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-106949053",
+                    "name": "Marken Lebensmittel"
+                  },
+                  {
+                    "id": "DE-131708740",
+                    "name": "Mühlhäuser"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "content": {
+            "id": "21ad1a7d-6193-4c09-b734-771347786a75",
+            "type": "offer",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 0.79,
+                "min": 0.79,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "(kg = 1.58)",
+                "description": ""
+              },
+              {
+                "type": "REGULAR_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 1.39,
+                "min": 1.39,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Nudeln",
+                "brandName": "Riesa",
+                "description": [
+                  {
+                    "paragraph": "Aus Hartweizengrieß;\nversch. Sorten, z. B. Spirelli oder Makkaroni-Chips; 500-g-Beutel"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/21ad1a7d-6193-4c09-b734-771347786a75/834855b3-d0fa-4820-b5ab-0bf9ae1d165c.jpg",
+                    "dimensions": {
+                      "width": 303,
+                      "height": 690
+                    }
+                  },
+                  {
+                    "url": "https://content-media.bonial.biz/21ad1a7d-6193-4c09-b734-771347786a75/305b3eb2-0717-43b9-ba8f-909880211639.jpg",
+                    "dimensions": {
+                      "width": 269,
+                      "height": 579
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-105",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-48921103",
+                    "name": "Lebensmittel"
+                  },
+                  {
+                    "id": "DE-50578562",
+                    "name": "Beilagen"
+                  },
+                  {
+                    "id": "DE-105278855",
+                    "name": "Teigwaren"
+                  },
+                  {
+                    "id": "DE-1358",
+                    "name": "Nudeln"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "content": {
+            "id": "61c6ba16-f50a-4664-8765-1b00f1d79ece",
+            "type": "offer",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 2.49,
+                "min": 2.49,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "(kg = 24.90)",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 4.29,
+                "min": 4.29,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Nougatspezialität",
+                "brandName": "Viba",
+                "description": [
+                  {
+                    "paragraph": "Minis; versch. Sorten, z. B. Classic oder Krokant; 100-g-Packung"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/61c6ba16-f50a-4664-8765-1b00f1d79ece/4319496e-61cc-47b6-98d2-cb0a39f46b65.jpg",
+                    "dimensions": {
+                      "width": 265,
+                      "height": 431
+                    }
+                  },
+                  {
+                    "url": "https://content-media.bonial.biz/61c6ba16-f50a-4664-8765-1b00f1d79ece/dd04e4bd-3bb3-48df-9cfb-70243a1d023c.jpg",
+                    "dimensions": {
+                      "width": 284,
+                      "height": 416
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-105",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-48921103",
+                    "name": "Lebensmittel"
+                  },
+                  {
+                    "id": "DE-103640156",
+                    "name": "Süßigkeiten"
+                  },
+                  {
+                    "id": "DE-103988945",
+                    "name": "Nougat"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "content": {
+            "id": "02029faa-2f24-4e48-a089-72c19e94af11",
+            "type": "offer",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 0.59,
+                "min": 0.59,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "(Liter = 0.39)",
+                "description": ""
+              },
+              {
+                "type": "REGULAR_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 0.99,
+                "min": 0.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Ilis Brause",
+                "brandName": "Ileburger",
+                "description": [
+                  {
+                    "paragraph": "Versch. Sorten, z. B. Himbeeroder Waldmeistergeschmack; zzgl. Pfand = 0.25; 1,5-L-Flasche"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/02029faa-2f24-4e48-a089-72c19e94af11/251fe2ef-ae4b-4f97-9d1d-754c1ab1a54d.jpg",
+                    "dimensions": {
+                      "width": 234,
+                      "height": 688
+                    }
+                  },
+                  {
+                    "url": "https://content-media.bonial.biz/02029faa-2f24-4e48-a089-72c19e94af11/90fb10fb-3a46-4ebe-b534-daf441380e20.jpg",
+                    "dimensions": {
+                      "width": 234,
+                      "height": 688
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-105",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-48920851",
+                    "name": "Getränke"
+                  },
+                  {
+                    "id": "DE-5820",
+                    "name": "Wasser"
+                  },
+                  {
+                    "id": "DE-254169056",
+                    "name": "Wassermarken"
+                  },
+                  {
+                    "id": "DE-23586885",
+                    "name": "Ileburger"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "content": {
+            "id": "c4642cc0-31ac-40f7-8cd4-12a51beacb76",
+            "type": "offer",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 1.99,
+                "min": 1.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "kg = 5.98",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Würstchen XXL",
+                "brandName": "Eberswalder",
+                "description": [
+                  {
+                    "paragraph": "In Eigenhaut 333-g-Packung"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/c4642cc0-31ac-40f7-8cd4-12a51beacb76/d2dcc6a2-8b18-4974-97e8-f0e4dfb19e72.jpg",
+                    "dimensions": {
+                      "width": 579,
+                      "height": 435
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-105",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-48921103",
+                    "name": "Lebensmittel"
+                  },
+                  {
+                    "id": "DE-136",
+                    "name": "Fleisch"
+                  },
+                  {
+                    "id": "DE-103728679",
+                    "name": "Fleischzubereitungen"
+                  },
+                  {
+                    "id": "DE-141",
+                    "name": "Würstchen"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

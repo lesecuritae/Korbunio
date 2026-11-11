@@ -30,10 +30,11 @@ from ..common import (
 )
 from ..http import PostalCodeLocator
 from ..images import is_rejected_image_url, normalize_image_url
-from ..models import Offer, ToolError
+from ..models import Offer, ToolError, NoLocalMarketError, NoLocalMarketOffers, PartialOffers
 
 
 class OfficialTrinkgutSource:
+    scope_note = RequestState("")
     last_market_label = RequestState("")
     last_market_url = RequestState("")
 
@@ -429,7 +430,7 @@ class OfficialTrinkgutSource:
         selected_distance, selected = ranked[0]
         if selected_distance > self.max_distance_km:
             near_name = clean_text(selected.get("city")) or clean_text(selected.get("name"))
-            raise ToolError(
+            raise NoLocalMarketError(
                 f"trinkgut: kein Markt im Umkreis von {self.max_distance_km:.0f} km um {postal_code} "
                 f"(nächster: {near_name}, {selected_distance:.0f} km)"
             )
@@ -528,17 +529,33 @@ class OfficialTrinkgutSource:
         if not title:
             return None
 
-        price_node = card.select_one(".product-price span") or card.select_one(".product-price")
-        price = parse_number(price_node.get_text(" ", strip=True) if price_node else None)
+        # A PAYBACK points badge shares the price class; it is a bonus, never the price.
+        price = None
+        bonus_labels: list[str] = []
+        for price_node in card.select(".product-price"):
+            label = clean_text(price_node.get_text(" ", strip=True))
+            if any("payback" in name.lower() for name in price_node.get("class", [])) or "°P" in label:
+                if label:
+                    bonus_labels.append(label)
+                continue
+            if price is None:
+                price = parse_number(label)
         if price is None or price <= 0:
             return None
+        bonus_condition = (
+            f"PAYBACK: {', '.join(bonus_labels)} (Punkte, kein Preisnachlass)" if bonus_labels else ""
+        )
 
         desc_node = card.select_one(".product-description")
         description = clean_text(desc_node.get_text(" ", strip=True) if desc_node else "")
 
         base_price, base_unit = parse_base_price_text(description)
         deposit = parse_deposit_text(description) or self._parse_truncated_deposit(description)
-        pack = normalize_pack(f"{title} {description}")
+        # A truncated second crate quantity cannot justify choosing the first.
+        truncated_alternative = bool(re.search(r"[/|]\s*\d+\s*[x×]\s*(?:\d+(?:[,.]\d*)?)?\s*(?:\.{3}|…)", description, re.I))
+        pack = "" if truncated_alternative else normalize_pack(f"{title} {description}")
+        if truncated_alternative:
+            base_price, base_unit = None, ""
 
         image_url = ""
         img_node = card.select_one("img.product-image") or card.select_one("img")
@@ -573,6 +590,8 @@ class OfficialTrinkgutSource:
             image_url=image_url,
             deposit=deposit,
             benefits=(),
+            offer_condition=bonus_condition,
+            coverage_note="Packungsalternative in der Quelle abgeschnitten; kein eindeutiger Mengenvergleich" if truncated_alternative else "",
             valid_from=valid_from.isoformat() if valid_from else None,
             valid_until=valid_until.isoformat() if valid_until else None,
         )
@@ -693,10 +712,14 @@ class OfficialTrinkgutSource:
         except Exception as exc:
             raise ToolError(f"trinkgut benötigt BeautifulSoup: {exc}") from exc
 
+        self.scope_note = ""
         requested_market_id = clean_text(market_id)
-        session, market_id, market_url, market_label, distance_km = self._find_market(
-            postal_code, market_id=requested_market_id
-        )
+        try:
+            session, market_id, market_url, market_label, distance_km = self._find_market(
+                postal_code, market_id=requested_market_id
+            )
+        except NoLocalMarketError:
+            return NoLocalMarketOffers()
 
         requested_week = normalize_offer_week(offer_week)
         reference_date = offer_week_reference(requested_week)
@@ -788,4 +811,8 @@ class OfficialTrinkgutSource:
         # Enrich deposits that could not be parsed from the truncated listing HTML
         offers = self._enrich_deposits(offers, session)
 
-        return deduplicate_offers(offers)
+        incomplete_packs = sum(bool(o.coverage_note) for o in offers)
+        if incomplete_packs:
+            self.scope_note = f"trinkgut: {incomplete_packs} abgeschnittene Packungsalternativen ohne eindeutigen Mengenvergleich"
+        parsed = deduplicate_offers(offers)
+        return PartialOffers(parsed, f"trinkgut: {unknown_cards} Angebotskarten nicht auswertbar") if unknown_cards else parsed

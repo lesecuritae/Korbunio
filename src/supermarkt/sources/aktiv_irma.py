@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from urllib.parse import urlencode, urljoin
 
 from ..common import (
@@ -16,7 +16,7 @@ from ..common import (
     validate_postal_code,
 )
 from ..http import HttpClient
-from ..models import Offer, ToolError
+from ..models import Offer, ToolError, NoLocalMarketOffers
 
 _VALIDITY = re.compile(
     r"^(?P<category>.+?):\s*(?P<vendor>.+?)\s+g[uü]ltig\s+vom\s+"
@@ -25,11 +25,6 @@ _VALIDITY = re.compile(
 )
 
 
-class NoLocalMarketOffers(list[Offer]):
-    """Empty catalogue with confirmed market absence, rather than a fetch error."""
-
-    def __init__(self) -> None:
-        super().__init__()
 # Price nodes live inside the product card and must not bleed into the
 # description text; they are read on their own and stripped from the copy.
 _PRICE_NODES = (".fr-price-box", ".fr-price-angebot", ".fr-price-statt", ".fr-price-app", ".fr-produktButton")
@@ -140,6 +135,15 @@ class OfficialAktivIrmaSource:
                     node.decompose()
             description = clean_text(trimmed.get_text(" ", strip=True))
 
+        weekday = re.search(r"gültig\s+ab\s+(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\b", card.get_text(" ", strip=True), re.I)
+        if weekday:
+            if not start or not end:
+                raise ToolError("aktiv & irma: Wochenendaktion ohne lesbaren Wochenzeitraum")
+            days = ("montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag")
+            candidate = start + timedelta(days=(days.index(weekday[1].casefold()) - start.weekday()) % 7)
+            if candidate > end:
+                raise ToolError("aktiv & irma: Aktionsbeginn außerhalb des veröffentlichten Zeitraums")
+            start = candidate
         base_price, base_unit = parse_base_price_text(description)
         pack = normalize_pack(description)
         slug = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")

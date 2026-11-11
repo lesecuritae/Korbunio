@@ -64,3 +64,29 @@ def test_full_page_of_only_known_offers_is_flagged_not_silently_complete(monkeyp
     offers, errors = c._load_once("12345")
     assert {o["id"] for o in offers} == {"1", "2"}
     assert any("bereits bekannte" in e for e in errors)
+
+
+def test_declared_total_keeps_fetching_after_a_short_page():
+    offsets = []
+    def pages(_query, offset):
+        offsets.append(offset)
+        return {"totalResults": 3, "results": [{"id": "1"}] if offset == 0 else [{"id": "2"}, {"id": "3"}]}
+    result = mk(pages)._fetch_query_pages("12345", "Lidl", {})
+    assert [row["id"] for row in result] == ["1", "2", "3"]
+    assert offsets == [0, 1] and not result.note
+
+
+def test_empty_last_page_with_remaining_declared_results_keeps_evidence_but_reports_partial():
+    result = mk(lambda _q, offset: {"totalResults": 3, "results": [{"id": "1"}, {"id": "2"}] if offset == 0 else []})._fetch_query_pages("12345", "Lidl", {})
+    assert len(result) == 2 and "unvollständig" in result.note
+
+
+def test_a_changed_declared_total_is_not_silently_complete():
+    result = mk(lambda _q, offset: {"totalResults": 3 if offset == 0 else 4, "results": [{"id": "1"}, {"id": "2"}] if offset == 0 else [{"id": "3"}]})._fetch_query_pages("12345", "Lidl", {})
+    assert len(result) == 2 and "Gesamtzahl" in result.note
+
+
+@pytest.mark.parametrize("total", [True, -1, "unknown", 0])
+def test_invalid_or_contradictory_total_is_a_failure_before_admission(total):
+    with pytest.raises(ToolError):
+        mk(lambda _q, _o: {"totalResults": total, "results": [{"id": "1"}]})._fetch_query_pages("12345", "Lidl", {})

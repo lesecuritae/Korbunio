@@ -51,7 +51,7 @@ class AktivIrmaProvider(
                 .firstOrNull { it.text().contains("ltig vom", ignoreCase = true) }
                 ?.text().orEmpty()
             val match = LABEL.find(label)
-            val validFrom = isoDate(match?.groupValues?.get(3))
+            val panelFrom = isoDate(match?.groupValues?.get(3))
             val validUntil = isoDate(match?.groupValues?.get(4))
             for (card in panel.select(".fr-product-card")) {
                 val name = card.selectFirst("h3.uk-card-title")?.text()?.trim().orEmpty()
@@ -61,6 +61,16 @@ class AktivIrmaProvider(
                 val container = card.selectFirst(".product-description-container")?.clone()
                 container?.select(".fr-price-box, .fr-price-angebot, .fr-price-statt, .fr-price-app, .fr-produktButton")?.remove()
                 val description = container?.text()?.trim().orEmpty()
+                var validFrom = panelFrom
+                val weekday = Regex("""gültig\s+ab\s+(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)\b""", RegexOption.IGNORE_CASE).find(card.text())
+                if (weekday != null) {
+                    check(panelFrom != null && validUntil != null) { "aktiv & irma: Wochenendaktion ohne lesbaren Wochenzeitraum" }
+                    val start = java.time.LocalDate.parse(panelFrom)
+                    val day = listOf("montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag").indexOf(weekday.groupValues[1].lowercase(Locale.GERMAN))
+                    val candidate = start.plusDays(((day - (start.dayOfWeek.value - 1) + 7) % 7).toLong())
+                    check(candidate <= java.time.LocalDate.parse(validUntil)) { "aktiv & irma: widersprüchlicher Aktionsbeginn" }
+                    validFrom = candidate.toString()
+                }
                 val (baseCents, baseUnit) = basePrice(description)
                 index += 1
                 val key = normalize(name)
@@ -83,6 +93,8 @@ class AktivIrmaProvider(
                     validUntil = validUntil,
                     sourceUrl = offersUrl,
                     imageUrl = image,
+                    description = description,
+                    packSize = ProviderParsing.packSize("$name $description"),
                     cachedAt = System.currentTimeMillis(),
                 )
             }

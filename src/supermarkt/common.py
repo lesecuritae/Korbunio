@@ -121,7 +121,9 @@ def normalize_view(value: Any) -> str:
 
 def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
     def spelling(value: str) -> str:
-        return re.sub(r"\bem[\s\-‐‑–]*eukal\b", "emeukal", value.casefold())
+        value = unicodedata.normalize("NFKD", value.casefold())
+        value = "".join(char for char in value if not unicodedata.combining(char))
+        return re.sub(r"\bem[\s\-‐‑–]*eukal\b", "emeukal", value)
 
     query = spelling(clean_text(filter_text))
     if not query:
@@ -131,10 +133,14 @@ def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
     # „Energydrink“, „Energy Drink“ und „Energy-Drink“ sind dieselbe Suche: zusätzlich ohne Leerzeichen/Bindestriche vergleichen.
     compact_query = re.sub(r"[\s\-‐‑–]+", "", query)
     compact = len(compact_query) >= 4
+    words = [word for word in re.findall(r"[a-z0-9]+", query) if len(word) >= 2]
+    # General Wildgulasch may find a published subtype, never the reverse.
+    def contains(word: str, text: str) -> bool:
+        return word in text or (word == "wildgulasch" and bool(re.search(r"\b(?:wildschwein|hirsch|reh)[ -]?gulasch\b", text)))
     matches = []
     for offer in offers:
         haystack = spelling(f"{offer.name} {offer.brand} {offer.description} {offer.retailer}")
-        if query in haystack or (compact and compact_query in re.sub(r"[\s\-‐‑–]+", "", haystack)):
+        if query in haystack or (compact and compact_query in re.sub(r"[\s\-‐‑–]+", "", haystack)) or (words and all(contains(word, haystack) for word in words)):
             matches.append(offer)
     return matches
 
@@ -292,21 +298,36 @@ def identity_words(brand: str, name: str) -> list[str]:
     return name_words if brand_words and name_words[: len(brand_words)] == brand_words else brand_words + name_words
 
 def normalize_pack(value: str) -> str:
+    # German thousands separators in published quantities ("1.000 g") are
+    # not decimal points. Preserve genuine decimal quantities such as 1.5 l.
+    value = re.sub(r"(?<![\d.,])([1-9]\d{0,2}(?:\.\d{3})+)(?![\d.,])",
+        lambda match: match[1].replace(".", ""), value)
     # Grundpreis-Angaben sind keine zweite Packungsgröße. Beispiele:
     # "0,33-l-Dose (1 l = 1.19)" oder "150-g-Becher (1 kg = 3,27 €)".
     # Die komplette Klammer fliegt vor der Packungserkennung raus.
     value = re.sub(
-        r"\(\s*(?:grundpreis\s*)?(?:1\s*(?:kg|kilogramm|l|liter)|"
-        r"100\s*(?:g|gramm|ml|milliliter)|1\s*(?:stk\.?|stück|portion|anwendung))"
+        r"\(\s*(?:grundpreis\s*)?\d+(?:[.,]\d+)?\s*"
+        r"(?:kg|kilogramm|l|liter|ltr\.?|g|gramm|ml|milliliter|"
+        r"stk\.?|st\.?|stück|portion(?:en)?|anwendung(?:en)?|wl|waschladungen?|rollen?|blatt)"
         r"\s*=\s*[^)]*\)",
-        " ",
-        value,
-        flags=re.IGNORECASE,
+        " ", value, flags=re.IGNORECASE,
     )
+    # A listing may cut the same reference off before its closing bracket
+    # ("0,5 l Flasche (1 l =..."). The reference unit is still no package.
+    value = re.sub(
+        r"\(\s*(?:grundpreis\s*)?\d+(?:[.,]\d+)?\s*"
+        r"(?:kg|kilogramm|l|liter|ltr\.?|g|gramm|ml|milliliter|"
+        r"stk\.?|st\.?|stück|portion(?:en)?|anwendung(?:en)?|wl|waschladungen?|rollen?|blatt)"
+        r"\s*(?:=[^)]*|\.{3}|…)\s*$",
+        " ", value, flags=re.IGNORECASE,
+    )
+
+    # Reverse unit-price notation is not another package: "23,96 € / 1 l".
+    value = re.sub(r"(?:\d+[.,]\d{2}\s*€|€\s*\d+[.,]\d{2})\s*/\s*(?:1|100)\s*(?:kg|g|ml|ltr\.?|l)\b", " ", value, flags=re.IGNORECASE)
 
     unit_pattern = (
         r"waschladungen?|wäschen?|portionen?|anwendungen?|kilogramm|milliliter|"
-        r"kapseln?|gramm|liter|caps?|pods?|tabs?|kg|ml|cl|g|l|wl|stück|stk\.?|rollen?|blatt"
+        r"kapseln?|gramm|liter|ltr\.?|caps?|pods?|tabs?|kg|ml|cl|g|l|wl|stück|stk\.?|st\.?|rollen?|blatt"
     )
 
     # A source range such as "85-100 g" is one ambiguous package choice, not
@@ -376,7 +397,7 @@ def normalize_pack_unit(amount: float, unit_text: str) -> tuple[float, str]:
     unit = unit_text.casefold().rstrip(".")
     if unit in {"kg", "kilogramm"}:
         return amount * 1000, "g"
-    if unit in {"l", "liter"}:
+    if unit in {"l", "liter", "ltr"}:
         return amount * 1000, "ml"
     if unit == "milliliter":
         return amount, "ml"
@@ -384,7 +405,7 @@ def normalize_pack_unit(amount: float, unit_text: str) -> tuple[float, str]:
         return amount * 10, "ml"
     if unit == "gramm":
         return amount, "g"
-    if unit.startswith("stück") or unit == "stk":
+    if unit.startswith("stück") or unit in {"stk", "st"}:
         return amount, "stk"
     if unit.startswith("rolle"):
         return amount, "rollen"
@@ -423,12 +444,18 @@ def identify_retailer(
     labels = " | ".join(advertiser_labels(raw_offer))
     if not labels:
         return None
+    matches = []
     for name, context in retailers.items():
         if any(alias in labels for alias in context.excluded_aliases):
             continue
-        if any(alias in labels for alias in context.aliases):
-            return name
-    return None
+        longest = max((len(alias) for alias in context.aliases if alias in labels), default=0)
+        if longest:
+            matches.append((longest, name))
+    if not matches:
+        return None
+    best = max(length for length, _name in matches)
+    names = {name for length, name in matches if length == best}
+    return names.pop() if len(names) == 1 else None
 
 def normalize_base_unit(value: str) -> str:
     unit = clean_text(value).casefold().replace(".", "")
@@ -583,6 +610,8 @@ def deduplicate_offers(offers: Iterable[Offer]) -> list[Offer]:
             offer.price,
             benefits,
             offer.validity_label,
+            tuple(offer.product_gtins),
+            re.sub(r"[^\w]+", " ", clean_text(offer.description).casefold()).strip(),
         )
         unique.setdefault(key, offer)
     return list(unique.values())
@@ -851,3 +880,28 @@ def first_regex_group(value: str, patterns: Iterable[str]) -> Optional[str]:
         if match:
             return match.group(1)
     return None
+
+
+def supplement_offers(primary: Iterable[Offer], supplemental: Iterable[Offer]) -> list[Offer]:
+    """Union independent sources, retaining primary evidence on exact identity.
+
+    Do not fuzzy-match varieties, pack sizes, dates or membership prices. Source
+    identifiers differ, so they cannot establish cross-source identity.
+    """
+    def text(value: str) -> str:
+        return re.sub(r"[^\w]+", " ", clean_text(value).casefold()).strip()
+
+    def identity(offer: Offer) -> tuple:
+        return (offer.retailer, text(offer.name), text(offer.brand),
+                normalize_pack(offer.pack_signature), offer.price,
+                offer.valid_from, offer.valid_until, text(offer.description),
+                offer.benefits, offer.deposit, tuple(offer.product_gtins))
+
+    result = list(primary)
+    seen = {identity(offer) for offer in result}
+    for offer in supplemental:
+        key = identity(offer)
+        if key not in seen:
+            result.append(offer)
+            seen.add(key)
+    return result

@@ -1,0 +1,101 @@
+{
+  "contents": [
+    {
+      "offers": [
+        {
+          "content": {
+            "type": "offer",
+            "id": "ee42ad91-1281-4101-a703-41230aa8263c",
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 3.99,
+                "min": 3.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "1 kg = 9.97",
+                "description": ""
+              },
+              {
+                "type": "REGULAR_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 4.99,
+                "min": 4.99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:00.000+0000"
+                }
+              }
+            ],
+            "products": [
+              {
+                "name": "Wildschwein",
+                "brandName": "Kania",
+                "description": [
+                  {
+                    "paragraph": "Versch. Sorten. Je 400 g"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/ee42ad91-1281-4101-a703-41230aa8263c/67d43d9b-2064-4408-8325-0fc2984f53cd.jpg",
+                    "dimensions": {
+                      "width": 457,
+                      "height": 457
+                    }
+                  },
+                  {
+                    "url": "https://content-media.bonial.biz/ee42ad91-1281-4101-a703-41230aa8263c/cf87b75b-8011-4aae-a535-c7ab1c8b36cd.jpg",
+                    "dimensions": {
+                      "width": 457,
+                      "height": 457
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-105",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-48921103",
+                    "name": "Lebensmittel"
+                  },
+                  {
+                    "id": "DE-136",
+                    "name": "Fleisch"
+                  },
+                  {
+                    "id": "DE-103728679",
+                    "name": "Fleischzubereitungen"
+                  },
+                  {
+                    "id": "DE-10526",
+                    "name": "Gulasch"
+                  },
+                  {
+                    "id": "DE-266838937",
+                    "name": "Wildschweingulasch"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

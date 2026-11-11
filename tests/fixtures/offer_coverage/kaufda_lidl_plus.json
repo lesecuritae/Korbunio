@@ -1,0 +1,176 @@
+{
+  "contents": [
+    {
+      "offers": [
+        {
+          "content": {
+            "type": "offer",
+            "id": "b2261ef4-87f8-419f-a20e-c433a927382c",
+            "products": [
+              {
+                "name": "Delikatess Mayonnaise",
+                "brandName": "KANIA",
+                "description": [
+                  {
+                    "paragraph": "Mit 80 % Rapsöl. Je 500 ml"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/b2261ef4-87f8-419f-a20e-c433a927382c/25df0a94-79e2-43a6-96e1-5b9a4052c843.jpg",
+                    "dimensions": {
+                      "width": 181,
+                      "height": 309
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-48989303",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-125813220",
+                    "name": "Marken Lidl Lebensmittel"
+                  },
+                  {
+                    "id": "DE-125820728",
+                    "name": "Kania"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SPECIAL_PRICE",
+                "conditions": [
+                  {
+                    "other": "Mit Lidl Plus"
+                  }
+                ],
+                "currencyCode": "EUR",
+                "max": 1.29,
+                "min": 1.29,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "1 l = 2.58",
+                "description": ""
+              },
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 1.69,
+                "min": 1.69,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "1 l = 3.38",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "content": {
+            "type": "offer",
+            "id": "58eca70a-3650-4998-a8e9-81c82db9cc02",
+            "products": [
+              {
+                "name": "Gulaschsuppe",
+                "brandName": "KANIA",
+                "description": [
+                  {
+                    "paragraph": "mit gegartem Rindfleisch 400 ml"
+                  }
+                ],
+                "images": [
+                  {
+                    "url": "https://content-media.bonial.biz/58eca70a-3650-4998-a8e9-81c82db9cc02/0e530bec-1db7-4131-bcdd-d50d84fe6e3a.jpg",
+                    "dimensions": {
+                      "width": 580,
+                      "height": 580
+                    }
+                  }
+                ],
+                "categoryPaths": [
+                  {
+                    "id": "DE-104",
+                    "name": "Lebensmittel und Getränke"
+                  },
+                  {
+                    "id": "DE-105",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-48921103",
+                    "name": "Lebensmittel"
+                  },
+                  {
+                    "id": "DE-12392",
+                    "name": "Fertiggerichte"
+                  },
+                  {
+                    "id": "DE-1351",
+                    "name": "Suppen"
+                  },
+                  {
+                    "id": "DE-135581677",
+                    "name": "Fleischsuppe"
+                  },
+                  {
+                    "id": "DE-178648213",
+                    "name": "Gulaschsuppe"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SPECIAL_PRICE",
+                "conditions": [
+                  {
+                    "other": "Mit Lidl Plus"
+                  }
+                ],
+                "currencyCode": "EUR",
+                "max": 1.39,
+                "min": 1.39,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "1 l = 3.48",
+                "description": ""
+              },
+              {
+                "type": "REGULAR_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 1.79,
+                "min": 1.79,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-08T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

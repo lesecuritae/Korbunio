@@ -13,7 +13,7 @@ from typing import Any
 
 from .cache import PersistentSnapshotStore
 from .categories import category_decision
-from .common import clean_text, deduplicate_offers, filter_offers, filter_offers_by_keywords, normalize_aldi_region, normalize_keywords, normalize_offer_week, normalize_pack, normalize_view, offer_week_reference, parse_iso_date, today_berlin
+from .common import supplement_offers, clean_text, deduplicate_offers, filter_offers, filter_offers_by_keywords, normalize_aldi_region, normalize_keywords, normalize_offer_week, normalize_pack, offer_validity, normalize_view, offer_week_reference, parse_iso_date, today_berlin
 from .compare import OfferComparator, OfferMapper
 from .config import (
     CACHE_DB,
@@ -42,11 +42,12 @@ from .models import AGGREGATOR_RETAILERS, RETAILER_SPECS, Offer, RetailerContext
 from .image_match import match_article
 from .presentation import offer_for_response, offer_sort_key, resolve_retailer_name
 from .region import AldiRegionResolver
-from .sources.aktiv_irma import NoLocalMarketOffers
+from .models import NoLocalMarketOffers
 
 LOGGER = logging.getLogger(__name__)
-from .sources import KaufdaGlobusImageSource, KaufdaRetailerSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAktivIrmaSource, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialMuellerSource, OfficialRossmannSource, OfficialTrinkgutSource
+from .sources import KaufdaGlobusImageSource, KaufdaRetailerSource, MarktguruClient, NettoMarkenMarketResolver, OfficialAktivIrmaSource, OfficialAldiSource, OfficialDmSource, OfficialEdekaSource, OfficialGlobusSource, OfficialKauflandSource, OfficialMarktkaufSource, OfficialReweSource, OfficialHolabSource, OfficialNettoScottieSource, OfficialRossmannSource, OfficialTrinkgutSource
 from .sources.netto_scottie import NettoScottieMarketResolver
+from .sources.brochures import MuellerBrochureSource
 from .sources.aldi_chain import AldiOfferChain
 
 class SourceLoader:
@@ -72,7 +73,12 @@ class SourceLoader:
         self.official_netto_scottie = OfficialNettoScottieSource(http, self.netto_scottie_markets.resolve)
         self.netto_marken_markets = NettoMarkenMarketResolver(http)
         self.official_rossmann = OfficialRossmannSource(timeout_seconds=TIMEOUT_SECONDS)
-        self.official_mueller = OfficialMuellerSource(http)
+        self.official_mueller = MuellerBrochureSource(http, locator)
+        self.kaufda_lidl = KaufdaRetailerSource(http, "Lidl", "Lidl", "Lidl", use_viewer=True)
+        self.kaufda_supplements = {
+            "Lidl": self.kaufda_lidl,
+            "ALDI Nord": KaufdaRetailerSource(http, "ALDI Nord", "ALDI Nord", "Aldi-Nord", use_viewer=True),
+        }
         self.kaufda_mueller = KaufdaRetailerSource(http, "Müller", "Müller", "Mueller", use_viewer=True)
         self.official_dm = OfficialDmSource(http)
         self.official_marktkauf = OfficialMarktkaufSource(TIMEOUT_SECONDS)
@@ -169,6 +175,8 @@ class SourceLoader:
         if selected_retailers:
             contexts = {name: context for name, context in contexts.items() if name in selected_retailers}
         request_errors: list[str] = []
+        incomplete_retailers: set[str] = set()
+        marktguru_incomplete = False
         store_warnings: list[str] = []
         challenge_urls: dict[str, str] = {}
         requested_week = normalize_offer_week(offer_week)
@@ -285,7 +293,8 @@ class SourceLoader:
         if hasattr(self, "official_rossmann") and "Rossmann" in active_contexts:
             official_jobs["Rossmann"] = lambda: self.official_rossmann.load(postal_code)
         if hasattr(self, "official_mueller") and "Müller" in active_contexts:
-            official_jobs["Müller"] = lambda: self.official_mueller.load(postal_code)
+            official_jobs["Müller"] = lambda: (self.official_mueller.load_week(postal_code, target_date)
+                if hasattr(self.official_mueller, "load_week") else self.official_mueller.load(postal_code))
         if hasattr(self, "official_dm") and "dm" in active_contexts:
             official_jobs["dm"] = lambda: self.official_dm.load(postal_code)
         if hasattr(self, "official_holab") and "HOL’AB!" in active_contexts:
@@ -315,10 +324,11 @@ class SourceLoader:
             "REWE": ("official_rewe", ("last_market_url", "last_market_label")),
             "EDEKA": ("official_edeka", ("last_market_url", "last_market_label")),
             "Marktkauf": ("official_marktkauf", ("last_market_url", "last_market_label")),
-            "Globus": ("official_globus", ("last_market_url", "last_market_label", "last_market")),
+            "Globus": ("official_globus", ("last_market_url", "last_market_label", "last_market", "scope_note")),
             "Netto schwarz": ("official_netto_scottie", ("last_market_url", "last_market_label")),
             "Kaufland": ("official_kaufland", ("last_store_url", "last_locality")),
-            "trinkgut": ("official_trinkgut", ("last_market_url", "last_market_label")),
+            "trinkgut": ("official_trinkgut", ("last_market_url", "last_market_label", "scope_note")),
+            "Müller": ("official_mueller", ("last_market_url", "last_market_label", "source_label", "scope_note")),
         }
 
         def capture(name: str, loader):
@@ -346,6 +356,10 @@ class SourceLoader:
                         active_contexts.pop(name, None)
                         source_states[name] = "kein Markt"
                         continue
+                    note = getattr(raw_offers, "note", "")
+                    if note:
+                        incomplete_retailers.add(name)
+                        request_errors.append(f"{name}: {note}")
                     offers = deduplicate_offers(list(raw_offers))
                     catalogue_responded = True
                 except Exception as exc:
@@ -361,7 +375,10 @@ class SourceLoader:
                         request_errors.append(f"{name} offiziell: keine Angebote für die Zielwoche")
                     continue
                 final_by_retailer[name] = offers
-                source_states[name] = "offiziell"
+                source_states[name] = adapter_state.get(name, {}).get("source_label") or "offiziell"
+                scope_note = adapter_state.get(name, {}).get("scope_note")
+                if scope_note:
+                    store_warnings.append(scope_note)
                 processed_products += len(offers)
                 notify(status="processing", progress=10 + completed_sources * 9, source="Offizielle Webseite", retailer=name, category="Wochenangebote", step="Quelle verarbeitet", processed_sources=completed_sources, processed_products=processed_products)
 
@@ -471,8 +488,10 @@ class SourceLoader:
                     catalogue_responded = True
                     raw.extend(broad_raw)
                     request_errors.extend(errors)
+                    marktguru_incomplete = marktguru_incomplete or bool(errors)
                 except Exception as exc:
                     request_errors.append(f"Marktguru: {type(exc).__name__}: {exc}")
+                    marktguru_incomplete = True
 
             try:
                 targeted_raw, errors = self.marktguru.load_retailer_queries(
@@ -482,7 +501,9 @@ class SourceLoader:
                 catalogue_responded = True
                 raw.extend(targeted_raw)
                 request_errors.extend(errors)
+                marktguru_incomplete = marktguru_incomplete or bool(errors)
             except Exception as exc:
+                marktguru_incomplete = True
                 request_errors.append(f"Marktguru Händlerergänzung: {type(exc).__name__}: {exc}")
 
             if raw:
@@ -544,6 +565,28 @@ class SourceLoader:
                     if "KaufDA" in source_states.get("Globus", "")
                     else "offiziell + Marktguru-Bild"
                 )
+
+        # Complement a filled aggregator catalogue as well as an empty one.
+        # A regional source failure must not discard the primary offers.
+        supplements = getattr(self, "kaufda_supplements", {})
+        if not supplements and hasattr(self, "kaufda_lidl"):
+            supplements = {"Lidl": self.kaufda_lidl}
+        for name, source in supplements.items():
+            if name not in active_contexts:
+                continue
+            try:
+                locality = self.locator.locality(postal_code)
+                extra = source.load_regional(locality, target_date, self.locator.coordinates(postal_code))
+                primary = final_by_retailer.get(name, [])
+                merged = supplement_offers(primary, extra)
+                if len(merged) > len(primary):
+                    final_by_retailer[name] = merged
+                    original = source_states.get(name, "")
+                    source_states[name] = f"{original} + KaufDA-Ortsprospekt" if primary else "KaufDA-Ortsprospekt"
+                    store_warnings.append(f"{name}: ergänzender KaufDA-Ortsprospekt für {locality}; keine filialgenaue Bestandsaussage.")
+            except Exception as exc:
+                incomplete_retailers.add(name)
+                request_errors.append(f"{name} KaufDA-Ergänzung: {type(exc).__name__}: {exc}")
 
         # Update labels only from first-party adapters that actually supplied
         # the catalogue displayed to the user.
@@ -610,7 +653,11 @@ class SourceLoader:
 
         notify(status="processing", progress=96, source="Korbuino", retailer="Alle Händler", category="Alle Kategorien", step="Angebote werden zusammengeführt", processed_sources=completed_sources, processed_products=len(offers))
 
+        incomplete_retailers.update(name for name in failed_primary if name not in unavailable_retailers)
+        if marktguru_incomplete:
+            incomplete_retailers.update(aggregator_names | fallback_names)
         return {
+            "incomplete_retailers": sorted(incomplete_retailers),
             "postal_code": postal_code,
             "resolved_aldi_region": resolved,
             "resolved_aldi_regions": resolved_regions,
@@ -627,7 +674,7 @@ class SourceLoader:
 
 class SupermarketEngine:
     # v15 invalidates ALDI regions inferred from distant, sparsely tagged stores.
-    SNAPSHOT_SCHEMA = 15
+    SNAPSHOT_SCHEMA = 16  # Re-fetch corrected quantities, conditional prices and Sale-only Müller data.
     def __init__(self) -> None:
         self.store = PersistentSnapshotStore(CACHE_DB, CACHE_TTL_MINUTES, RESULT_RETENTION_HOURS, CACHE_MAX_SNAPSHOTS)
         self.loader = SourceLoader()
@@ -669,10 +716,45 @@ class SupermarketEngine:
                     return cached, True
             with self._refresh_capacity:
                 fresh = self.loader.load(postal_code, aldi_region, progress=progress, retailers=retailers, rewe_market_id=rewe_market_id, netto_market_id=netto_market_id, offer_week=offer_week, netto_scottie_market_id=netto_scottie_market_id, trinkgut_market_id=trinkgut_market_id)
+            if fresh.get("incomplete_retailers"):
+                previous = self.store.get_by_key(key, allow_stale=True)
+                fresh = self.retain_valid_offline_offers(previous, fresh, offer_week)
             stored = self.store.put(key, fresh, fresh_until=self.freshness_deadline(fresh, offer_week))
             if normalize_offer_week(offer_week) == "current":
                 history.record(postal_code, stored)
             return stored, False
+
+    @staticmethod
+    def retain_valid_offline_offers(previous: dict[str, Any] | None, fresh: dict[str, Any], offer_week: str) -> dict[str, Any]:
+        """Keep dated, missing evidence only within this exact region/store cache key.
+
+        Fresh records win by source ID; confirmed market absence and successfully
+        refreshed retailers must never be repopulated from old data.
+        """
+        if not previous:
+            return fresh
+        incomplete = set(fresh.get("incomplete_retailers", [])) - set(fresh.get("unavailable_retailers", []))
+        offers = list(fresh.get("offers", []))
+        seen = {(item.get("retailer"), item.get("offer_id")) for item in offers}
+        target = offer_week_reference(offer_week)
+        retained = 0
+        for item in previous.get("offers", []):
+            identity = (item.get("retailer"), item.get("offer_id"))
+            start, end = item.get("valid_from"), item.get("valid_until")
+            verified_at = item.get("offline_verified_at", previous.get("created_at", 0))
+            dated = bool(start and end) and offer_validity({"validityDates": [{"from": start, "to": end}]}, target)[0]
+            recent_online = (not start and not end and item.get("retailer") in {"Müller", "dm"}
+                and isinstance(verified_at, (int, float)) and 0 <= time.time() - verified_at <= 24 * 3600)
+            if item.get("retailer") not in incomplete or identity in seen or not (dated or recent_online):
+                continue
+            note = "Offline-Daten nach Abruffehler beibehalten; aktuell nicht erneut bestätigt"
+            offers.append({**item, "offline_verified_at": verified_at, "coverage_note": " · ".join(filter(None, (item.get("coverage_note"), note)))})
+            seen.add(identity)
+            retained += 1
+        if not retained:
+            return fresh
+        return {**fresh, "offers": offers, "store_warnings": [*fresh.get("store_warnings", []),
+            f"{retained} noch gültige Offline-Angebote nach unvollständigem Abruf beibehalten; Quellenstatus beachten."]}
 
     @staticmethod
     def freshness_deadline(snapshot: dict[str, Any], offer_week: str = "current", now: datetime | None = None, weekly: bool = CACHE_WEEKLY) -> float | None:
@@ -688,7 +770,7 @@ class SupermarketEngine:
         """
         if not weekly or normalize_offer_week(offer_week) != "current":
             return None
-        if snapshot.get("request_errors") or ("offers" in snapshot and not snapshot["offers"]):
+        if snapshot.get("request_errors") or snapshot.get("incomplete_retailers") or ("offers" in snapshot and not snapshot["offers"]):
             return None
         return next_change_timestamp(now)
 
@@ -826,6 +908,7 @@ class SupermarketEngine:
             ),
             "source_states": snapshot.get("source_states", {}),
             "unavailable_retailers": snapshot.get("unavailable_retailers", []),
+            "incomplete_retailers": snapshot.get("incomplete_retailers", []),
             "challenge_urls": snapshot.get("challenge_urls", {}),
             "warnings": list(dict.fromkeys([
                 *snapshot.get("request_errors", []),

@@ -1,0 +1,48 @@
+[
+  {
+    "id": 77935052,
+    "title": "Gurke",
+    "description": "Ursprung: Deutschland/Niederlande/Spanien/Griechenland/Österreich/Ungarn; Klasse: I; Stück",
+    "price": "0.75",
+    "customLabel1": "9.11.",
+    "productType": "Gemüse - Gemüse (hart)"
+  },
+  {
+    "id": 77935058,
+    "title": "Mango",
+    "description": "Ursprung: siehe Etikett; Klasse: I; Stück",
+    "price": "1.19",
+    "customLabel1": "9.11.",
+    "productType": "Obst - Mangos"
+  },
+  {
+    "id": 77644929,
+    "title": "Äpfel Krumme Dinger",
+    "description": "Ursprung: Deutschland; Klasse: II; 2-kg-Tasche",
+    "price": "2.99",
+    "discountedPrice": "1.99",
+    "customLabel1": "9.11.",
+    "customLabel9": "kg-Preis 1.00",
+    "productType": "Obst - Äpfel"
+  },
+  {
+    "id": 77644990,
+    "title": "Puten-Ministeaks",
+    "brand": "MEINE METZGEREI",
+    "description": "400-g-Packung",
+    "price": "5.59",
+    "discountedPrice": "4.59",
+    "customLabel1": "9.11.",
+    "customLabel9": "kg-Preis 11.48"
+  },
+  {
+    "id": 77644986,
+    "title": "Hamburger",
+    "brand": "MEINE METZGEREI",
+    "description": "Vom Rind; 400-g-Packung",
+    "price": "5.49",
+    "discountedPrice": "4.39",
+    "customLabel1": "9.11.",
+    "customLabel9": "kg-Preis 10.98"
+  }
+]

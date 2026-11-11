@@ -25,11 +25,15 @@ class CombinedPagesProvider(
         }
         val products: List<ProductEntity> = successes.flatMap { it.products }.distinctBy { it.id }
         val offers: List<OfferEntity> = successes.flatMap { it.offers }.distinctBy { it.id }
-        return ProviderResult(products, offers)
+        return ProviderResult(products, offers,
+            sourceWarnings = successes.flatMap { it.sourceWarnings } + results.mapNotNull { (provider, result) ->
+                result.exceptionOrNull()?.let { "${provider.displayName}: ${it.javaClass.simpleName}" }
+            }, preserveMissingOffers = successes.size != pages.size || successes.any { it.preserveMissingOffers },
+            paginationComplete = successes.size == pages.size && successes.all { it.paginationComplete })
     }
 }
 
 /** Müller departments whose public "Aktionen" pages list priced offers. */
 object MuellerPages {
-    val DEPARTMENTS = listOf("drogerie", "haushalt", "schreibwaren", "spielwaren")
+    val DEPARTMENTS = listOf("drogerie", "haushalt", "schreibwaren", "spielwaren", "naturshop", "multi-media", "struempfe", "handarbeit", "tiershop")
 }

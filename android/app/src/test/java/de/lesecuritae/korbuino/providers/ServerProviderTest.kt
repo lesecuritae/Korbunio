@@ -116,4 +116,97 @@ class ServerProviderTest {
         assertEquals(emptyList<String>(), direct.unavailableRetailerIds)
     }
 
+    @Test fun `real undated dm shape does not turn JSON null into an invisible date or fake image`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"offers":[{"offer_id":"dm:3061034","retailer":"dm","product":"Seifendose stapelbar, 1 St","regular_price":1.95,"valid_from":null,"valid_until":null,"brand":null,"image_url":null,"description":null,"pack_size":null,"pack":"1 Stück"}]}"""))
+        val result = ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109"))
+        val offer = result.offers.single()
+        assertNull(offer.validFrom); assertNull(offer.validUntil); assertNull(offer.imageUrl)
+        assertEquals("1 Stück", offer.packSize)
+        org.junit.Assert.assertTrue(de.lesecuritae.korbuino.OfferMatcher.isShown(offer.validFrom, offer.validUntil, "2026-11-10", false))
+        assertEquals("", result.products.single().brand)
+    }
+
+    @Test fun `server preserves published crate bundle single price and deposit`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"offers":[{"offer_id":"holab:3","retailer":"HOL’AB!","product":"Vilsa Mineralwasser Glas","regular_price":4.49,"multi_buy_quantity":2,"multi_buy_total_price":8.98,"single_price":4.99,"minimum_quantity":2,"multi_buy_condition":"ab 2 Kisten","pack_size":"12x700ml","deposit":3.30}]}"""))
+        val offer = ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("26135")).offers.single()
+        assertEquals(449, offer.priceCents); assertEquals(2, offer.multiBuyQuantity)
+        assertEquals(898, offer.multiBuyTotalCents); assertEquals(499, offer.singlePriceCents)
+        assertEquals(330, offer.depositCents); assertEquals("ab 2 Kisten", offer.multiBuyCondition)
+    }
+
+    @Test fun `server variants with equal names retain their individual brand and quantity`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"offers":[{"offer_id":"fixture:a","retailer":"Test","product":"Fixture same name","brand":"A","regular_price":1.99,"pack":"500 g"},{"offer_id":"fixture:b","retailer":"Test","product":"Fixture same name","brand":"B","regular_price":1.99,"pack":"1000 g"}]}"""))
+        val result = ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109"))
+        assertEquals(2, result.products.size)
+        assertEquals(setOf("A", "B"), result.products.map { it.brand }.toSet())
+        assertEquals(2, result.offers.map { it.productId }.toSet().size)
+    }
+
+    @Test fun `server partial catalogues preserve offline data and typed absence reaches all supported retailers`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"incomplete_retailers":["Lidl"],"unavailable_retailers":["trinkgut","Globus"],"warnings":["fixture page timeout"],"offers":[{"offer_id":"x","retailer":"Lidl","product":"Fixture","regular_price":1.99}]}"""))
+        val result = ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109"))
+        org.junit.Assert.assertTrue(result.preserveMissingOffers)
+        assertEquals(listOf("Lidl"), result.preservedRetailers("korbuino-server"))
+        org.junit.Assert.assertTrue(result.unavailableRetailerIds.containsAll(listOf("trinkgut", "Globus", "globus")))
+        assertEquals(listOf("fixture page timeout"), result.sourceWarnings)
+    }
+
+    @Test fun `server refuses missing repeated and excessive pagination instead of silently importing a partial list`() = runTest {
+        for (second in listOf("""{"page_count":2,"offers":[]}""", """{"page_count":2,"offers":[{"offer_id":"first","product":"Fixture","regular_price":1.99}]}""")) {
+            server.enqueue(MockResponse().setBody("""{"page_count":2,"offers":[{"offer_id":"first","product":"Fixture","regular_price":1.99}]}"""))
+            server.enqueue(MockResponse().setBody(second))
+            org.junit.Assert.assertTrue(runCatching { ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109")) }.isFailure)
+        }
+        server.enqueue(MockResponse().setBody("""{"page_count":201,"offers":[]}"""))
+        org.junit.Assert.assertTrue(runCatching { ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109")) }.isFailure)
+    }
+
+    @Test fun `server cannot redirect its result request and bearer to another origin`() = runTest {
+        MockWebServer().use { other ->
+            other.start()
+            server.enqueue(MockResponse().setBody("""{"result_url":"${other.url("/results/foreign")}"}"""))
+            org.junit.Assert.assertTrue(runCatching { ServerProvider(server.url("/").toString(), "fixture-only", OkHttpClient()).fetch(RetailerRequest("04109")) }.isFailure)
+            assertEquals(0, other.requestCount)
+        }
+    }
+
+    @Test fun `server refuses a shrinking page count instead of losing the last advertised page`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"page":1,"page_count":3,"offers":[{"offer_id":"first","product":"Fixture A","regular_price":1.99}]}"""))
+        server.enqueue(MockResponse().setBody("""{"page":2,"page_count":2,"offers":[{"offer_id":"second","product":"Fixture B","regular_price":1.99}]}"""))
+        val result = runCatching { ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109")) }
+        org.junit.Assert.assertTrue(result.isFailure)
+        org.junit.Assert.assertTrue(result.exceptionOrNull()!!.message!!.contains("Seitenzahl"))
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test fun `server retains pack-size-only variants and accepts genuinely absent GTINs`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"offers":[{"offer_id":"a","product":"Same fixture","regular_price":1.99,"pack_size":"500g","product_gtins":null},{"offer_id":"b","product":"Same fixture","regular_price":1.99,"pack_size":"1000g","product_gtins":null}]}"""))
+        val result = ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109"))
+        assertEquals(2, result.products.size)
+        assertEquals(2, result.offers.map { it.productId }.distinct().size)
+        assertEquals(setOf("500g", "1000g"), result.offers.map { it.packSize }.toSet())
+    }
+
+    @Test fun `server mode actually requests the selected preview week`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"offers":[]}"""))
+        ServerProvider(server.url("/").toString(), "", OkHttpClient()).fetch(RetailerRequest("04109", week = OfferWeek.NEXT))
+        org.junit.Assert.assertTrue(server.takeRequest().body.readUtf8().contains("\"offer_week\":\"next\""))
+    }
+
+    @Test fun `fallback product identity is source-bound and stable across new weekly prices and offer IDs`() = runTest {
+        fun body(id: String, price: Double) = """{"offers":[{"offer_id":"$id","product":"Same fixture","regular_price":$price,"pack":"500 g"}]}"""
+        val first = ServerProvider(server.url("/").toString(), "", OkHttpClient(), "Lidl", "marktguru-lidl")
+        val other = ServerProvider(server.url("/").toString(), "", OkHttpClient(), "PENNY", "marktguru-penny")
+        server.enqueue(MockResponse().setBody(body("week-a", 1.99)))
+        val a = first.fetch(RetailerRequest("04109"))
+        server.enqueue(MockResponse().setBody(body("week-b", 2.49)))
+        val b = first.fetch(RetailerRequest("04109"))
+        server.enqueue(MockResponse().setBody(body("week-a", 1.99)))
+        val c = other.fetch(RetailerRequest("04109"))
+        assertEquals(a.products.single().id, b.products.single().id)
+        org.junit.Assert.assertNotEquals(a.products.single().id, c.products.single().id)
+        val imported = de.lesecuritae.korbuino.data.prepareProductImport(emptyList(), emptyList(), a.products + c.products, a.offers + c.offers)
+        assertEquals(2, imported.products.size)
+    }
+
 }

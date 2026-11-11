@@ -511,3 +511,28 @@ def test_rewe_offer_title_keeps_real_plain_number():
     )
     title_node = soup.select_one(".cor-offer-information__title")
     assert OfficialReweSource._offer_title(title_node) == "Produkt Generation 2"
+
+
+@pytest.mark.parametrize("broken", ['<article class="cor-offer-renderer-tile"><h3 class="cor-offer-information__title">Schema geändert</h3></article>', '<div data-offer-nan="unreturned" data-offer-wwident="1940016"></div>'])
+def test_rewe_missing_card_is_partial_even_when_the_rest_of_the_catalogue_is_filled(monkeypatch, broken):
+    import json
+    from pathlib import Path
+    from supermarkt.models import PartialOffers
+    fixture = json.loads((Path(__file__).parent / "fixtures/offer_coverage/rewe_public_include.json").read_text())
+    # One real card plus a simulated malformed/unreturned card. Not live evidence.
+    rendered = f'<div data-offer-nan="{fixture["rendered_nan"]}" data-offer-wwident="1940016">{fixture["rendered_card"]}</div>'
+    malformed = broken if "data-offer-nan" in broken else f'<div data-offer-nan="broken" data-offer-wwident="1940016">{broken}</div>'
+    page = f'<div data-categories-week-value="current">{rendered}{malformed}</div>'
+    class Session:
+        def get(self, url, timeout):
+            return SimpleNamespace(status_code=200, text=page)
+        def post(self, *args, **kwargs):
+            return SimpleNamespace(status_code=200, json=list)
+    source = OfficialReweSource(object())
+    monkeypatch.setattr(source, "_find_market", lambda *args, **kwargs: (Session(), "1940016", "https://www.rewe.de/angebote/test/1940016/rewe-test/", "Test"))
+    monkeypatch.setattr(source, "_target_week", lambda: "current")
+    result = source.load("50939")
+    assert isinstance(result, PartialOffers)
+    assert len(result) == 1 and result[0].price == 3.79
+    assert "1 Angebotskarten" in result.note
+    assert source.last_unknown_count == 1

@@ -1,0 +1,66 @@
+{
+  "props": {
+    "pageProps": {
+      "pageInformation": {
+        "brochures": {
+          "viewer": [
+            {
+              "id": 2501324813,
+              "title": "LIDL LOHNT SICH",
+              "validFrom": "2026-11-15T23:00:00.000+0000",
+              "validUntil": "2026-11-21T22:00:00.000+0000",
+              "publishedFrom": "2026-11-07T23:00:00.000+0000",
+              "publishedUntil": "2026-11-14T23:00:00.000+0000",
+              "publisher": {
+                "id": "DE-1013",
+                "name": "Lidl",
+                "type": "RETAILER"
+              }
+            }
+          ],
+          "publisher": [
+            {
+              "id": 2501324792,
+              "title": "LIDL LOHNT SICH",
+              "validFrom": "2026-11-08T23:00:00.000+0000",
+              "validUntil": "2026-11-14T22:00:00.000+0000",
+              "publishedFrom": "2026-11-08T19:00:00.000+0000",
+              "publishedUntil": "2026-11-14T23:00:00.000+0000",
+              "publisher": {
+                "id": "DE-1013",
+                "name": "Lidl",
+                "type": "RETAILER"
+              }
+            },
+            {
+              "id": 2501318757,
+              "title": "Der Preisführer macht Deutschland dauerhaft günstiger!",
+              "validFrom": "2026-11-07T23:00:00.000+0000",
+              "validUntil": "2026-12-31T19:00:00.000+0000",
+              "publishedFrom": "2026-11-07T23:00:00.000+0000",
+              "publishedUntil": "2026-11-14T22:00:00.000+0000",
+              "publisher": {
+                "id": "DE-1013",
+                "name": "Lidl",
+                "type": "RETAILER"
+              }
+            },
+            {
+              "id": 2501299049,
+              "title": "Die Magie des Schenkens lohnt sich.",
+              "validFrom": "2026-10-18T22:00:00.000+0000",
+              "validUntil": "2026-12-24T22:00:00.000+0000",
+              "publishedFrom": "2026-10-17T22:00:00.000+0000",
+              "publishedUntil": "2026-12-24T22:00:00.000+0000",
+              "publisher": {
+                "id": "DE-1013",
+                "name": "Lidl",
+                "type": "RETAILER"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

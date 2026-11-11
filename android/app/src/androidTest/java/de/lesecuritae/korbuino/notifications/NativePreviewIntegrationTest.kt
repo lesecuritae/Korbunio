@@ -32,7 +32,11 @@ class NativePreviewIntegrationTest {
             assertEquals(OfferWeek.NEXT,requests.single().week)
             assertEquals("12345",requests.single().postalCode)
             assertEquals(2,db.offerDao().all().size)
-            assertTrue(db.offerDao().all().all { it.productId=="saved-product" })
+            // The current row keeps its product. An equal display name alone is
+            // no product identity, so the preview keeps its own source product.
+            assertEquals("saved-product",db.offerDao().all().single { it.validFrom==monday.toString() }.productId)
+            assertEquals("incoming-product",db.offerDao().all().single { it.validFrom!=monday.toString() }.productId)
+            assertEquals(setOf("saved-product","incoming-product"),db.productDao().all().map { it.id }.toSet())
             response=ProviderResult(emptyList(),emptyList())
             NativeWatchSync.refreshUpcoming(db,listOf(provider),"12345",null)
             assertEquals(listOf(current),db.offerDao().all())

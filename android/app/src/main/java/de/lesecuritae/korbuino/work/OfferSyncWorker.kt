@@ -48,7 +48,7 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                             providerId = provider.id,
                             lastSuccess = if (rejection == null) System.currentTimeMillis() else previous?.lastSuccess,
                             lastFailure = if (rejection == null || value.offers.isEmpty()) previous?.lastFailure else System.currentTimeMillis(),
-                            lastError = rejection,
+                            lastError = rejection ?: value.sourceWarnings.takeIf { it.isNotEmpty() }?.joinToString(" · ")?.take(320),
                             offerCount = if (rejection == null) value.offers.size else previous?.offerCount ?: 0,
                             retailerReachable = true,
                             sourceReachable = true,
@@ -63,18 +63,17 @@ class OfferSyncWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 db.withTransaction {
                     check(secureStore.get("daily_sync") == "true" && secureStore.get("postal_code") == postalCode) { "Aktualisierung inzwischen deaktiviert oder PLZ geändert" }
                     val rawProducts = successes.flatMap { it.second.products }
-                    val canonical = LinkedHashMap<String, de.lesecuritae.korbuino.data.ProductEntity>()
-                    db.productDao().all().forEach { canonical.putIfAbsent(it.normalizedKey, it) }
-                    rawProducts.forEach { canonical.putIfAbsent(it.normalizedKey, it) }
-                    val productIds = rawProducts.associate { it.id to canonical.getValue(it.normalizedKey).id }
-                    val products = rawProducts.map { canonical.getValue(it.normalizedKey) }.distinctBy { it.id }
-                    val offers = successes.flatMap { it.second.offers }.map { offer ->
-                        productIds[offer.productId]?.let { offer.copy(productId = it) } ?: offer
-                    }.distinctBy { it.id }
+                    val prepared = de.lesecuritae.korbuino.data.prepareProductImport(
+                        db.productDao().all(), db.offerDao().all(), rawProducts,
+                        successes.flatMap { it.second.offers },
+                    )
+                    val products = prepared.products
+                    val offers = prepared.offers
                     db.productDao().upsertAll(products)
                     val previousPostalCode = secureStore.get("offer_postal_code").orEmpty()
                     if (previousPostalCode.isNotBlank() && previousPostalCode != postalCode) db.offerDao().deleteAll()
-                    db.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) })
+                    db.offerDao().storeRefresh(offers, successes.flatMap { it.second.unavailableRetailers(it.first.id) },
+                        successes.flatMap { it.second.preservedRetailers(it.first.id) })
                 }
                 secureStore.put("offer_postal_code", postalCode)
                 de.lesecuritae.korbuino.notifications.NativeWatchSync.afterSuccessfulSync(

@@ -13,3 +13,14 @@ tests
 *.zip
 *.tar.gz
 *.whl
+
+# Native build outputs and private audit evidence never belong in the image context.
+android
+artifacts
+.tools
+.toolchain
+.android-sdk
+.gradle
+.ruff_cache
+*.sqlite3*
+*.log

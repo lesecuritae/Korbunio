@@ -1,0 +1,55 @@
+{
+  "id": 25588227,
+  "brand": {
+    "uniqueName": "kania",
+    "indexOffer": true,
+    "indexLeaflet": false,
+    "id": 114653,
+    "name": "Kania",
+    "industryId": 1023
+  },
+  "advertisers": [
+    {
+      "uniqueName": "lidl",
+      "indexOffer": true,
+      "indexLeaflet": true,
+      "id": "retailers/126679",
+      "name": "Lidl",
+      "industryId": 1023
+    }
+  ],
+  "categories": [
+    {
+      "uniqueName": null,
+      "indexOffer": false,
+      "indexLeaflet": false,
+      "id": 171,
+      "name": "Salatdressing",
+      "description": null,
+      "parentId": 108
+    }
+  ],
+  "description": "HINWEIS: MIT LIDL PLUS APP Mit 80 % Rapsöl. Je 500 ml Normalpreis: 1.69",
+  "volume": 0.5,
+  "quantity": 1.0,
+  "price": 1.29,
+  "oldPrice": null,
+  "referencePrice": 2.58,
+  "unit": {
+    "shortName": "l",
+    "id": 1,
+    "name": "Liter"
+  },
+  "product": {
+    "id": 669167,
+    "name": "Delikatess Mayonnaise",
+    "description": null
+  },
+  "validityDates": [
+    {
+      "from": "2026-11-08T23:00:00Z",
+      "to": "2026-11-14T22:59:59Z"
+    }
+  ],
+  "requiresLoyalityMembership": true
+}

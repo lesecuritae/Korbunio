@@ -3,11 +3,21 @@ package de.lesecuritae.korbuino.providers
 import de.lesecuritae.korbuino.data.OfferEntity
 import de.lesecuritae.korbuino.data.ProductEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import java.net.URI
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonArray
+import de.lesecuritae.korbuino.BerlinDate
 import java.text.Normalizer
 import java.util.Locale
 
@@ -23,6 +33,7 @@ class HtmlFlyerProvider(
     private val offersUrl: String,
     private val http: OkHttpClient = OkHttpClient(),
     private val renderedHtmlProvider: (() -> String?)? = null,
+    private val now: () -> java.time.LocalDate = { java.time.LocalDate.now(java.time.ZoneId.of("Europe/Berlin")) },
 ) : RetailerProvider {
     override val challengeUrl: String get() = offersUrl
     override suspend fun fetch(request: RetailerRequest): ProviderResult = withContext(Dispatchers.IO) {
@@ -41,7 +52,8 @@ class HtmlFlyerProvider(
                 response.body?.string().orEmpty()
             }
         }
-        val result = parse(html)
+        val first = parse(html, request.week)
+        val result = if (id == "mueller" && muellerListingIds(html).isNotEmpty()) remainingPages(html, first, request.week) else first
         if (id == "aldi-sued" && result.offers.isEmpty()) {
             // A 200 challenge/navigation page is not evidence of no local
             // store. Surface the failure so diagnostics and browser handoff
@@ -51,22 +63,30 @@ class HtmlFlyerProvider(
             check(!blocked) { "ALDI Süd Anti-Bot-Seite: Browser-Bestätigung erforderlich" }
             error("ALDI Süd Angebotsformat nicht lesbar: keine Produktkarten gefunden")
         }
-        if (id in setOf("mueller", "rossmann") && result.offers.isEmpty()) {
+        if (id in setOf("mueller", "rossmann") && result.offers.isEmpty() && !result.paginationComplete) {
             val reason = if (id == "rossmann") "Rossmann Anti-Bot-Seite lieferte" else "Müller lieferte"
             throw IllegalStateException("$reason keine lesbaren dynamischen Angebote")
         }
         result
     }
 
-    private fun parse(html: String): ProviderResult {
+    private fun parse(html: String, week: OfferWeek): ProviderResult {
         val doc = Jsoup.parse(html, offersUrl)
+        if (id == "holab" && doc.select("data.offer__price").isNotEmpty()) return parseHolab(doc, week)
+        val period = publishedPeriod(doc.text())
+        if (period != null && !offerWeekContains(period.first, period.second, week, now())) {
+            return ProviderResult(emptyList(), emptyList(), paginationComplete = true)
+        }
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
+        val warnings = mutableListOf<String>()
         val cards = doc.select(
             "[data-product], [data-testid*=product], .offer, .offer-card, .product-card, " +
                 ".product-tile, .kloffer, [aria-label^=\"product-\"], article, li[class*=offer], li[class*=product]",
         )
         cards.forEachIndexed { index, card ->
+            if (id == "rossmann" && !card.text().contains("Aus der Werbung", ignoreCase = true)) return@forEachIndexed
+            if (id == "mueller" && card.select("[class*=product-badges__text]").none { it.text().trim().equals("Sale", ignoreCase = true) }) return@forEachIndexed
             val name = card.attr("data-item-name").ifBlank { card.select(
                 "[data-product-name], [data-testid*=name], .product-name, .offer-name, " +
                     "[data-test*=product-tile__name], [class*=product-tile__product-name], " +
@@ -76,25 +96,51 @@ class HtmlFlyerProvider(
                 "[class*=product-price__current], [class*=product-price__price], " +
                 ".base-price--product-tile, .price, .offer-price, .product-price")
                 .firstOrNull()?.text()?.replace('\u00a0', ' ') ?: card.text().removePrefix(name)
-            val price = (if (id == "netto-marken") {
+            var price = (if (id == "netto-marken") {
                 card.selectFirst(".product__current-price strong")?.clone()?.apply {
                     select(".product__current-price--asterisk, .sr-only").remove()
                 }?.text()?.let { raw ->
                     ProviderParsing.price(raw.replace(Regex("[.,][–—-]$"), ",00"))
                 }
             } else if (id == "netto-schwarz") {
-                splitPrice(card.selectFirst("h3")) ?: parsePrice(text)
+                splitPrice(card.selectFirst("h3"))
+            } else if (id == "mueller") {
+                card.selectFirst("[data-testid=plp-currentPrice-label]")?.text()?.let(ProviderParsing::price)
             } else if (id == "rossmann") {
                 rossmannPrice(card) ?: parsePrice(text)
             } else parsePrice(text))
-                ?: return@forEachIndexed
+                ?: run {
+                    check(id != "netto-schwarz") { "Netto schwarz: veröffentlichter Artikelpreis nicht lesbar" }
+                    return@forEachIndexed
+                }
             if (name.isBlank() || name.length > 240) return@forEachIndexed
-            val external = card.attr("data-product-id").ifBlank { card.attr("data-id") }
+            var memberPrice: Double? = null
+            if (id == "netto-schwarz" && Regex("APP[- ]?PREIS|Netto\\+", RegexOption.IGNORE_CASE).containsMatchIn(card.text())) {
+                val regular = Regex("Nicht[- ]Mitgliederpreis\\s*(\\d+[.,]\\d{2})(?!\\d)(?!\\s*€?\\s*[-–—/]\\s*\\d)", RegexOption.IGNORE_CASE)
+                    .findAll(card.text()).mapNotNull { ProviderParsing.price(it.groupValues[1]) }.filter { it > 0 }.distinct().singleOrNull()
+                if (regular == null || regular < price) {
+                    // The app's model requires a real normal price. Do not
+                    // import the conditional value as an unconditional one or
+                    // derive a normal price from rounded per-litre metadata.
+                    warnings += "Netto schwarz: App-Angebot '$name' ohne eindeutigen Normalpreis nicht als Normalangebot importiert."
+                    return@forEachIndexed
+                }
+                memberPrice = price
+                price = regular
+            }
+            val external = card.attr("data-product-id").ifBlank { card.selectFirst("[data-product-id]")?.attr("data-product-id").orEmpty() }.ifBlank { card.attr("data-id") }
                 .ifBlank { card.attr("data-item-id") }
                 .ifBlank { if (id == "netto-marken") card.selectFirst("[data-sku]")?.attr("data-sku").orEmpty() else "" }
                 .ifBlank { "$index-${normalize(name)}" }
             val productId = "$id-product-${normalize(name)}"
             val image = imageUrl(card)
+            val declaredNettoPacks = if (id == "netto-schwarz") card.select("span").map { it.text() }.filter {
+                Regex("(?:\\d+\\s*[x×]\\s*)?\\d+(?:[.,]\\d+)?\\s*(?:kg|g|ml|l|Liter|Stück|Stk\\.?)", RegexOption.IGNORE_CASE).matches(it)
+            }.distinct() else emptyList()
+            val publishedPack = card.selectFirst("[data-testid=product-baseprice]")?.text()?.substringBefore("(")
+                ?: declaredNettoPacks.singleOrNull()
+            val details = if (id == "netto-schwarz") card.select("p").text() else
+                card.select(".product-description, .offer-description, .offer__subtitle, .offer__details, .product-tile__description, [class*=product-price__capacity], [data-testid=product-baseprice]").text()
             products += ProductEntity(
                 productId,
                 name,
@@ -106,9 +152,32 @@ class HtmlFlyerProvider(
                 id = "$id:$external", retailerId = id, productId = productId,
                 externalId = external, priceCents = java.math.BigDecimal.valueOf(price).movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).intValueExact(),
                 sourceUrl = offersUrl, imageUrl = image, cachedAt = System.currentTimeMillis(),
+                validFrom = period?.first?.toString(), validUntil = period?.second?.toString(),
+                description = details,
+                packSize = ProviderParsing.packSize(publishedPack ?: "$name $details"),
+                loyaltyProgram = memberPrice?.let { "netto_scottie_plus" }, loyaltyLabel = memberPrice?.let { "Netto+ App-Preis" },
+                loyaltyPriceCents = memberPrice?.let(ProviderParsing::cents),
             )
         }
-        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
+        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id }, sourceWarnings = warnings)
+    }
+
+    private fun publishedPeriod(text: String): Pair<java.time.LocalDate, java.time.LocalDate>? {
+        if (id !in setOf("netto-schwarz", "rossmann")) return null
+        val dates = if (id == "netto-schwarz") {
+            val match = Regex("Angebote vom:?\\s*(\\d{2})-(\\d{2})-(\\d{4})\\s*bis\\s*(\\d{2})-(\\d{2})-(\\d{4})", RegexOption.IGNORE_CASE)
+                .find(text) ?: error("Netto schwarz: veröffentlichte Angebotsgültigkeit fehlt")
+            val values = match.groupValues.drop(1).map(String::toInt)
+            java.time.LocalDate.of(values[2], values[1], values[0]) to java.time.LocalDate.of(values[5], values[4], values[3])
+        } else {
+            val match = Regex("Gültig\\s+ab\\s+\\w+\\s*:\\s*(\\d{2})\\.(\\d{2})\\.\\s*-\\s*(\\d{2})\\.(\\d{2})\\.(\\d{4})", RegexOption.IGNORE_CASE)
+                .find(text) ?: error("Rossmann: veröffentlichte Angebotsgültigkeit fehlt")
+            val values = match.groupValues.drop(1).map(String::toInt)
+            val startYear = values[4] - if (values[1] > values[3]) 1 else 0
+            java.time.LocalDate.of(startYear, values[1], values[0]) to java.time.LocalDate.of(values[4], values[3], values[2])
+        }
+        check(!dates.first.isAfter(dates.second)) { "$displayName: widersprüchliche Angebotsgültigkeit" }
+        return dates
     }
 
     private fun parsePrice(text: String): Double? {
@@ -125,6 +194,9 @@ class HtmlFlyerProvider(
 
     private fun splitPrice(node: org.jsoup.nodes.Element?): Double? {
         if (node == null) return null
+        Regex("^(\\d{1,4})\\s*[.,]\\s*[-–—]\\s*€?$").matchEntire(node.text().trim())?.let {
+            return it.groupValues[1].toDouble()
+        }
         val euros = node.ownText().trim().removeSuffix(".").removeSuffix(",")
         val cents = node.children().firstNotNullOfOrNull { child ->
             child.text().trim().takeIf { it.matches(Regex("\\d{2}")) }
@@ -172,6 +244,125 @@ class HtmlFlyerProvider(
                 runCatching { URI(offersUrl).resolve(raw).toString() }.getOrNull()
             }
         }.firstOrNull { it.startsWith("http://") || it.startsWith("https://") }
+    }
+
+    private fun muellerListingIds(html: String): Set<String> = Jsoup.parse(html, offersUrl).select("article")
+        .filter { it.selectFirst("[class*=product-tile__product-name]") != null && it.selectFirst("[data-testid=plp-currentPrice-label]") != null }
+        .map { it.attr("data-product-id").ifBlank { it.selectFirst("[data-product-id]")?.attr("data-product-id").orEmpty() } }
+        .filter { it.isNotBlank() }.toSet()
+
+    private suspend fun remainingPages(initial: String, first: ProviderResult, week: OfferWeek): ProviderResult {
+        val base = offersUrl.toHttpUrl()
+        val products = first.products.associateBy { it.id }.toMutableMap()
+        val offers = first.offers.associateBy { it.id }.toMutableMap()
+        var html = initial
+        val seenProducts = muellerListingIds(initial).toMutableSet()
+        for (page in 1..200) {
+            currentCoroutineContext().ensureActive()
+            val links = Jsoup.parse(html, offersUrl).select("a[href]").mapNotNull { link ->
+                val url = runCatching { link.absUrl("href").toHttpUrl() }.getOrNull() ?: return@mapNotNull null
+                val number = url.queryParameter("page")?.toIntOrNull()
+                if (url.host == base.host && url.scheme == base.scheme && url.encodedPath == base.encodedPath &&
+                    url.queryParameterNames == setOf("page") && url.queryParameterValues("page").size == 1 && number != null) number to url else null
+            }.toMap()
+            if (page + 1 !in links && links.keys.none { it > page }) {
+                return ProviderResult(products.values.toList(), offers.values.toList(), paginationComplete = true)
+            }
+            val attempt = runCatching {
+                check(page < 200) { "Müller Seitenlimit erreicht" }
+                val url = links[page + 1] ?: error("Müller Pagination überspringt eine Seite")
+                html = http.newCall(Request.Builder().url(url).header("Accept", "text/html").build()).execute().use { response ->
+                    check(response.isSuccessful) { "Müller HTTP ${response.code}" }
+                    val source = response.body?.source() ?: error("Müller Antwort fehlt")
+                    check(!source.request(4_000_001)) { "Müller Antwort zu groß" }
+                    source.readUtf8()
+                }
+                val next = parse(html, week)
+                val pageIds = muellerListingIds(html)
+                check(pageIds.isNotEmpty()) { "Müller Folgeseite ohne Produktdaten" }
+                check(pageIds.any { it !in seenProducts }) { "Müller wiederholt eine Seite" }
+                seenProducts.addAll(pageIds)
+                next.products.forEach { products[it.id] = it }
+                next.offers.forEach { offers[it.id] = it }
+            }
+            attempt.exceptionOrNull()?.let { error ->
+                if (error is CancellationException) throw error
+                return ProviderResult(products.values.toList(), offers.values.toList(),
+                    sourceWarnings = listOf("Müller Import unvollständig: ${error.message.orEmpty().take(200)}"), preserveMissingOffers = true)
+            }
+        }
+        error("Müller Seitenlimit erreicht")
+    }
+
+    private fun parseHolab(doc: org.jsoup.nodes.Document, week: OfferWeek): ProviderResult {
+        val periods = linkedMapOf<String, Pair<String?, String?>>()
+        doc.select("script[type=application/ld+json]").forEach { script ->
+            val root = runCatching { Json.parseToJsonElement(script.data()).jsonObject }.getOrNull() ?: return@forEach
+            (root["@graph"] as? JsonArray).orEmpty().forEach { raw ->
+                (raw.jsonObject["makesOffer"] as? JsonArray).orEmpty().forEach { item ->
+                    val offer = item.jsonObject
+                    val name = offer["name"]?.jsonPrimitive?.content ?: return@forEach
+                    periods[normalize(name).replace("-", "")] =
+                        BerlinDate.toLocalDate(offer["validFrom"]?.jsonPrimitive?.content) to
+                            BerlinDate.toLocalDate(offer["validThrough"]?.jsonPrimitive?.content)
+                }
+            }
+        }
+        val globalRange = Regex("Unsere Angebote vom (\\d{2}\\.\\d{2}\\.\\d{4})\\s*-\\s*(\\d{2}\\.\\d{2}\\.\\d{4})", RegexOption.IGNORE_CASE)
+            .find(doc.text())?.let { match ->
+                val format = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
+                runCatching { java.time.LocalDate.parse(match.groupValues[1], format).toString() to
+                    java.time.LocalDate.parse(match.groupValues[2], format).toString() }.getOrNull()
+            }
+        val products = mutableListOf<ProductEntity>()
+        val offers = mutableListOf<OfferEntity>()
+        doc.select("li.offer, div.offer").forEachIndexed { index, card ->
+            val name = card.select(".offer__title").text()
+            val price = ProviderParsing.price(card.selectFirst("data.offer__price")?.attr("value")) ?: return@forEachIndexed
+            if (name.isBlank()) return@forEachIndexed
+            val key = normalize(name).replace("-", "")
+            val period = periods[key] ?: globalRange ?: error("HOL’AB! Gültigkeit für Artikel fehlt")
+            val from = period.first?.let(java.time.LocalDate::parse) ?: error("HOL’AB! Angebotsbeginn fehlt")
+            val until = period.second?.let(java.time.LocalDate::parse) ?: error("HOL’AB! Angebotsende fehlt")
+            if (!offerWeekContains(from, until, week, now())) return@forEachIndexed
+            val description = card.select(".offer__subtitle, .offer__details").text()
+            val condition = card.select(".price-tag__prefix").text()
+            val minimum = Regex("ab\\s+(\\d{1,2})\\s+Kisten", RegexOption.IGNORE_CASE).find(condition)
+                ?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it > 1 }
+            check(condition.isBlank() || condition.equals("Top-Angebot", true) || minimum != null) { "HOL’AB! unbekannte Preisbedingung" }
+            var single = Regex("1\\s+Kiste\\s+(\\d+[,.]\\d{2})", RegexOption.IGNORE_CASE)
+                .find(description)?.groupValues?.get(1)?.let(ProviderParsing::price)?.let(ProviderParsing::cents)
+            val productId = "$id-product-${normalize(name)}"
+            products += ProductEntity(productId, name, normalizedKey = normalize(name))
+            val detail = card.select(".offer__details").text()
+            val crates = Regex("\\b\\d+\\s*[x×]\\s*\\d+(?:[.,]\\d+)?\\s*(?:Ltr\\.?|Liter|l)\\b", RegexOption.IGNORE_CASE)
+                .findAll(detail).mapNotNull { ProviderParsing.packSize(it.value) }.distinct().toList()
+            var quantity = minimum
+            var bundleTotal = minimum?.let { ProviderParsing.cents(price * it) }
+            var bundleCondition = condition.takeIf { minimum != null }
+            val cartons = Regex("\\b(\\d{1,2})er[- ]Karton\\s+(\\d+[,.]\\d{2})\\s*€", RegexOption.IGNORE_CASE)
+                .findAll(detail).map { it.groupValues[1] to it.groupValues[2] }.distinct().toList()
+            val restricted = Regex("\\b(?:app|card|karte|coupon|kupon|mitglied|aktivieren)\\b", RegexOption.IGNORE_CASE).containsMatchIn(detail)
+            if (minimum == null && condition.isBlank() && !restricted && cartons.size == 1) {
+                val count = cartons.single().first.toInt()
+                val amount = ProviderParsing.price(cartons.single().second)
+                if (count in 2..99 && amount != null && amount > 0 && amount < price * count) {
+                    quantity = count
+                    bundleTotal = ProviderParsing.cents(amount)
+                    single = ProviderParsing.cents(price)
+                    bundleCondition = "${count}er-Karton"
+                }
+            }
+            offers += OfferEntity(id = "$id:$index:${normalize(name)}", retailerId = id, productId = productId,
+                externalId = "$index:${normalize(name)}", priceCents = ProviderParsing.cents(price),
+                validFrom = from.toString(), validUntil = until.toString(), sourceUrl = offersUrl,
+                imageUrl = imageUrl(card), cachedAt = System.currentTimeMillis(), description = description,
+                packSize = if (crates.size > 1) crates.joinToString(" / ") else ProviderParsing.packSize(detail),
+                depositCents = if (crates.size > 1) null else ProviderParsing.depositCents(detail),
+                multiBuyQuantity = quantity, multiBuyTotalCents = bundleTotal,
+                singlePriceCents = single, multiBuyCondition = bundleCondition)
+        }
+        return ProviderResult(products, offers)
     }
 
     private fun normalize(value: String): String = Normalizer.normalize(value.lowercase(Locale.GERMAN), Normalizer.Form.NFKD)

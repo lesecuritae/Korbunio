@@ -13,7 +13,10 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
             listOf(
                 ReweProvider(http, fallback = MarktguruProvider("REWE", http)),
                 FallbackRetailerProvider(GlobusProvider(http), MarktguruProvider("Globus", http)),
-                MarketGateProvider(AldiNordProvider(http)) { aldiMarkets.hasMarket(it, "nord") },
+                MarketGateProvider(SupplementingRetailerProvider(
+                    AldiNordProvider(http),
+                    KaufdaRetailerProvider("aldi-nord", "ALDI Nord", "ALDI Nord", "Aldi-Nord", http, regionalViewer = true),
+                )) { aldiMarkets.hasMarket(it, "nord") },
                 MarketGateProvider(HtmlFlyerProvider(
                     "aldi-sued", "ALDI Süd", "https://www.aldi-sued.de/angebote", http,
                     renderedHtmlProvider = { RenderedPageStore.consume("https://www.aldi-sued.de/angebote") },
@@ -30,26 +33,11 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                         MarktguruProvider("Rossmann", http, providerId = "rossmann", providerDisplayName = "Rossmann"),
                     ),
                 ),
+                // Dated own-publisher brochures, not general Aktion/Sale assortment.
                 FallbackRetailerProvider(
-                    // /c/online-angebote/ now redirects to the flyer page (no products); the department "Aktionen" pages
-                    // still list priced product tiles. The user-rendered page, if any, replaces the first page only.
-                    CombinedPagesProvider(
-                        "mueller",
-                        "Müller",
-                        MuellerPages.DEPARTMENTS.mapIndexed { index, department ->
-                            HtmlFlyerProvider(
-                                "mueller",
-                                "Müller",
-                                "https://www.mueller.de/c/$department/aktionen/",
-                                http,
-                                renderedHtmlProvider = if (index == 0) MuellerRenderedPageStore::consume else null,
-                            )
-                        },
-                    ),
-                    FallbackRetailerProvider(
-                        KaufdaRetailerProvider("mueller", "Müller", "Müller", "Mueller", http),
-                        MarktguruProvider("Müller", http, providerId = "mueller", providerDisplayName = "Müller"),
-                    ),
+                    KaufdaRetailerProvider("mueller", "Müller", "Müller", "Mueller", http, publisherViewer = true),
+                    MarktguruProvider("Müller", http, providerId = "mueller", providerDisplayName = "Müller"),
+                    surfacePrimaryFailureWhenFallbackEmpty = true,
                 ),
                 FallbackRetailerProvider(
                     EdekaProvider(http),
@@ -67,10 +55,10 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                     MarktguruProvider("trinkgut", http, providerId = "trinkgut", providerDisplayName = "trinkgut"),
                     KaufdaRetailerProvider("trinkgut", "trinkgut", "trinkgut", "Trinkgut", http),
                 ),
-                FallbackRetailerProvider(
+                MarketGateProvider(FallbackRetailerProvider(
                     HtmlFlyerProvider("netto-schwarz", "Netto schwarz", "https://netto.de/angebote/", http),
                     MarktguruProvider("Netto mit dem Scottie", http),
-                ),
+                ), hasMarket = NettoScottieMarkets(http)::hasMarket),
                 MarktguruProvider(
                     "Netto Marken-Discount",
                     http,
@@ -81,7 +69,10 @@ class ProviderRegistry(private val providers: List<RetailerProvider>) {
                 MarktguruProvider("famila Nordwest", http),
                 MarktguruProvider("Combi", http),
                 MarketGateProvider(AktivIrmaProvider(http), hasMarket = AktivIrmaMarkets(http)::hasMarket),
-                MarktguruProvider("Lidl", http),
+                SupplementingRetailerProvider(
+                    MarktguruProvider("Lidl", http),
+                    KaufdaRetailerProvider("marktguru-lidl", "Lidl", "Lidl", "Lidl", http, regionalViewer = true),
+                ),
                 MarktguruProvider("PENNY", http),
             ),
         )

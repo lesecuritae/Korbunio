@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -85,6 +86,30 @@ class MarktguruProviderTest {
         assertTrue(server.takeRequest().path!!.endsWith("/home"))
         assertEquals("/search?as=web&limit=100&offset=0&q=REWE&zipCode=12345", server.takeRequest().path)
         assertEquals("/search?as=web&limit=100&offset=100&q=REWE&zipCode=12345", server.takeRequest().path)
+    }
+
+    @Test fun `declared totals require the remaining page even after a short response`() = runTest {
+        server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+        server.enqueue(MockResponse().setBody("""{"totalResults":2,"results":[{"id":"a","product":{"name":"Fixture A"},"price":1}]}"""))
+        server.enqueue(MockResponse().setBody("""{"totalResults":2,"results":[{"id":"b","product":{"name":"Fixture B"},"price":2}]}"""))
+        val result = MarktguruProvider("Lidl", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString()).fetch(RetailerRequest("04109"))
+        assertEquals(2, result.offers.size)
+        assertTrue(result.sourceWarnings.isEmpty())
+        server.takeRequest(); server.takeRequest()
+        assertTrue(server.takeRequest().path!!.contains("offset=1"))
+    }
+
+    @Test fun `empty final page or changed total yields retained partial data instead of successful truncation`() = runTest {
+        for (last in listOf("""{"totalResults":2,"results":[]}""", """{"totalResults":3,"results":[{"id":"b","product":{"name":"Fixture B"},"price":2}]}""")) {
+            server.enqueue(MockResponse().setBody("<script>{\"apiKey\":\"a\",\"clientKey\":\"c\"}</script>"))
+            server.enqueue(MockResponse().setBody("""{"totalResults":2,"results":[{"id":"a","product":{"name":"Fixture A"},"price":1}]}"""))
+            server.enqueue(MockResponse().setBody(last))
+            val result = MarktguruProvider("Lidl", OkHttpClient(), server.url("/home").toString(), server.url("/search").toString()).fetch(RetailerRequest("04109"))
+            assertEquals(1, result.offers.size)
+            assertTrue(result.preserveMissingOffers)
+            assertFalse(result.paginationComplete)
+            assertTrue(result.sourceWarnings.isNotEmpty())
+        }
     }
 
     @Test fun `keeps only offers valid today instead of mixing future leaflet weeks`() = runTest {

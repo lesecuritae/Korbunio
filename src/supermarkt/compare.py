@@ -23,7 +23,7 @@ from .common import (
     parse_iso_date,
     parse_number,
 )
-from .loyalty import apply_selected_programs, parse_public_loyalty_prices
+from .loyalty import apply_selected_programs, marktguru_public_prices
 from .models import AGGREGATOR_RETAILERS, ComparisonResult, Offer, RetailerContext
 
 
@@ -61,6 +61,7 @@ class OfferMapper:
                 offer.price,
                 benefit_key,
                 offer.validity_label,
+                clean_text(offer.description).casefold(),
             )
             unique.setdefault(key, offer)
         return list(unique.values())
@@ -108,7 +109,7 @@ class OfferMapper:
         )
 
         price = parse_number(raw.get("price"))
-        benefits = parse_public_loyalty_prices(description, price, retailer)
+        price, benefits = marktguru_public_prices(description, price, retailer)
         unit_data = raw.get("unit") if isinstance(raw.get("unit"), dict) else {}
         categories = raw.get("categories") if isinstance(raw.get("categories"), list) else []
         category = next(

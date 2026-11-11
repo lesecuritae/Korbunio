@@ -1,0 +1,713 @@
+{
+  "contents": [
+    {
+      "offers": [
+        {
+          "placement": "",
+          "adFormat": null,
+          "content": {
+            "id": "01cfb5f2-03de-44f9-bbb4-76fe4ba74e7c",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1030",
+              "name": "Müller",
+              "images": []
+            },
+            "image": "https://content-media.bonial.biz/01cfb5f2-03de-44f9-bbb4-76fe4ba74e7c/main.jpg",
+            "parentContent": {
+              "id": "ef105712-9f44-4106-a591-2956b3e13bd2",
+              "legacyId": 2501311481,
+              "type": "static_brochure",
+              "page": {
+                "number": 0,
+                "area": {
+                  "bottomRight": {
+                    "x": 0.34389207,
+                    "y": 0.4263773
+                  },
+                  "topLeft": {
+                    "x": 0.015025042,
+                    "y": 0.22369878
+                  }
+                }
+              }
+            },
+            "products": [
+              {
+                "name": "ALIEN",
+                "brandName": "MUGLER",
+                "description": [
+                  {
+                    "paragraph": "Eau de Parfum 60 ml"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-448",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-142239465",
+                    "name": "Parfümerie"
+                  },
+                  {
+                    "id": "DE-27649497",
+                    "name": "Düfte"
+                  },
+                  {
+                    "id": "DE-102423947",
+                    "name": "Eau de Parfum"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 69.95,
+                "min": 69.95,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "€1165.84/1l",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 120,
+                "min": 120,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "linkOuts": [],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-01T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          },
+          "externalTracking": {
+            "impression": [],
+            "click": []
+          }
+        },
+        {
+          "placement": "",
+          "adFormat": null,
+          "content": {
+            "id": "e5588e8d-4f2d-40f4-8e78-7ac5c4d3bab6",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1030",
+              "name": "Müller",
+              "images": []
+            },
+            "image": "https://content-media.bonial.biz/e5588e8d-4f2d-40f4-8e78-7ac5c4d3bab6/main.jpg",
+            "parentContent": {
+              "id": "ef105712-9f44-4106-a591-2956b3e13bd2",
+              "legacyId": 2501311481,
+              "type": "static_brochure",
+              "page": {
+                "number": 0,
+                "area": {
+                  "bottomRight": {
+                    "x": 0.6560935,
+                    "y": 0.40753046
+                  },
+                  "topLeft": {
+                    "x": 0.3338898,
+                    "y": 0.18272425
+                  }
+                }
+              }
+            },
+            "products": [
+              {
+                "name": "Sì",
+                "brandName": "Armani",
+                "description": [
+                  {
+                    "paragraph": "Eau de Parfum 30 ml"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-48989170",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-107706001",
+                    "name": "Marken Parfum"
+                  },
+                  {
+                    "id": "DE-241086788",
+                    "name": "Armani"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 45.95,
+                "min": 45.95,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "1531.67/1 l",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 82,
+                "min": 82,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "linkOuts": [],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-01T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          },
+          "externalTracking": {
+            "impression": [],
+            "click": []
+          }
+        },
+        {
+          "placement": "",
+          "adFormat": null,
+          "content": {
+            "id": "598413d8-c71a-4de6-9e93-7434e45a57ed",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1030",
+              "name": "Müller",
+              "images": []
+            },
+            "image": "https://content-media.bonial.biz/598413d8-c71a-4de6-9e93-7434e45a57ed/main.jpg",
+            "parentContent": {
+              "id": "ef105712-9f44-4106-a591-2956b3e13bd2",
+              "legacyId": 2501311481,
+              "type": "static_brochure",
+              "page": {
+                "number": 0,
+                "area": {
+                  "bottomRight": {
+                    "x": 0.3338898,
+                    "y": 0.69988924
+                  },
+                  "topLeft": {
+                    "x": 0.015025042,
+                    "y": 0.4219525
+                  }
+                }
+              }
+            },
+            "products": [
+              {
+                "name": "Idôle",
+                "brandName": "Lancôme",
+                "description": [
+                  {
+                    "paragraph": "Eau de Parfum 25 ml"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-48989170",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-107706001",
+                    "name": "Marken Parfum"
+                  },
+                  {
+                    "id": "DE-132340541",
+                    "name": "Lancome"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 38.95,
+                "min": 38.95,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "€1558.00/1l",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 67,
+                "min": 67,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "linkOuts": [],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-01T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          },
+          "externalTracking": {
+            "impression": [],
+            "click": []
+          }
+        },
+        {
+          "placement": "",
+          "adFormat": null,
+          "content": {
+            "id": "28d53fdb-4169-4bff-9e41-6ccaf97c6bde",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1030",
+              "name": "Müller",
+              "images": []
+            },
+            "image": "https://content-media.bonial.biz/28d53fdb-4169-4bff-9e41-6ccaf97c6bde/main.jpg",
+            "parentContent": {
+              "id": "ef105712-9f44-4106-a591-2956b3e13bd2",
+              "legacyId": 2501311481,
+              "type": "static_brochure",
+              "page": {
+                "number": 0,
+                "area": {
+                  "bottomRight": {
+                    "x": 0.9633254,
+                    "y": 0.69988924
+                  },
+                  "topLeft": {
+                    "x": 0.6794321,
+                    "y": 0.4451827
+                  }
+                }
+              }
+            },
+            "products": [
+              {
+                "name": "ALIVE Eau de Parfum",
+                "brandName": "BOSS",
+                "description": [
+                  {
+                    "paragraph": "30 ml"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-448",
+                    "name": "Produkte"
+                  },
+                  {
+                    "id": "DE-142239465",
+                    "name": "Parfümerie"
+                  },
+                  {
+                    "id": "DE-27649497",
+                    "name": "Düfte"
+                  },
+                  {
+                    "id": "DE-102423947",
+                    "name": "Eau de Parfum"
+                  },
+                  {
+                    "id": "DE-102427103",
+                    "name": "Damen-Eau de Parfum"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 32.45,
+                "min": 32.45,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "€1081.67/1l",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 79,
+                "min": 79,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "linkOuts": [],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-01T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          },
+          "externalTracking": {
+            "impression": [],
+            "click": []
+          }
+        },
+        {
+          "placement": "",
+          "adFormat": null,
+          "content": {
+            "id": "da0e68ef-0aac-4939-b458-9b272693adf1",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1030",
+              "name": "Müller",
+              "images": []
+            },
+            "image": "https://content-media.bonial.biz/da0e68ef-0aac-4939-b458-9b272693adf1/main.jpg",
+            "parentContent": {
+              "id": "ef105712-9f44-4106-a591-2956b3e13bd2",
+              "legacyId": 2501311481,
+              "type": "static_brochure",
+              "page": {
+                "number": 0,
+                "area": {
+                  "bottomRight": {
+                    "x": 0.3338898,
+                    "y": 0.9667774
+                  },
+                  "topLeft": {
+                    "x": 0.015025042,
+                    "y": 0.69988924
+                  }
+                }
+              }
+            },
+            "products": [
+              {
+                "name": "L'EAU D'ISSEY POUR HOMME",
+                "brandName": "ISSEY MIYAKE",
+                "description": [
+                  {
+                    "paragraph": "Eau de Toilette 40 ml"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-48989170",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-107706001",
+                    "name": "Marken Parfum"
+                  },
+                  {
+                    "id": "DE-178300",
+                    "name": "Issey Miyake"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SPECIAL_PRICE",
+                "conditions": [
+                  {
+                    "other": "im Preis in der App"
+                  }
+                ],
+                "currencyCode": "EUR",
+                "max": 37.95,
+                "min": 37.95,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "€948.75/1 l",
+                "description": ""
+              },
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 42.95,
+                "min": 42.95,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "€1073.75/1 l",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 69,
+                "min": 69,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "linkOuts": [],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-01T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          },
+          "externalTracking": {
+            "impression": [],
+            "click": []
+          }
+        },
+        {
+          "placement": "",
+          "adFormat": null,
+          "content": {
+            "id": "7b6da846-d99b-436f-81db-a85e529e02f9",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1030",
+              "name": "Müller",
+              "images": []
+            },
+            "image": "https://content-media.bonial.biz/7b6da846-d99b-436f-81db-a85e529e02f9/main.jpg",
+            "parentContent": {
+              "id": "ef105712-9f44-4106-a591-2956b3e13bd2",
+              "legacyId": 2501311481,
+              "type": "static_brochure",
+              "page": {
+                "number": 0,
+                "area": {
+                  "bottomRight": {
+                    "x": 0.61936563,
+                    "y": 0.93798447
+                  },
+                  "topLeft": {
+                    "x": 0.3338898,
+                    "y": 0.6578292
+                  }
+                }
+              }
+            },
+            "products": [
+              {
+                "name": "HERO",
+                "brandName": "BURBERRY",
+                "description": [
+                  {
+                    "paragraph": "Eau de Toilette, 50 ml"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-447",
+                    "name": "Drogerie und Haushalt"
+                  },
+                  {
+                    "id": "DE-48989170",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-107706001",
+                    "name": "Marken Parfum"
+                  },
+                  {
+                    "id": "DE-108369397",
+                    "name": "Burberry"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 42.95,
+                "min": 42.95,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "€ 859.00/1 l",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 86,
+                "min": 86,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "linkOuts": [],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-01T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          },
+          "externalTracking": {
+            "impression": [],
+            "click": []
+          }
+        },
+        {
+          "placement": "",
+          "adFormat": null,
+          "content": {
+            "id": "50f65bd2-f4a3-4c06-a1b7-790fb2b07c6b",
+            "type": "offer",
+            "publisher": {
+              "id": "DE-1030",
+              "name": "Müller",
+              "images": []
+            },
+            "image": "https://content-media.bonial.biz/50f65bd2-f4a3-4c06-a1b7-790fb2b07c6b/main.jpg",
+            "parentContent": {
+              "id": "ef105712-9f44-4106-a591-2956b3e13bd2",
+              "legacyId": 2501311481,
+              "type": "static_brochure",
+              "page": {
+                "number": 0,
+                "area": {
+                  "bottomRight": {
+                    "x": 0.9633254,
+                    "y": 0.9667774
+                  },
+                  "topLeft": {
+                    "x": 0.61936563,
+                    "y": 0.69988924
+                  }
+                }
+              }
+            },
+            "products": [
+              {
+                "name": "BOTTLED BEYOND",
+                "brandName": "BOSS",
+                "description": [
+                  {
+                    "paragraph": "Eau de Parfum 50 ml"
+                  }
+                ],
+                "images": [],
+                "categoryPaths": [
+                  {
+                    "id": "DE-690",
+                    "name": "Mode und Accessoires"
+                  },
+                  {
+                    "id": "DE-48987009",
+                    "name": "Marken"
+                  },
+                  {
+                    "id": "DE-104486363",
+                    "name": "Marken Mode"
+                  },
+                  {
+                    "id": "DE-36566528",
+                    "name": "Boss"
+                  }
+                ]
+              }
+            ],
+            "deals": [
+              {
+                "type": "SALES_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 54.95,
+                "min": 54.95,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "€ 1099.00/1l",
+                "description": ""
+              },
+              {
+                "type": "RECOMMENDED_RETAIL_PRICE",
+                "conditions": [],
+                "currencyCode": "EUR",
+                "max": 99,
+                "min": 99,
+                "frequency": "ONCE",
+                "priceByBaseUnit": "",
+                "description": ""
+              }
+            ],
+            "linkOuts": [],
+            "publicationProfiles": [
+              {
+                "validity": {
+                  "startDate": "2026-11-01T23:00:00.000+0000",
+                  "endDate": "2026-11-14T22:59:59.000+0000"
+                }
+              }
+            ]
+          },
+          "externalTracking": {
+            "impression": [],
+            "click": []
+          }
+        }
+      ]
+    }
+  ]
+}

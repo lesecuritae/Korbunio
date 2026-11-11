@@ -11,17 +11,16 @@ from urllib.parse import urlencode
 from ..common import clean_text, find_marktguru_keys, first_regex_group
 from ..config import MARKTGURU_HOME, MARKTGURU_SEARCH_API, SEARCH_TERMS
 from ..http import HttpClient
-from ..models import ToolError
-
-class PartialOffers(list):
-    """Offers of one search term plus a note when the term could not be read completely."""
-
-    def __init__(self, items=(), note: str = "") -> None:
-        super().__init__(items)
-        self.note = note
-
+from ..models import ToolError, PartialOffers
 
 MAX_PAGES = 50
+
+
+class SearchPage(list):
+    """Raw rows plus optional source-declared total; remains list-compatible."""
+    def __init__(self, rows, total_results=None):
+        super().__init__(rows)
+        self.total_results = total_results
 
 
 class MarktguruClient:
@@ -145,8 +144,13 @@ class MarktguruClient:
             }
         )
         payload = self.http.get_json(f"{MARKTGURU_SEARCH_API}?{query}", headers)
-        results = payload.get("results")
-        return [item for item in results if isinstance(item, dict)] if isinstance(results, list) else []
+        results = payload.get("results") if isinstance(payload, dict) else None
+        if not isinstance(results, list) or any(not isinstance(item, dict) for item in results):
+            raise ToolError("Marktguru-Angebotsliste hat ein unerwartetes Format")
+        total = payload.get("totalResults")
+        if total is not None and (not isinstance(total, int) or isinstance(total, bool) or total < 0):
+            raise ToolError("Marktguru lieferte eine ungültige Gesamtzahl")
+        return SearchPage(results, total)
 
     def _fetch_query_pages(
         self,
@@ -157,9 +161,17 @@ class MarktguruClient:
         collected: dict[str, dict[str, Any]] = {}
         offset = 0
         note = ""
+        expected_total = None
         for page_number in range(MAX_PAGES):
             try:
                 page = self._fetch_page(postal_code, query_text, offset, headers)
+                total = getattr(page, "total_results", None)
+                if total is not None:
+                    if expected_total is not None and total != expected_total:
+                        raise ToolError("Marktguru Gesamtzahl hat sich während des Abrufs verändert")
+                    expected_total = total
+                if expected_total is not None and (offset + len(page) > expected_total or (not page and offset < expected_total)):
+                    raise ToolError("Marktguru Teilantwort: angekündigte Treffer fehlen oder Gesamtzahl widersprüchlich")
             except Exception as exc:
                 if not collected:
                     raise
@@ -169,13 +181,16 @@ class MarktguruClient:
             if not page:
                 break
             added = self._merge_unique(collected, page)
-            if len(page) < self.page_size:
-                break
             if added == 0:
                 # A full page of nothing new: the source repeats itself, so further pages cannot be trusted to be complete.
                 note = f"Seite {page_number + 1} lieferte nur bereits bekannte Angebote; Ergebnis möglicherweise unvollständig"
                 break
             offset += len(page)
+            if expected_total is not None:
+                if offset == expected_total:
+                    break
+            elif len(page) < self.page_size:
+                break
         else:
             note = f"Seitenlimit ({MAX_PAGES}) erreicht; Ergebnis möglicherweise unvollständig"
         return PartialOffers(collected.values(), note)

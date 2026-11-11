@@ -144,6 +144,14 @@ class PostalCodeLocator:
                 self._cache[postal_code] = locality
         return locality
 
+    def coordinates(self, postal_code: str) -> tuple[float, float] | None:
+        address = self._address(postal_code)
+        try:
+            lat, lon = float(address["_latitude"]), float(address["_longitude"])
+            return (lat, lon) if -90 <= lat <= 90 and -180 <= lon <= 180 else None
+        except (KeyError, ValueError, TypeError):
+            return None
+
     def state(self, postal_code: str) -> str:
         """Return the federal state for source pages that group stores by state."""
         with self._lock:
@@ -174,6 +182,7 @@ class PostalCodeLocator:
                 raw = payload[0].get("address")
                 if isinstance(raw, dict):
                     address = {str(key): clean_text(value) for key, value in raw.items()}
+                    address.update(_latitude=clean_text(payload[0].get("lat")), _longitude=clean_text(payload[0].get("lon")))
                     with self._lock:
                         self._address_cache[postal_code] = address
                     return address

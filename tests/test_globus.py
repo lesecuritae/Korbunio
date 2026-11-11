@@ -125,3 +125,56 @@ def test_loader_uses_resolved_market_code():
     offers = OfficialGlobusSource(http, Resolver()).load("65185")
     assert len(offers) == 1
     assert http.get_calls == ["https://www.globus.de/faltblatt_online/aktuelle_woche/wib/pageitems.json"]
+
+
+def test_unavailable_postal_coordinates_do_not_prove_store_absence(monkeypatch):
+    from supermarkt.models import ToolError
+    import pytest
+    resolver = GlobusMarketResolver(FakeHttp(markets=market_payload()))
+    monkeypatch.setattr(resolver, "_postal_coordinates", lambda _p: None)
+    with pytest.raises(ToolError, match="Standort"):
+        resolver.resolve("99999")
+
+
+def published_prices():
+    from pathlib import Path
+    return json.loads((Path(__file__).parent / "fixtures/offer_coverage/globus_published_prices.json").read_text())
+
+
+def test_published_globus_member_prices_and_quantity_ranges_remain_separate():
+    offers = OfficialGlobusSource.parse(published_prices(), MARKET)
+    cheese = next(o for o in offers if o.offer_id.endswith("77900000013772"))
+    pizza = next(o for o in offers if o.offer_id.endswith("77632000000030"))
+    assert (cheese.price, cheese.pack_signature, cheese.base_price, cheese.base_unit) == (2.29, "100-200g", None, "")
+    assert cheese.benefits[0].program_id == "mein_globus"
+    assert cheese.benefits[0].value == 1.99
+    assert (pizza.price, pizza.pack_signature, pizza.base_price) == (1.79, "270-410g", None)
+    assert pizza.benefits[0].value == 1.69
+    assert next(o for o in offers if "Eisbergsalat" in o.name).pack_signature == "1stk"
+    assert all((o.valid_from, o.valid_until) == ("2026-11-09", "2026-11-14") for o in offers)
+
+
+def test_published_pan_variants_have_bound_prices_instead_of_one_group_minimum():
+    offers = OfficialGlobusSource.parse(published_prices(), MARKET)
+    pans = [o for o in offers if "Pfanne" in o.name]
+    assert [(o.name.rsplit("Ø ", 1)[1], o.price) for o in pans] == [("20 cm", 9.99), ("24 cm", 11.99), ("28 cm", 13.99)]
+    assert len({o.offer_id for o in pans}) == 3
+    assert all(o.benefits == () and o.base_price is None for o in pans)
+
+
+@pytest.mark.parametrize("subtitle", ["verschiedene Größen", "Ø 20 cm: 9.99, Ø 24 cm: 11.99–13.99", "Ø 20 cm: 9.99, Ø 20 cm: 11.99", "Ø 20 cm: 10.99, Ø 24 cm: 11.99", "Ø 20 cm: 9.99, Ø 24 cm: 11.99, Ø 28 cm: 13.99–15.99"])
+def test_unresolved_starting_price_is_visible_but_never_a_comparable_fixed_price(subtitle):
+    payload = {"pages": [{"articles": [article(menge="ab", price="9.99", subtitle=subtitle, mgprice="8.99")]}]}
+    offer, = OfficialGlobusSource.parse(payload, MARKET)
+    assert offer.price is None and not offer.comparison_eligible
+    assert offer.base_price is None and not offer.benefits
+    assert "Variantenpreis" in offer.offer_condition
+    source = OfficialGlobusSource(FakeHttp(flyer=payload), type("Resolver", (), {"resolve": lambda self, _: MARKET})())
+    source.load("65203")
+    assert "1 ab-Preisgruppen" in source.scope_note
+
+
+@pytest.mark.parametrize("member,subtitle", [("ab 1.99", ""), ("1.99", "Coupon aktivieren"), ("4.99", ""), ("1.99–2.09", "")])
+def test_member_price_never_inferred_from_ranges_or_activation(member, subtitle):
+    offer, = OfficialGlobusSource.parse({"pages": [{"articles": [article(mgprice=member, subtitle=subtitle)]}]}, MARKET)
+    assert not offer.benefits

@@ -4,6 +4,18 @@ from dataclasses import asdict, dataclass
 from typing import Any, Optional
 
 
+class NoLocalMarketOffers(list):
+    """A successfully resolved absence, never a network/schema error."""
+
+
+class PartialOffers(list):
+    """A usable list plus explicit evidence that a source was not read completely."""
+
+    def __init__(self, items=(), note: str = "") -> None:
+        super().__init__(items)
+        self.note = note
+
+
 @dataclass(frozen=True)
 class RetailerSpec:
     name: str
@@ -25,10 +37,11 @@ RETAILER_SPECS: tuple[RetailerSpec, ...] = (
         ("netto marken-discount", "netto markendiscount", "netto-online", "netto"),
         "#f4c300",
         "https://www.netto-online.de/angebote/",
+        excluded_aliases=("netto scottie", "netto mit scottie", "netto mit dem scottie", "netto mit hund", "netto salling", "netto schwarz"),
     ),
     RetailerSpec(
         "Netto schwarz",
-        ("netto scottie", "netto mit scottie", "netto mit hund", "netto salling", "netto schwarz"),
+        ("netto scottie", "netto mit scottie", "netto mit dem scottie", "netto mit hund", "netto salling", "netto schwarz"),
         "#ffd500",
         "https://netto.de/marktsuche/",
         True,
@@ -163,6 +176,7 @@ class Offer:
     coverage_note: str = ""
     valid_from: Optional[str] = None
     valid_until: Optional[str] = None
+    product_gtins: tuple[str, ...] = ()
     benefits: tuple[LoyaltyBenefit, ...] = ()
 
     # These fields are calculated for a request and are not part of source parsing.
@@ -192,6 +206,10 @@ class ToolError(RuntimeError):
     pass
 
 
+class NoLocalMarketError(ToolError):
+    """No allowed nearby store after a successful location/market lookup."""
+
+
 def offer_to_dict(offer: Offer) -> dict[str, Any]:
     return asdict(offer)
 
@@ -209,6 +227,8 @@ def _benefits_from_dict(value: Any) -> tuple[LoyaltyBenefit, ...]:
 def offer_from_dict(value: dict[str, Any]) -> Offer:
     fields = Offer.__dataclass_fields__
     payload = {name: value[name] for name in fields if name in value}
+    identifiers = payload.get("product_gtins", ())
+    payload["product_gtins"] = tuple(sorted({str(v) for v in identifiers if isinstance(v, str) and v.isdigit() and len(v) in {8, 12, 13, 14}})) if isinstance(identifiers, (list, tuple)) else ()
     payload["benefits"] = _benefits_from_dict(payload.get("benefits"))
     payload["applied_benefits"] = _benefits_from_dict(payload.get("applied_benefits"))
     return Offer(**payload)

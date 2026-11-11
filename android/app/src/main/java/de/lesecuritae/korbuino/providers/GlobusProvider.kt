@@ -6,7 +6,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import org.jsoup.parser.Parser
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -49,15 +52,25 @@ class GlobusProvider(
     private fun parsePages(pages: JsonArray, marketId: String, sourceUrl: String): ProviderResult {
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
+        var unpriced = 0
         pages.forEach { page ->
             val pageObject = page.jsonObject
-            pageObject["articles"]?.jsonArray?.forEachIndexed { index, item ->
+            pageObject["articles"]?.jsonArray?.flatMap { variants(it.jsonObject) }?.forEachIndexed { index, item ->
                 val article = item.jsonObject
                 val name = article.text("title") ?: return@forEachIndexed
+                if (startingPrice(article)) {
+                    unpriced++
+                    return@forEachIndexed
+                }
                 val price = ProviderParsing.price(article.text("price"))
                     ?: return@forEachIndexed
                 val external = article.text("article_id") ?: "$marketId-${pageObject.text("page") ?: "0"}-$index"
-                val productId = "globus-product-" + normalize(name)
+                if (!price.isFinite() || price <= 0) return@forEachIndexed
+                val description = listOfNotNull(article.text("subtitle"), article.text("custom")).joinToString(" · ")
+                val memberPrice = ProviderParsing.price(article.text("mgprice"))?.takeIf {
+                    it.isFinite() && it > 0 && it < price && !Regex("coupon|aktivier|personalisiert", RegexOption.IGNORE_CASE).containsMatchIn(description)
+                }
+                val productId = "globus-product-$marketId-$external"
                 products += ProductEntity(productId, name, normalizedKey = normalize(name), gtin = article.text("ean"))
                 offers += OfferEntity(
                     id = "globus:$marketId:$external",
@@ -68,11 +81,46 @@ class GlobusProvider(
                         .setScale(0, RoundingMode.HALF_UP).intValueExact(),
                     sourceUrl = sourceUrl,
                     imageUrl = article.text("product_image") ?: article.text("productImage"),
+                    description = description,
+                    loyaltyProgram = if (memberPrice != null) "mein_globus" else null,
+                    loyaltyLabel = if (memberPrice != null) "mein GLOBUS" else null,
+                    loyaltyPriceCents = memberPrice?.let(::cents),
+                    packSize = ProviderParsing.packSize(article.text("menge").orEmpty())
+                        ?: if (Regex("""(?i)\b(?:pro|je)\s+Stück\b""").containsMatchIn(article.text("menge").orEmpty())) "1 Stück" else null,
+                    validFrom = de.lesecuritae.korbuino.BerlinDate.toLocalDate(article.text("begin")),
+                    validUntil = de.lesecuritae.korbuino.BerlinDate.toLocalDate(article.text("end")),
                     cachedAt = System.currentTimeMillis(),
                 )
             }
         }
-        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
+        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id },
+            sourceWarnings = if (unpriced > 0) listOf("GLOBUS: $unpriced ab-Preisgruppen ohne eindeutigen Variantenpreis nicht als Festpreis importiert") else emptyList())
+    }
+
+    private fun startingPrice(article: JsonObject): Boolean = listOf("menge", "price", "priceinfo").any {
+        Regex("""(?i)^ab\b""").containsMatchIn(article.text(it).orEmpty())
+    }
+
+    private fun variants(article: JsonObject): List<JsonObject> {
+        if (!startingPrice(article)) return listOf(article)
+        val matches = Regex("""[Øø]\s*(\d+(?:[,.]\d+)?)\s*cm\s*:\s*(\d+[,.]\d{2})(?![\d.–-]|,\d)""")
+            .findAll(article.text("subtitle").orEmpty()).toList()
+        if (matches.size != Regex("""[Øø]\s*\d+(?:[,.]\d+)?\s*cm\s*:""").findAll(article.text("subtitle").orEmpty()).count()) return listOf(article)
+        val pairs = matches.map { it.groupValues[1].replace(',', '.') to ProviderParsing.price(it.groupValues[2]) }
+        val prices = pairs.toMap()
+        val sourceId = article.text("article_id") ?: return listOf(article)
+        val minimum = ProviderParsing.price(article.text("price"))
+        if (prices.size < 2 || prices.values.any { it == null || !it.isFinite() || it <= 0 } ||
+            pairs.groupBy { it.first }.values.any { it.map { pair -> pair.second }.distinct().size > 1 } ||
+            prices.values.filterNotNull().minOrNull() != minimum) return listOf(article)
+        return prices.map { (diameter, price) ->
+            JsonObject(article + mapOf(
+                "article_id" to JsonPrimitive("$sourceId:diameter:$diameter"),
+                "title" to JsonPrimitive("${article.text("title")} Ø $diameter cm"),
+                "price" to JsonPrimitive(price), "menge" to JsonPrimitive("Ø $diameter cm"),
+                "mgprice" to JsonPrimitive(""), "priceinfo" to JsonPrimitive(""),
+            ))
+        }
     }
 
     private data class ImageMatch(val normalizedName: String, val priceCents: Int, val url: String)
@@ -172,7 +220,7 @@ class GlobusProvider(
         }
     }
 
-    private fun JsonObject.text(key: String): String? = this[key]?.jsonPrimitive?.content?.trim()?.ifBlank { null }
+    private fun JsonObject.text(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull?.let { Parser.unescapeEntities(it, false) }?.trim()?.ifBlank { null }
     private fun kotlinx.serialization.json.JsonElement.jsonObjectOrNull(): JsonObject? = runCatching { jsonObject }.getOrNull()
     private fun normalize(value: String): String = value.lowercase().replace("[^a-z0-9]+".toRegex(), "-").trim('-')
 }

@@ -10,7 +10,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -42,6 +44,7 @@ class EdekaProvider(
     private val today: () -> LocalDate = { LocalDate.now(BERLIN) },
     private val handoff: (String) -> String? = EdekaHandoffStore::consume,
     private val now: () -> Long = System::currentTimeMillis,
+    private val publicBaseUrl: String = "https://www.edeka.de",
 ) : RetailerProvider {
     override val id = "edeka"
     override val displayName = "EDEKA"
@@ -92,21 +95,84 @@ class EdekaProvider(
                 .addQueryParameter("marketId", marketId)
                 .addQueryParameter("limit", "99999")
                 .build()
-            val result = runCatching { parseOffers(getJson(offersUrl.toString()), marketId, marketUrl(market), reference) }
-                .getOrElse { failure ->
-                    // A blocked request applies to every market: let it surface as the
-                    // 403 that offers the confirmation instead of hiding it.
-                    if (failure.message.orEmpty().contains("HTTP 403") || failure.message.orEmpty().contains("HTTP 429")) throw failure
+            val legacy = runCatching { parseOffers(getJson(offersUrl.toString()), marketId, marketUrl(market), reference) }
+            val result = legacy.getOrNull()
+            val actualUrl = marketUrl(market)
+            val parsed = runCatching { actualUrl.toHttpUrl() }.getOrNull()
+            val base = publicBaseUrl.toHttpUrl()
+            if (parsed != null && parsed.host == base.host && parsed.scheme == base.scheme &&
+                (parsed.encodedPath.startsWith("/eh/") || parsed.encodedPath.startsWith("/maerkte/"))) {
+                try {
+                    val page = org.jsoup.Jsoup.parse(getHtml(actualUrl), actualUrl)
+                    val links = page.select("a[href]").mapNotNull { a ->
+                        runCatching { a.absUrl("href").toHttpUrl() }.getOrNull()?.takeIf {
+                            it.host == base.host && it.scheme == base.scheme && it.encodedPath.matches(Regex("""/maerkte/\d+/angebote/?""")) && it.query == null
+                        }?.newBuilder()?.fragment(null)?.build()?.toString()?.trimEnd('/')
+                    }.distinct()
+                    check(links.size == 1) { "EDEKA: kein eindeutiger Angebotslink des gewählten Marktes" }
+                    val source = links.single() + "/"
+                    val modern = parseOffers(EdekaHtmlOffers.parse(getHtml(source), source), marketId, source, reference)
+                    if (modern.offers.isNotEmpty()) return if (result != null) preserveOfferIds(result, modern) else modern
+                } catch (failure: Exception) {
+                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    if (result != null && result.offers.isNotEmpty()) return result.copy(sourceWarnings = listOf("EDEKA: öffentliche Marktanzeige nicht abgeglichen; API-Angebote beibehalten (${failure.javaClass.simpleName})."), preserveMissingOffers = true)
                     problems += "Markt $marketId: ${failure.message}"
-                    null
                 }
+            }
             if (result != null && result.offers.isNotEmpty()) return result
+            legacy.exceptionOrNull()?.let { failure ->
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                // Only a successful selected-market page can replace a denied API.
+                if (failure.message.orEmpty().contains("HTTP 403") || failure.message.orEmpty().contains("HTTP 429")) throw failure
+                problems += "Markt $marketId: ${failure.message}"
+            }
             if (result != null) problems += "Markt $marketId: keine preislich verwertbaren Angebote"
         }
         error(
             "EDEKA: ${candidates.size} Märkte in der Nähe von $postalCode geprüft, " +
                 "keiner lieferte Angebote mit Preisen (${problems.take(3).joinToString("; ")})",
         )
+    }
+
+    internal fun preserveOfferIds(previous: ProviderResult, current: ProviderResult): ProviderResult {
+        val oldProducts = previous.products.associateBy { it.id }
+        val newProducts = current.products.associateBy { it.id }
+        fun key(o: OfferEntity, products: Map<String, ProductEntity>): List<Any?> = listOf(
+            o.retailerId, products[o.productId]?.name?.trim()?.lowercase(), o.priceCents, o.packSize,
+            o.description.trim().lowercase(), o.validFrom, o.validUntil)
+        val oldGroups = previous.offers.groupBy { key(it, oldProducts) }
+        val newGroups = current.offers.groupBy { key(it, newProducts) }
+        val products = linkedMapOf<String, ProductEntity>()
+        val offers = current.offers.map { offer ->
+            val identity = key(offer, newProducts)
+            val old = oldGroups[identity]?.singleOrNull()?.takeIf { newGroups[identity]?.size == 1 }
+            val product = newProducts.getValue(offer.productId)
+            if (old == null) {
+                products[product.id] = product
+                offer
+            } else {
+                products[old.productId] = product.copy(id = old.productId)
+                offer.copy(id = old.id, externalId = old.externalId, productId = old.productId,
+                    basePriceCents = offer.basePriceCents ?: old.basePriceCents,
+                    baseUnit = offer.baseUnit ?: old.baseUnit, imageUrl = offer.imageUrl ?: old.imageUrl)
+            }
+        }
+        return current.copy(products = products.values.toList(), offers = offers)
+    }
+
+    private fun getHtml(url: String): String = http.newCall(Request.Builder().url(url)
+        .header("Accept", "text/html").header("User-Agent", USER_AGENT).build()).execute().use { response ->
+        check(response.isSuccessful) { "EDEKA Marktseite HTTP ${response.code}" }
+        val base = publicBaseUrl.toHttpUrl()
+        val final = response.request.url
+        check(final.host == base.host && final.scheme == base.scheme) { "EDEKA: fremder Ursprung der Marktseite" }
+        val requested = url.toHttpUrl()
+        if (requested.encodedPath.matches(Regex("""/maerkte/\d+/angebote/?"""))) {
+            check(final.encodedPath.trimEnd('/') == requested.encodedPath.trimEnd('/')) { "EDEKA: Angebotsseite verweist auf anderen Markt" }
+        }
+        val body = response.body?.source() ?: error("EDEKA Marktseite fehlt")
+        check(!body.request(5_000_001)) { "EDEKA Marktseite zu groß" }
+        body.readUtf8()
     }
 
     private fun getJson(url: String): JsonElement {
@@ -183,19 +249,30 @@ class EdekaProvider(
             val (basePrice, baseUnit) = baseOf(doc.text("basicPrice"))
             val productId = "edeka-product-$marketId-$rawId"
 
-            products += ProductEntity(productId, title, normalizedKey = slug(title))
+            val gtins = (doc["gtins"] as? JsonArray).orEmpty().mapNotNull { it.jsonPrimitive.contentOrNull }.distinct()
+            products += ProductEntity(productId, title, normalizedKey = slug(title), gtin = gtins.singleOrNull())
+            val member = ProviderParsing.price(doc.text("edeka_app_preis"))?.takeIf { it > 0 && it < price }
             offers += OfferEntity(
                 id = "$id:$marketId:$rawId",
                 retailerId = id,
                 productId = productId,
                 externalId = "$marketId:$rawId",
-                priceCents = (price * 100).roundToInt(),
+                priceCents = ProviderParsing.cents(price),
+                loyaltyProgram = member?.let { "edeka_app" }, loyaltyLabel = member?.let { "EDEKA App" },
+                loyaltyPriceCents = member?.let(ProviderParsing::cents),
+                depositCents = ProviderParsing.depositCents(clean(doc.text("beschreibung")).orEmpty()),
                 basePriceCents = basePrice,
                 baseUnit = baseUnit,
                 validFrom = start?.toString(),
                 validUntil = end?.toString(),
                 sourceUrl = marketUrl,
                 imageUrl = imageOf(doc),
+                description = clean(doc.text("beschreibung")).orEmpty(),
+                packSize = doc.text("pack_size") ?: ProviderParsing.packSize("$title ${clean(doc.text("beschreibung")).orEmpty()}"),
+                multiBuyQuantity = doc["multi_buy_quantity"]?.jsonPrimitive?.intOrNull,
+                multiBuyTotalCents = doc["multi_buy_total_cents"]?.jsonPrimitive?.intOrNull,
+                singlePriceCents = doc["single_price_cents"]?.jsonPrimitive?.intOrNull,
+                multiBuyCondition = doc.text("multi_buy_condition"),
                 cachedAt = now(),
             )
         }
