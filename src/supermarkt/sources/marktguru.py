@@ -152,6 +152,25 @@ class MarktguruClient:
             raise ToolError("Marktguru lieferte eine ungültige Gesamtzahl")
         return SearchPage(results, total)
 
+    def _fetch_consistent_page(
+        self,
+        postal_code: str,
+        query_text: str,
+        offset: int,
+        headers: dict[str, str],
+        expected_total: int | None,
+    ) -> tuple[Any, int | None]:
+        """Fetch one page and check its self-reported total against earlier pages of the same query."""
+        page = self._fetch_page(postal_code, query_text, offset, headers)
+        total = getattr(page, "total_results", None)
+        if total is not None:
+            if expected_total is not None and total != expected_total:
+                raise ToolError("Marktguru Gesamtzahl hat sich während des Abrufs verändert")
+            expected_total = total
+        if expected_total is not None and (offset + len(page) > expected_total or (not page and offset < expected_total)):
+            raise ToolError("Marktguru Teilantwort: angekündigte Treffer fehlen oder Gesamtzahl widersprüchlich")
+        return page, expected_total
+
     def _fetch_query_pages(
         self,
         postal_code: str,
@@ -164,14 +183,7 @@ class MarktguruClient:
         expected_total = None
         for page_number in range(MAX_PAGES):
             try:
-                page = self._fetch_page(postal_code, query_text, offset, headers)
-                total = getattr(page, "total_results", None)
-                if total is not None:
-                    if expected_total is not None and total != expected_total:
-                        raise ToolError("Marktguru Gesamtzahl hat sich während des Abrufs verändert")
-                    expected_total = total
-                if expected_total is not None and (offset + len(page) > expected_total or (not page and offset < expected_total)):
-                    raise ToolError("Marktguru Teilantwort: angekündigte Treffer fehlen oder Gesamtzahl widersprüchlich")
+                page, expected_total = self._fetch_consistent_page(postal_code, query_text, offset, headers, expected_total)
             except Exception as exc:
                 if not collected:
                     raise

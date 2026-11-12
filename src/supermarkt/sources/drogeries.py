@@ -7,7 +7,7 @@ import threading
 import time
 from datetime import date
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit, urlencode, urljoin
 
 from ..common import (
@@ -196,8 +196,45 @@ class OfficialMuellerSource:
             raise ToolError(" | ".join(failures) or "Müller lieferte keine lesbaren Online-Angebote")
         return PartialOffers(result, " | ".join(failures))
 
-    def _load_department(self, department: str) -> PartialOffers:
+    def _fetch_department_page(self, url: str) -> tuple[Any, set[str], list[Offer]]:
+        """Fetch and parse one department listing page. Retries once if the listing came back
+        empty on an 'Aktion' category page, but never on an access challenge."""
         from bs4 import BeautifulSoup
+        payload = self.http.get_bytes(url, {"Accept": "text/html"})
+        if len(payload) > self.MAX_RESPONSE:
+            raise ToolError("Müller-Antwort überschreitet das Größenlimit")
+        soup = BeautifulSoup(payload, "html.parser")
+        parsed = self._parse(BeautifulSoup, url, payload, page=soup)
+        page_ids = self._listing_ids(soup)
+        if not page_ids:
+            visible = soup.get_text(" ", strip=True).casefold()
+            title = soup.title.get_text().casefold() if soup.title else ""
+            blocked = any(word in visible for word in ("verify you are human", "client challenge", "access denied", "captcha"))
+            if "aktion" in title and not blocked:
+                payload = self.http.get_bytes(url, {"Accept": "text/html"})
+                if len(payload) > self.MAX_RESPONSE:
+                    raise ToolError("Müller-Antwort überschreitet das Größenlimit")
+                soup = BeautifulSoup(payload, "html.parser")
+                parsed = self._parse(BeautifulSoup, url, payload, page=soup)
+                page_ids = self._listing_ids(soup)
+            if not page_ids:
+                raise ToolError("Müller lieferte keine lesbaren Produktkarten")
+        return soup, page_ids, parsed
+
+    @staticmethod
+    def _department_page_links(soup, department: str) -> dict[int, str]:
+        """Map page number -> absolute URL for every pagination link on this listing page."""
+        pages: dict[int, str] = {}
+        for link in soup.select("a[href]"):
+            candidate = urlsplit(urljoin(department, link["href"]))
+            query = parse_qs(candidate.query)
+            if (candidate.scheme == "https" and candidate.hostname == "www.mueller.de"
+                    and candidate.path == urlsplit(department).path and set(query) == {"page"}
+                    and len(query["page"]) == 1 and query["page"][0].isdigit()):
+                pages[int(query["page"][0])] = candidate.geturl()
+        return pages
+
+    def _load_department(self, department: str) -> PartialOffers:
         result: list[Offer] = []
         seen: set[str] = set()
         failures: list[ToolError] = []
@@ -205,26 +242,7 @@ class OfficialMuellerSource:
         department_ids: set[str] = set()
         for number in range(1, self.MAX_PAGES_PER_DEPARTMENT + 1):
             try:
-                payload = self.http.get_bytes(url, {"Accept": "text/html"})
-                if len(payload) > self.MAX_RESPONSE:
-                    raise ToolError("Müller-Antwort überschreitet das Größenlimit")
-                soup = BeautifulSoup(payload, "html.parser")
-                parsed = self._parse(BeautifulSoup, url, payload, page=soup)
-                page_ids = self._listing_ids(soup)
-                if not page_ids:
-                    visible = soup.get_text(" ", strip=True).casefold()
-                    title = soup.title.get_text().casefold() if soup.title else ""
-                    blocked = any(word in visible for word in ("verify you are human", "client challenge", "access denied", "captcha"))
-                    # One retry for a transient empty listing, never for an access challenge.
-                    if "aktion" in title and not blocked:
-                        payload = self.http.get_bytes(url, {"Accept": "text/html"})
-                        if len(payload) > self.MAX_RESPONSE:
-                            raise ToolError("Müller-Antwort überschreitet das Größenlimit")
-                        soup = BeautifulSoup(payload, "html.parser")
-                        parsed = self._parse(BeautifulSoup, url, payload, page=soup)
-                        page_ids = self._listing_ids(soup)
-                    if not page_ids:
-                        raise ToolError("Müller lieferte keine lesbaren Produktkarten")
+                soup, page_ids, parsed = self._fetch_department_page(url)
                 if page_ids <= department_ids:
                     raise ToolError("Müller wiederholt eine Seite; Katalog unvollständig")
                 department_ids.update(page_ids)
@@ -232,14 +250,7 @@ class OfficialMuellerSource:
                     if offer.offer_id not in seen:
                         seen.add(offer.offer_id)
                         result.append(offer)
-                pages = {}
-                for link in soup.select("a[href]"):
-                    candidate = urlsplit(urljoin(department, link["href"]))
-                    query = parse_qs(candidate.query)
-                    if (candidate.scheme == "https" and candidate.hostname == "www.mueller.de"
-                            and candidate.path == urlsplit(department).path and set(query) == {"page"}
-                            and len(query["page"]) == 1 and query["page"][0].isdigit()):
-                        pages[int(query["page"][0])] = candidate.geturl()
+                pages = self._department_page_links(soup, department)
                 if number + 1 not in pages:
                     if any(value > number for value in pages):
                         raise ToolError("Müller Pagination überspringt eine Seite; Katalog unvollständig")
@@ -349,7 +360,30 @@ class OfficialDmSource:
             return None
         return parse_number(current["current"].get("value"))
 
-    def _fetch(self) -> list[Offer]:
+    @staticmethod
+    def _validate_page_payload(payload: dict[str, Any], page: int, expected_count: int | None) -> tuple[list, int | None, int | None]:
+        """Validate one page's self-reported counters. Returns (batch, totalPages, updated expected_count)."""
+        batch = payload.get("products")
+        if not isinstance(batch, list) or any(not isinstance(product, dict) for product in batch):
+            raise ToolError("dm lieferte einen unerwarteten Angebotskatalog")
+        count = payload.get("count")
+        if count is not None:
+            if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= 2000:
+                raise ToolError("dm Gesamtzahl unbekannt oder zu groß")
+            if expected_count is not None and count != expected_count:
+                raise ToolError("dm Katalog während des Abrufs verändert")
+            expected_count = count
+        current = payload.get("currentPage")
+        if current is not None and (not isinstance(current, int) or isinstance(current, bool) or current != page):
+            raise ToolError("dm falsche Pagination-Seite geliefert")
+        pages = payload.get("totalPages")
+        if pages is not None and (not isinstance(pages, int) or isinstance(pages, bool) or not 1 <= pages <= 4):
+            raise ToolError("dm Seitenzahl unbekannt oder Seitenlimit überschritten")
+        return batch, pages, expected_count
+
+    def _fetch_product_pages(self) -> list[dict[str, Any]]:
+        """Fetch every dm 'Ausverkauf' search-API page, validating each page's self-reported
+        counters against the others and bailing out if the catalogue is inconsistent mid-fetch."""
         products = []
         expected_count = None
         seen_pages: set[str] = set()
@@ -357,22 +391,7 @@ class OfficialDmSource:
             query = urlencode({"query": "ausverkauf", "pageSize": 500, "currentPage": page})
             payload = self.http.get_json(f"{self.SEARCH_API}?{query}",
                 {"Accept": "application/json", "Referer": self.OFFERS_URL})
-            batch = payload.get("products")
-            if not isinstance(batch, list) or any(not isinstance(product, dict) for product in batch):
-                raise ToolError("dm lieferte einen unerwarteten Angebotskatalog")
-            count = payload.get("count")
-            if count is not None:
-                if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= 2000:
-                    raise ToolError("dm Gesamtzahl unbekannt oder zu groß")
-                if expected_count is not None and count != expected_count:
-                    raise ToolError("dm Katalog während des Abrufs verändert")
-                expected_count = count
-            current = payload.get("currentPage")
-            if current is not None and (not isinstance(current, int) or isinstance(current, bool) or current != page):
-                raise ToolError("dm falsche Pagination-Seite geliefert")
-            pages = payload.get("totalPages")
-            if pages is not None and (not isinstance(pages, int) or isinstance(pages, bool) or not 1 <= pages <= 4):
-                raise ToolError("dm Seitenzahl unbekannt oder Seitenlimit überschritten")
+            batch, pages, expected_count = self._validate_page_payload(payload, page, expected_count)
             import json
             fingerprint = json.dumps(batch, sort_keys=True, ensure_ascii=False)
             if batch and fingerprint in seen_pages:
@@ -390,6 +409,10 @@ class OfficialDmSource:
             raise ToolError("dm Seitenlimit erreicht; Katalog unvollständig")
         if expected_count is not None and len(products) != expected_count:
             raise ToolError("dm Teilantwort: Produktzahl stimmt nicht mit der angekündigten Gesamtzahl überein")
+        return products
+
+    def _fetch(self) -> list[Offer]:
+        products = self._fetch_product_pages()
         result: list[Offer] = []
         for product in products:
             if not isinstance(product, dict) or not isinstance(product.get("tileData"), dict):
