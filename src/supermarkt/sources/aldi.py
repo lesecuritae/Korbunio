@@ -223,8 +223,7 @@ class OfficialAldiSource:
             return LoadResult(self._load_south(reference_date), list(self.last_south_errors))
         return LoadResult([], ["ALDI-Region ist nicht eindeutig bestimmt"])
 
-    def _load_north(self, reference_date: date | None = None) -> list[Offer]:
-        page = self.http.get_bytes(self.NORTH_URL).decode("utf-8", errors="replace")
+    def _north_response_data(self, page: str) -> dict[str, Any]:
         match = re.search(
             r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
             page,
@@ -240,7 +239,6 @@ class OfficialAldiSource:
         if not isinstance(api_data, list):
             raise ToolError("ALDI Nord lieferte kein lesbares Angebotsformat")
 
-        response_data: dict[str, Any] | None = None
         for entry in api_data:
             if (
                 isinstance(entry, list)
@@ -249,16 +247,11 @@ class OfficialAldiSource:
                 and isinstance(entry[1], dict)
                 and isinstance(entry[1].get("res"), dict)
             ):
-                response_data = entry[1]["res"]
-                break
-        if response_data is None:
-            raise ToolError("Der offizielle ALDI-Nord-Angebotsblock fehlt")
+                return entry[1]["res"]
+        raise ToolError("Der offizielle ALDI-Nord-Angebotsblock fehlt")
 
-        product_map = response_data.get("algoliaDataMap") or {}
-        categories = response_data.get("categories") or []
-        if not isinstance(product_map, dict) or not isinstance(categories, list):
-            raise ToolError("Die offiziellen ALDI-Nord-Angebote sind unvollständig")
-
+    @staticmethod
+    def _north_category_placement(categories: list[Any]) -> dict[str, dict[str, str]]:
         placement: dict[str, dict[str, str]] = {}
         for group in categories:
             if not isinstance(group, dict):
@@ -271,74 +264,93 @@ class OfficialAldiSource:
                 label = clean_text(category.get("title") or category.get("teaserTitle")) or "Weitere Angebote"
                 for product_id in category.get("productIds") or []:
                     placement.setdefault(str(product_id), {"category": label, "start": start, "end": end})
+        return placement
 
+    def _north_offer_from_product(
+        self,
+        product_id: Any,
+        product: Any,
+        placement: dict[str, dict[str, str]],
+        reference_date: date | None,
+    ) -> Offer | None:
+        if not isinstance(product, dict):
+            return None
+        prices = product.get("promotionPrices") or []
+        price_data = next(
+            (item for item in prices if isinstance(item, dict) and item.get("priceValue") is not None),
+            product.get("currentPrice") if isinstance(product.get("currentPrice"), dict) else {},
+        )
+        place = placement.get(str(product_id), {})
+        start = parse_iso_date(place.get("start") or price_data.get("validFromLocalDate"))
+        end = parse_iso_date(place.get("end") or price_data.get("validUntilLocalDate"))
+        if not (date_is_current(start, end, reference_date) if reference_date else date_is_current(start, end)):
+            return None
+
+        name = clean_text(product.get("name"))
+        brand = clean_brand(product.get("brandName"))
+        if not name:
+            return None
+        display_name = name if not brand or brand.casefold() in name.casefold() else f"{brand} {name}"
+        description = " · ".join(
+            dict.fromkeys(
+                value
+                for value in (
+                    clean_description(product.get("shortDescription")),
+                    clean_text(product.get("salesUnit")),
+                )
+                if value
+            )
+        )
+        price = parse_number(price_data.get("priceValue"))
+        if price is None or price <= 0:
+            return None
+        base_values = price_data.get("basePrice") or []
+        if isinstance(base_values, dict):
+            base_values = [base_values]
+        base_entry = next((item for item in base_values if isinstance(item, dict)), {})
+        deposit = None
+        if product.get("isDepositProduct") is True:
+            explicit_deposit = parse_number(product.get("depositValue"))
+            if explicit_deposit is not None and explicit_deposit > 0:
+                deposit = explicit_deposit
+        if deposit is None:
+            deposit = parse_deposit_text(description)
+        pack = normalize_pack(f"{name} {description}")
+        validity = format_validity(start, end)
+        return Offer(
+            offer_id=f"aldi-nord:{product_id}",
+            retailer="ALDI Nord",
+            category=place.get("category") or "Weitere Angebote",
+            name=display_name,
+            brand=brand,
+            description=description,
+            price=price,
+            base_price=parse_number(base_entry.get("basePriceValue")),
+            base_unit=clean_text(base_entry.get("basePriceScale")),
+            pack_signature=pack,
+            validity_label=validity,
+            match_key=build_match_key(brand, name, pack, f"aldi-nord:{product_id}"),
+            source_url=self.NORTH_URL,
+            image_url=extract_image_url(product, base_url=self.NORTH_URL),
+            deposit=deposit,
+            valid_from=start.isoformat() if start else None,
+            valid_until=end.isoformat() if end else None,
+        )
+
+    def _load_north(self, reference_date: date | None = None) -> list[Offer]:
+        page = self.http.get_bytes(self.NORTH_URL).decode("utf-8", errors="replace")
+        response_data = self._north_response_data(page)
+        product_map = response_data.get("algoliaDataMap") or {}
+        categories = response_data.get("categories") or []
+        if not isinstance(product_map, dict) or not isinstance(categories, list):
+            raise ToolError("Die offiziellen ALDI-Nord-Angebote sind unvollständig")
+
+        placement = self._north_category_placement(categories)
         offers: list[Offer] = []
         for product_id, product in product_map.items():
-            if not isinstance(product, dict):
-                continue
-            prices = product.get("promotionPrices") or []
-            price_data = next(
-                (item for item in prices if isinstance(item, dict) and item.get("priceValue") is not None),
-                product.get("currentPrice") if isinstance(product.get("currentPrice"), dict) else {},
-            )
-            place = placement.get(str(product_id), {})
-            start = parse_iso_date(place.get("start") or price_data.get("validFromLocalDate"))
-            end = parse_iso_date(place.get("end") or price_data.get("validUntilLocalDate"))
-            if not (date_is_current(start, end, reference_date) if reference_date else date_is_current(start, end)):
-                continue
-
-            name = clean_text(product.get("name"))
-            brand = clean_brand(product.get("brandName"))
-            if not name:
-                continue
-            display_name = name if not brand or brand.casefold() in name.casefold() else f"{brand} {name}"
-            description = " · ".join(
-                dict.fromkeys(
-                    value
-                    for value in (
-                        clean_description(product.get("shortDescription")),
-                        clean_text(product.get("salesUnit")),
-                    )
-                    if value
-                )
-            )
-            price = parse_number(price_data.get("priceValue"))
-            if price is None or price <= 0:
-                continue
-            base_values = price_data.get("basePrice") or []
-            if isinstance(base_values, dict):
-                base_values = [base_values]
-            base_entry = next((item for item in base_values if isinstance(item, dict)), {})
-            deposit = None
-            if product.get("isDepositProduct") is True:
-                explicit_deposit = parse_number(product.get("depositValue"))
-                if explicit_deposit is not None and explicit_deposit > 0:
-                    deposit = explicit_deposit
-            if deposit is None:
-                deposit = parse_deposit_text(description)
-            pack = normalize_pack(f"{name} {description}")
-            validity = format_validity(start, end)
-            offers.append(
-                Offer(
-                    offer_id=f"aldi-nord:{product_id}",
-                    retailer="ALDI Nord",
-                    category=place.get("category") or "Weitere Angebote",
-                    name=display_name,
-                    brand=brand,
-                    description=description,
-                    price=price,
-                    base_price=parse_number(base_entry.get("basePriceValue")),
-                    base_unit=clean_text(base_entry.get("basePriceScale")),
-                    pack_signature=pack,
-                    validity_label=validity,
-                    match_key=build_match_key(brand, name, pack, f"aldi-nord:{product_id}"),
-                    source_url=self.NORTH_URL,
-                    image_url=extract_image_url(product, base_url=self.NORTH_URL),
-                    deposit=deposit,
-                    valid_from=start.isoformat() if start else None,
-                    valid_until=end.isoformat() if end else None,
-                )
-            )
+            offer = self._north_offer_from_product(product_id, product, placement, reference_date)
+            if offer is not None:
+                offers.append(offer)
         if not offers:
             raise ToolError("ALDI Nord lieferte keine aktuell gültigen Angebote")
         return deduplicate_offers(offers)
@@ -573,34 +585,45 @@ class OfficialAldiSource:
         for spread in spreads[:40]:
             if not isinstance(spread, dict):
                 continue
-            # Publitas also includes permanent-range pages in weekly flyers.
-            # Select pages before fetching hotspots: single-page endpoints keep
-            # real offers on the other half of a mixed spread intact.
-            page_numbers = [
-                str(item.get("number")) for item in spread.get("pages") or []
-                if isinstance(item, dict) and str(item.get("number") or "").isdigit()
-                and not re.search(
-                    r"^\s*aus\s+unserem\s+sortiment\s*$",
-                    str(item.get("text") or ""), re.IGNORECASE | re.MULTILINE,
-                )
-            ]
-            if not page_numbers:
-                continue
-            hotspots = self._south_get_json_value(
-                f"{base_url}/page/{'-'.join(page_numbers)}/hotspots_data.json{suffix}"
-            )
-            if not isinstance(hotspots, list):
-                continue
-            for hotspot in hotspots:
-                if not isinstance(hotspot, dict) or hotspot.get("type") != "product":
-                    continue
-                for product in hotspot.get("products") or []:
-                    if not isinstance(product, dict):
-                        continue
-                    offer = self._south_brochure_product_offer(product, base_url, period)
-                    if offer is not None:
-                        offers.append(offer)
+            offers.extend(self._south_spread_offers(spread, base_url, suffix, period))
         return deduplicate_offers(offers)
+
+    def _south_spread_offers(
+        self,
+        spread: dict[str, Any],
+        base_url: str,
+        suffix: str,
+        period: tuple[date | None, date | None],
+    ) -> list[Offer]:
+        # Publitas also includes permanent-range pages in weekly flyers.
+        # Select pages before fetching hotspots: single-page endpoints keep
+        # real offers on the other half of a mixed spread intact.
+        page_numbers = [
+            str(item.get("number")) for item in spread.get("pages") or []
+            if isinstance(item, dict) and str(item.get("number") or "").isdigit()
+            and not re.search(
+                r"^\s*aus\s+unserem\s+sortiment\s*$",
+                str(item.get("text") or ""), re.IGNORECASE | re.MULTILINE,
+            )
+        ]
+        if not page_numbers:
+            return []
+        hotspots = self._south_get_json_value(
+            f"{base_url}/page/{'-'.join(page_numbers)}/hotspots_data.json{suffix}"
+        )
+        if not isinstance(hotspots, list):
+            return []
+        offers: list[Offer] = []
+        for hotspot in hotspots:
+            if not isinstance(hotspot, dict) or hotspot.get("type") != "product":
+                continue
+            for product in hotspot.get("products") or []:
+                if not isinstance(product, dict):
+                    continue
+                offer = self._south_brochure_product_offer(product, base_url, period)
+                if offer is not None:
+                    offers.append(offer)
+        return offers
 
     def _south_node_to_offer(self, node: dict[str, Any], source_url: str) -> Offer | None:
         name = first_text(node, ("name", "title", "productName", "headline"))
@@ -805,15 +828,13 @@ class OfficialAldiSource:
         offers.extend(self._south_dom_offers(page, source_url))
         return deduplicate_offers(offers)
 
-    def _load_south(self, reference_date: date | None = None) -> list[Offer]:
+    def _south_crawl_web_pages(self) -> tuple[list[Offer], list[str], list[dict[str, Any]], list[str]]:
         queue = [self.SOUTH_INDEX_URL]
         seen: set[str] = set()
         collected: list[Offer] = []
         errors: list[str] = []
         pages: list[dict[str, Any]] = []
         brochure_urls: list[str] = []
-        brochure_collected: list[Offer] = []
-        brochure_errors: list[str] = []
         while queue and len(seen) < 30:
             source_url = queue.pop(0)
             if source_url in seen:
@@ -832,6 +853,16 @@ class OfficialAldiSource:
             for candidate in self._south_offer_urls(page):
                 if candidate not in seen and candidate not in queue:
                     queue.append(candidate)
+        return collected, errors, pages, brochure_urls
+
+    def _south_fetch_brochures(
+        self,
+        brochure_urls: list[str],
+        reference_date: date | None,
+        pages: list[dict[str, Any]],
+    ) -> tuple[list[Offer], list[str]]:
+        brochure_collected: list[Offer] = []
+        brochure_errors: list[str] = []
         for publication_url in brochure_urls[:6]:
             try:
                 brochure_offers = self._south_brochure_offers(publication_url, reference_date) if reference_date else self._south_brochure_offers(publication_url)
@@ -841,6 +872,11 @@ class OfficialAldiSource:
             if brochure_offers:
                 brochure_collected.extend(brochure_offers)
                 pages.append({"url": publication_url, "offers": len(brochure_offers), "bytes": 0})
+        return brochure_collected, brochure_errors
+
+    def _load_south(self, reference_date: date | None = None) -> list[Offer]:
+        collected, errors, pages, brochure_urls = self._south_crawl_web_pages()
+        brochure_collected, brochure_errors = self._south_fetch_brochures(brochure_urls, reference_date, pages)
         if not brochure_collected:
             if collected:
                 # The official www.aldi-sued.de catalogue is usable even

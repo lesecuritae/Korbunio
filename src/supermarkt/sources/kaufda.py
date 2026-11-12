@@ -232,23 +232,13 @@ class KaufdaRetailerSource:
             raise ToolError(f"KaufDA-{self.retailer}: keine datierten Angebote für die Zielwoche")
         return dated
 
-    def load_regional(self, locality: str, target: date | None = None, coordinates: tuple[float, float] | None = None) -> list[Offer]:
-        """Supplement only a publisher-linked city brochure, never a national default.
+    @staticmethod
+    def _city_key(value: str) -> str:
+        return clean_text(value).casefold().replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
 
-        A city is not a branch/stock guarantee. Unknown cities and missing viewer
-        data are explicit failures; the caller must retain its primary catalogue.
-        """
-        def city_key(value: str) -> str:
-            return clean_text(value).casefold().replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
-
-        if not clean_text(locality):
-            raise ToolError(f"KaufDA-{self.retailer}: Ort nicht bestätigt")
-        payload = self.http.get_bytes(self.url, {"Accept": "text/html"})
-        if len(payload) > self.MAX_RESPONSE:
-            raise ToolError("KaufDA-Händlerseite überschreitet das Größenlimit")
-        candidates = {}
-        publisher_routes = set()
-        requested = city_key(locality).replace(" ", "-")
+    def _city_candidates(self, payload: bytes, requested: str) -> dict[str, bool]:
+        candidates: dict[str, bool] = {}
+        publisher_routes: set[str] = set()
         for link in BeautifulSoup(payload, "html.parser").select("a[href]"):
             parsed = urlsplit(urljoin(self.url, link["href"]))
             parts = parsed.path.strip("/").split("/")
@@ -256,7 +246,7 @@ class KaufdaRetailerSource:
                     and len(parts) == 3 and parts[1].casefold() == self.slug.casefold()
                     and re.fullmatch(r"p-r\d+", parts[2])):
                 publisher_routes.add(parts[2])
-                slug = city_key(parts[0])
+                slug = self._city_key(parts[0])
                 if slug == requested or slug.startswith(requested + "-"):
                     candidates[parsed._replace(query="", fragment="").geturl()] = slug == requested
         if not candidates and len(publisher_routes) == 1:
@@ -266,6 +256,51 @@ class KaufdaRetailerSource:
             aliases = {"oldenburg": ("Oldenburg-Oldb",)}
             for alias in aliases.get(requested, ()):
                 candidates[f"https://www.kaufda.de/{alias}/{quote(self.slug, safe='-')}/{next(iter(publisher_routes))}"] = False
+        return candidates
+
+    @staticmethod
+    def _city_matches_coordinates(text: str, coordinates: tuple[float, float]) -> bool:
+        # Suffixes such as Oldenburg-Oldb need independent coordinates
+        # from the linked city page; name-prefix similarity is not proof.
+        try:
+            node = BeautifulSoup(text, "html.parser").select_one("script#__NEXT_DATA__")
+            info = json.loads(node.string or node.get_text())["props"]["pageProps"]["pageInformation"]
+            city = info.get("location") or info.get("city") or {}
+            lat, lon = float(city["lat"]), float(city["lng"])
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                return False
+            dlat, dlon = radians(lat - coordinates[0]), radians(lon - coordinates[1])
+            a = sin(dlat / 2)**2 + cos(radians(lat)) * cos(radians(coordinates[0])) * sin(dlon / 2)**2
+            distance = 6371 * 2 * asin(min(1, sqrt(max(0, a))))
+            return distance <= 5
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return False
+
+    def _verified_city_pages(self, urls: list[str], exact: bool, coordinates: tuple[float, float]) -> list[tuple[str, str]]:
+        verified = []
+        for url in urls:
+            page = self.http.get_bytes(url, {"Accept": "text/html"})
+            if len(page) > self.MAX_RESPONSE:
+                raise ToolError("KaufDA-Ortsseite überschreitet das Größenlimit")
+            text = page.decode("utf-8", errors="replace")
+            if not exact and not self._city_matches_coordinates(text, coordinates):
+                continue
+            verified.append((url, text))
+        return verified
+
+    def load_regional(self, locality: str, target: date | None = None, coordinates: tuple[float, float] | None = None) -> list[Offer]:
+        """Supplement only a publisher-linked city brochure, never a national default.
+
+        A city is not a branch/stock guarantee. Unknown cities and missing viewer
+        data are explicit failures; the caller must retain its primary catalogue.
+        """
+        if not clean_text(locality):
+            raise ToolError(f"KaufDA-{self.retailer}: Ort nicht bestätigt")
+        payload = self.http.get_bytes(self.url, {"Accept": "text/html"})
+        if len(payload) > self.MAX_RESPONSE:
+            raise ToolError("KaufDA-Händlerseite überschreitet das Größenlimit")
+        requested = self._city_key(locality).replace(" ", "-")
+        candidates = self._city_candidates(payload, requested)
         if not candidates:
             raise ToolError(f"KaufDA-{self.retailer}: kein verifizierter Ortslink für {clean_text(locality)}")
         if coordinates is None:
@@ -273,30 +308,7 @@ class KaufdaRetailerSource:
         exact = [url for url, matched in candidates.items() if matched]
         if not exact and len(candidates) > 4:
             raise ToolError("KaufDA: Ortsnamen mehrdeutig; keine Region geraten")
-        verified = []
-        for url in exact or candidates:
-            page = self.http.get_bytes(url, {"Accept": "text/html"})
-            if len(page) > self.MAX_RESPONSE:
-                raise ToolError("KaufDA-Ortsseite überschreitet das Größenlimit")
-            text = page.decode("utf-8", errors="replace")
-            if not exact:
-                # Suffixes such as Oldenburg-Oldb need independent coordinates
-                # from the linked city page; name-prefix similarity is not proof.
-                try:
-                    node = BeautifulSoup(text, "html.parser").select_one("script#__NEXT_DATA__")
-                    info = json.loads(node.string or node.get_text())["props"]["pageProps"]["pageInformation"]
-                    city = info.get("location") or info.get("city") or {}
-                    lat, lon = float(city["lat"]), float(city["lng"])
-                    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-                        continue
-                    dlat, dlon = radians(lat - coordinates[0]), radians(lon - coordinates[1])
-                    a = sin(dlat / 2)**2 + cos(radians(lat)) * cos(radians(coordinates[0])) * sin(dlon / 2)**2
-                    distance = 6371 * 2 * asin(min(1, sqrt(max(0, a))))
-                    if distance > 5:
-                        continue
-                except (AttributeError, KeyError, TypeError, ValueError):
-                    continue
-            verified.append((url, text))
+        verified = self._verified_city_pages(exact or list(candidates), bool(exact), coordinates)
         if len(verified) != 1:
             raise ToolError(f"KaufDA-{self.retailer}: kein eindeutiger Ortsnachweis für {clean_text(locality)}")
         regional_url, text = verified[0]
@@ -304,17 +316,8 @@ class KaufdaRetailerSource:
             raise ToolError(f"KaufDA-{self.retailer}: kein regionaler Prospekt verfügbar")
         return self._viewer_offers(text, target, regional_url, coordinates)
 
-    def _brochure_ids(self, page: str, require_publisher: bool = False, target: date | None = None) -> list[str]:
-        match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', page, flags=re.IGNORECASE | re.DOTALL)
-        if not match:
-            return []
-        try:
-            groups = json.loads(html.unescape(match.group(1)))["props"]["pageProps"]["pageInformation"]["brochures"]
-        except (json.JSONDecodeError, KeyError, TypeError):
-            return []
-        if not isinstance(groups, dict):
-            raise ToolError("KaufDA Prospektgruppen haben ein unerwartetes Format")
-        candidates = {}
+    def _collect_brochure_candidates(self, groups: dict[str, Any], require_publisher: bool) -> dict[str, dict[str, Any]]:
+        candidates: dict[str, dict[str, Any]] = {}
         # The highlighted viewer can already show next week while the current
         # own-publisher brochure remains in the publisher list. Sector/other
         # publishers do not establish retailer or regional provenance.
@@ -332,27 +335,44 @@ class KaufdaRetailerSource:
                 identifier = str(entry.get("id", ""))
                 if re.fullmatch(r"\d{6,12}", identifier) and ((not name and not require_publisher) or name.casefold() == self.publisher_name.casefold()):
                     candidates.setdefault(identifier, entry)
+        return candidates
+
+    @staticmethod
+    def _filter_brochures_for_target(candidates: dict[str, dict[str, Any]], target: date) -> dict[str, dict[str, Any]]:
+        reference = offer_reference_date(target)
+        week_end = reference + timedelta(days=6 - reference.weekday())
+        active, undated = {}, {}
+        for identifier, entry in candidates.items():
+            start, end = _local_date(entry.get("validFrom")), _local_date(entry.get("validUntil"))
+            if start is None and end is None and not entry.get("validFrom") and not entry.get("validUntil"):
+                undated[identifier] = entry  # Legacy: individual offers still need valid dates.
+            elif start is None or end is None or start > end:
+                raise ToolError("KaufDA Prospektgültigkeit unbekannt oder widersprüchlich")
+            elif start <= week_end and reference <= end:
+                active[identifier] = (start, end)
+        # Prefer the weekly leaflets over a simultaneously advertised
+        # permanent-price guide or Christmas catalogue. Keep simultaneous
+        # leaflets; never treat the carousel's publication date as validity.
+        weekly = {key: period for key, period in active.items() if period[1] <= week_end}
+        selected = weekly or active
+        if selected and not weekly:
+            latest = max(period[0] for period in selected.values())
+            selected = {key: period for key, period in selected.items() if period[0] == latest}
+        return {key: candidates[key] for key in selected} if selected else undated
+
+    def _brochure_ids(self, page: str, require_publisher: bool = False, target: date | None = None) -> list[str]:
+        match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', page, flags=re.IGNORECASE | re.DOTALL)
+        if not match:
+            return []
+        try:
+            groups = json.loads(html.unescape(match.group(1)))["props"]["pageProps"]["pageInformation"]["brochures"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return []
+        if not isinstance(groups, dict):
+            raise ToolError("KaufDA Prospektgruppen haben ein unerwartetes Format")
+        candidates = self._collect_brochure_candidates(groups, require_publisher)
         if target is not None:
-            reference = offer_reference_date(target)
-            week_end = reference + timedelta(days=6 - reference.weekday())
-            active, undated = {}, {}
-            for identifier, entry in candidates.items():
-                start, end = _local_date(entry.get("validFrom")), _local_date(entry.get("validUntil"))
-                if start is None and end is None and not entry.get("validFrom") and not entry.get("validUntil"):
-                    undated[identifier] = entry  # Legacy: individual offers still need valid dates.
-                elif start is None or end is None or start > end:
-                    raise ToolError("KaufDA Prospektgültigkeit unbekannt oder widersprüchlich")
-                elif start <= week_end and reference <= end:
-                    active[identifier] = (start, end)
-            # Prefer the weekly leaflets over a simultaneously advertised
-            # permanent-price guide or Christmas catalogue. Keep simultaneous
-            # leaflets; never treat the carousel's publication date as validity.
-            weekly = {key: period for key, period in active.items() if period[1] <= week_end}
-            selected = weekly or active
-            if selected and not weekly:
-                latest = max(period[0] for period in selected.values())
-                selected = {key: period for key, period in selected.items() if period[0] == latest}
-            candidates = {key: candidates[key] for key in selected} if selected else undated
+            candidates = self._filter_brochures_for_target(candidates, target)
         if len(candidates) > 6:
             raise ToolError("KaufDA Prospektlimit überschritten; Auswahl nicht vollständig")
         return list(candidates)
@@ -371,6 +391,88 @@ class KaufdaRetailerSource:
             offers.extend(self.parse_viewer(json.loads(payload.decode("utf-8", errors="replace")), brochure, target, source_url))
         return offers
 
+    def _entry_content(
+        self, entry: Any, target: date | None, seen: set[str]
+    ) -> tuple[dict[str, Any], str, date | None, date | None] | None:
+        content = entry.get("content") if isinstance(entry, dict) else None
+        if not isinstance(content, dict) or content.get("type") != "offer" or not content.get("products"):
+            return None
+        identifier = clean_text(content.get("id"))
+        if not identifier or identifier in seen:
+            return None
+        profile = (content.get("publicationProfiles") or [{}])[0].get("validity", {})
+        start, end = _local_date(profile.get("startDate")), _local_date(profile.get("endDate"))
+        if target is not None and not offer_validity({"validityDates": [{"from": start.isoformat() if start else "", "to": end.isoformat() if end else ""}]}, target)[0]:
+            return None
+        seen.add(identifier)
+        return content, identifier, start, end
+
+    def _product_offer(
+        self,
+        product: Any,
+        content: dict[str, Any],
+        product_identifier: str,
+        products_count: int,
+        start: date | None,
+        end: date | None,
+        source_url: str,
+    ) -> Offer | None:
+        if not isinstance(product, dict):
+            raise ToolError(f"KaufDA-{self.retailer}: Produkt hat ein unerwartetes Format")
+        regular, app = _viewer_prices(_product_deals(content.get("deals"), product, products_count),
+            ("im preis in der app", "m app") if self.retailer == "Müller" else ())
+        title = clean_text(product.get("name"))
+        if not title or regular is None or regular <= 0:
+            return None
+        brand = clean_brand(product.get("brandName"))
+        name = title if not brand or brand.casefold() in title.casefold() else f"{brand} {title}"
+        description = clean_text(" ".join(clean_text(d.get("paragraph")) for d in product.get("description", []) if isinstance(d, dict)))
+        paths = product.get("categoryPaths")
+        leaf = clean_text(paths[-1].get("name")) if isinstance(paths, list) and paths and isinstance(paths[-1], dict) else ""
+        compact_title = re.sub(r"[^\w]", "", title.casefold())
+        compact_leaf = re.sub(r"[^\w]", "", leaf.casefold())
+        if compact_title and compact_leaf.startswith(compact_title) and compact_leaf != compact_title:
+            # Index only a published specific compound (Wildschwein ->
+            # Wildschweingulasch), not every broad breadcrumb/category.
+            description = clean_text(f"{description} · Quellkategorie: {leaf}")
+        if app is not None and app < regular:
+            label = "Lidl Plus" if self.retailer == "Lidl" else f"{self.retailer} App"
+            description = clean_text(f"{description} · mit der {label} {format(app, '.2f').replace('.', ',')} €")
+        pack = normalize_pack(f"{name} {description}")
+        images = product.get("images")
+        product_image = images[0].get("url") if isinstance(images, list) and images and isinstance(images[0], dict) else ""
+        image_url = normalize_image_url(product_image or content.get("image"))
+        if image_url and (is_rejected_image_url(image_url) or urlsplit(image_url).hostname != "content-media.bonial.biz"):
+            image_url = ""
+        decision = category_decision("", self.retailer, name, description, brand)
+        return Offer(
+            offer_id=f"kaufda-{self.slug.casefold()}:{product_identifier}", retailer=self.retailer, category=decision.category,
+            name=name, brand=brand, description=description, price=regular,
+            benefits=parse_public_loyalty_prices(description, regular, self.retailer),
+            base_price=None, base_unit="", pack_signature=pack,
+            validity_label=format_validity(start, end),
+            match_key=build_match_key(brand, title, pack, product_identifier), source_url=source_url or self.url,
+            image_url=image_url, source_category=decision.source_category,
+            detected_category=decision.detected_category, category_conflict=decision.category_conflict,
+            valid_from=start.isoformat() if start else None,
+            valid_until=end.isoformat() if end else None,
+            coverage_note=f"Angebote aus dem Prospekt über KaufDA ({self.retailer}); regionale Abdeckung nicht bestätigt.",
+        )
+
+    def _entry_offers(
+        self, content: dict[str, Any], identifier: str, start: date | None, end: date | None, source_url: str
+    ) -> list[Offer]:
+        products = content["products"]
+        if not isinstance(products, list):
+            raise ToolError(f"KaufDA-{self.retailer}: Produktliste hat ein unerwartetes Format")
+        offers: list[Offer] = []
+        for product_index, product in enumerate(products):
+            product_identifier = identifier if len(products) == 1 else f"{identifier}:{product_index}"
+            offer = self._product_offer(product, content, product_identifier, len(products), start, end, source_url)
+            if offer is not None:
+                offers.append(offer)
+        return offers
+
     def parse_viewer(self, data: dict[str, Any], brochure: str, target: date | None = None, source_url: str = "") -> list[Offer]:
         """Angebote aus den Seiten des Prospekts. Regulärer Preis = Preis „ohne App“; ein App-Preis steht nur in der Beschreibung."""
         pages = data.get("contents") if isinstance(data, dict) else None
@@ -380,63 +482,11 @@ class KaufdaRetailerSource:
         seen: set[str] = set()
         for page in pages:
             for entry in page.get("offers", []) if isinstance(page, dict) else []:
-                content = entry.get("content") if isinstance(entry, dict) else None
-                if not isinstance(content, dict) or content.get("type") != "offer" or not content.get("products"):
+                parsed = self._entry_content(entry, target, seen)
+                if parsed is None:
                     continue
-                identifier = clean_text(content.get("id"))
-                if not identifier or identifier in seen:
-                    continue
-                profile = (content.get("publicationProfiles") or [{}])[0].get("validity", {})
-                start, end = _local_date(profile.get("startDate")), _local_date(profile.get("endDate"))
-                if target is not None and not offer_validity({"validityDates": [{"from": start.isoformat() if start else "", "to": end.isoformat() if end else ""}]}, target)[0]:
-                    continue
-                seen.add(identifier)
-                products = content["products"]
-                if not isinstance(products, list):
-                    raise ToolError(f"KaufDA-{self.retailer}: Produktliste hat ein unerwartetes Format")
-                for product_index, product in enumerate(products):
-                    if not isinstance(product, dict):
-                        raise ToolError(f"KaufDA-{self.retailer}: Produkt hat ein unerwartetes Format")
-                    regular, app = _viewer_prices(_product_deals(content.get("deals"), product, len(products)),
-                        ("im preis in der app", "m app") if self.retailer == "Müller" else ())
-                    product_identifier = identifier if len(products) == 1 else f"{identifier}:{product_index}"
-                    title = clean_text(product.get("name"))
-                    if not title or regular is None or regular <= 0:
-                        continue
-                    brand = clean_brand(product.get("brandName"))
-                    name = title if not brand or brand.casefold() in title.casefold() else f"{brand} {title}"
-                    description = clean_text(" ".join(clean_text(d.get("paragraph")) for d in product.get("description", []) if isinstance(d, dict)))
-                    paths = product.get("categoryPaths")
-                    leaf = clean_text(paths[-1].get("name")) if isinstance(paths, list) and paths and isinstance(paths[-1], dict) else ""
-                    compact_title = re.sub(r"[^\w]", "", title.casefold())
-                    compact_leaf = re.sub(r"[^\w]", "", leaf.casefold())
-                    if compact_title and compact_leaf.startswith(compact_title) and compact_leaf != compact_title:
-                        # Index only a published specific compound (Wildschwein ->
-                        # Wildschweingulasch), not every broad breadcrumb/category.
-                        description = clean_text(f"{description} · Quellkategorie: {leaf}")
-                    if app is not None and app < regular:
-                        label = "Lidl Plus" if self.retailer == "Lidl" else f"{self.retailer} App"
-                        description = clean_text(f"{description} · mit der {label} {format(app, '.2f').replace('.', ',')} €")
-                    pack = normalize_pack(f"{name} {description}")
-                    images = product.get("images")
-                    product_image = images[0].get("url") if isinstance(images, list) and images and isinstance(images[0], dict) else ""
-                    image_url = normalize_image_url(product_image or content.get("image"))
-                    if image_url and (is_rejected_image_url(image_url) or urlsplit(image_url).hostname != "content-media.bonial.biz"):
-                        image_url = ""
-                    decision = category_decision("", self.retailer, name, description, brand)
-                    result.append(Offer(
-                        offer_id=f"kaufda-{self.slug.casefold()}:{product_identifier}", retailer=self.retailer, category=decision.category,
-                        name=name, brand=brand, description=description, price=regular,
-                        benefits=parse_public_loyalty_prices(description, regular, self.retailer),
-                        base_price=None, base_unit="", pack_signature=pack,
-                        validity_label=format_validity(start, end),
-                        match_key=build_match_key(brand, title, pack, product_identifier), source_url=source_url or self.url,
-                        image_url=image_url, source_category=decision.source_category,
-                        detected_category=decision.detected_category, category_conflict=decision.category_conflict,
-                        valid_from=start.isoformat() if start else None,
-                        valid_until=end.isoformat() if end else None,
-                        coverage_note=f"Angebote aus dem Prospekt über KaufDA ({self.retailer}); regionale Abdeckung nicht bestätigt.",
-                    ))
+                content, identifier, start, end = parsed
+                result.extend(self._entry_offers(content, identifier, start, end, source_url))
         return result
 
     def parse(self, page: str, target: date | None = None) -> list[Offer]:

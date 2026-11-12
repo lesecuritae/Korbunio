@@ -371,63 +371,88 @@ class OfficialReweSource:
             kind = 2
         return kind, folded_label, folded_url
 
-    def _find_markets(self, postal_code: str) -> tuple[Any, list[tuple[str, str, str]]]:
-        try:
-            from bs4 import BeautifulSoup
-        except Exception as exc:
-            raise ToolError(f"REWE benötigt BeautifulSoup: {exc}") from exc
+    @staticmethod
+    def _local_market_text(link: Any) -> str:
+        """Walk up from the link to the smallest ancestor that wraps exactly this one offer link."""
+        node = link
+        local_text = clean_text(link.get_text(" ", strip=True))
+        for _ in range(8):
+            parent = getattr(node, "parent", None)
+            if parent is None:
+                break
+            node = parent
+            offer_links = node.select('a[href*="/angebote/"]') if hasattr(node, "select") else []
+            candidate_text = clean_text(node.get_text(" ", strip=True)) if hasattr(node, "get_text") else ""
+            if len(offer_links) == 1:
+                local_text = candidate_text
+                break
+        return local_text
 
-        locality = clean_text(self.locator.locality(postal_code))
-        if not locality:
-            raise ToolError(f"REWE konnte den Ort zu PLZ {postal_code} nicht bestimmen")
+    @classmethod
+    def _market_link_entry(cls, link: Any, postal_code: str, seen_market_ids: set[str]) -> tuple[str, str, str] | None:
+        href = urljoin(cls.BASE, clean_text(link.get("href")))
+        match = re.search(r"/angebote/[^/]+/(\d+)/[^/?#]+/?", href)
+        if not match:
+            return None
+        market_id = match.group(1)
+        if market_id in seen_market_ids:
+            return None
+        local_text = cls._local_market_text(link)
+        if postal_code not in local_text:
+            return None
+        seen_market_ids.add(market_id)
+        return market_id, href, local_text
+
+    def _search_slugs(self, postal_code: str, locality: str) -> list[str]:
         slug = self._slug(locality)
         if not slug:
             raise ToolError(f"REWE konnte aus {locality!r} keinen Marktsuche-Pfad bilden")
-
-        session = self._session()
         slugs = [slug]
         state_getter = getattr(self.locator, "state", None)
         state = clean_text(state_getter(postal_code)) if callable(state_getter) else ""
         state_slug = self._slug(state)
         if state_slug and state_slug not in slugs:
             slugs.append(state_slug)
+        return slugs
 
+    def _market_entries_for_slug(
+        self, session: Any, page_slug: str, postal_code: str, seen_market_ids: set[str]
+    ) -> list[tuple[str, str, str]] | None:
+        from bs4 import BeautifulSoup
+        response = session.get(f"{self.BASE}/marktsuche/{page_slug}/", timeout=self.timeout_seconds)
+        if response.status_code != 200:
+            return None
+        soup = BeautifulSoup(response.text, "html.parser")
+        entries = []
+        for link in soup.select('a[href*="/angebote/"]'):
+            entry = self._market_link_entry(link, postal_code, seen_market_ids)
+            if entry is not None:
+                entries.append(entry)
+        return entries
+
+    def _find_markets(self, postal_code: str) -> tuple[Any, list[tuple[str, str, str]]]:
+        try:
+            from bs4 import BeautifulSoup  # noqa: F401 - validated eagerly for a clear error message
+        except Exception as exc:
+            raise ToolError(f"REWE benötigt BeautifulSoup: {exc}") from exc
+
+        locality = clean_text(self.locator.locality(postal_code))
+        if not locality:
+            raise ToolError(f"REWE konnte den Ort zu PLZ {postal_code} nicht bestimmen")
+        slugs = self._search_slugs(postal_code, locality)
+
+        session = self._session()
         exact: list[tuple[str, str, str]] = []
         # The search page can expose more than one URL/slug for the same store.
         # Only the numeric market id represents an independently selectable market.
         seen_market_ids: set[str] = set()
         successful_pages = 0
         for page_slug in slugs:
-            response = session.get(f"{self.BASE}/marktsuche/{page_slug}/", timeout=self.timeout_seconds)
-            if response.status_code != 200:
+            entries = self._market_entries_for_slug(session, page_slug, postal_code, seen_market_ids)
+            if entries is None:
                 continue
             successful_pages += 1
-            soup = BeautifulSoup(response.text, "html.parser")
-            for link in soup.select('a[href*="/angebote/"]'):
-                href = urljoin(self.BASE, clean_text(link.get("href")))
-                match = re.search(r"/angebote/[^/]+/(\d+)/[^/?#]+/?", href)
-                if not match:
-                    continue
-                market_id = match.group(1)
-                if market_id in seen_market_ids:
-                    continue
-
-                node = link
-                local_text = clean_text(link.get_text(" ", strip=True))
-                for _ in range(8):
-                    parent = getattr(node, "parent", None)
-                    if parent is None:
-                        break
-                    node = parent
-                    offer_links = node.select('a[href*="/angebote/"]') if hasattr(node, "select") else []
-                    candidate_text = clean_text(node.get_text(" ", strip=True)) if hasattr(node, "get_text") else ""
-                    if len(offer_links) == 1:
-                        local_text = candidate_text
-                        break
-                if postal_code not in local_text:
-                    continue
-                seen_market_ids.add(market_id)
-                exact.append((market_id, href, local_text))
+            exact.extend(entries)
 
         if not successful_pages:
             raise ToolError("REWE Marktsuche war nicht erreichbar")
@@ -584,51 +609,39 @@ class OfficialReweSource:
             valid_until=valid_until.isoformat(),
         ), False
 
-    def load(self, postal_code: str, market_id: str = "", offer_week: str = "current") -> list[Offer]:
-        try:
-            from bs4 import BeautifulSoup
-        except Exception as exc:
-            raise ToolError(f"REWE benötigt BeautifulSoup: {exc}") from exc
-
-        requested_market_id = clean_text(market_id)
-        session, market_id, market_url, market_label = self._find_market(postal_code, market_id=requested_market_id)
-        requested_week = normalize_offer_week(offer_week)
-        reference_date = offer_week_reference(requested_week)
-        target_week = "next" if requested_week == "next" else self._target_week()
+    def _week_request_url(self, market_url: str, requested_week: str) -> str:
         if requested_week == "next":
             separator = "&" if "?" in market_url else "?"
-            request_url = f"{market_url}{separator}week=next"
-        else:
-            request_url = self._market_week_url(market_url)
+            return f"{market_url}{separator}week=next"
+        return self._market_week_url(market_url)
+
+    def _resolve_market_response(
+        self, postal_code: str, requested_market_id: str, requested_week: str
+    ) -> tuple[Any, str, str, str, Any, str]:
+        session, market_id, market_url, market_label = self._find_market(postal_code, market_id=requested_market_id)
+        request_url = self._week_request_url(market_url, requested_week)
         response = session.get(request_url, timeout=self.timeout_seconds)
         if response.status_code != 200 and self.last_discovery == "24h-Marktcache" and not requested_market_id:
             self._drop_cached_market(postal_code)
             session, market_id, market_url, market_label = self._find_market(postal_code, use_cache=False)
-            if requested_week == "next":
-                separator = "&" if "?" in market_url else "?"
-                request_url = f"{market_url}{separator}week=next"
-            else:
-                request_url = self._market_week_url(market_url)
+            request_url = self._week_request_url(market_url, requested_week)
             response = session.get(request_url, timeout=self.timeout_seconds)
         if response.status_code != 200:
             raise ToolError(f"REWE Angebotsseite HTTP {response.status_code}")
-        soup = BeautifulSoup(response.text, "html.parser")
-        root = self._best_offer_root(soup, target_week, request_url)
-        unique, rendered = self._collect_offer_cards(root, market_id) if root is not None else ({}, {})
+        return session, market_id, market_url, market_label, response, request_url
 
-        if not unique:
-            rendered_page = self._render_market_page(request_url)
-            soup = BeautifulSoup(rendered_page, "html.parser")
-            root = self._best_offer_root(soup, target_week, request_url)
-            unique, rendered = self._collect_offer_cards(root, market_id) if root is not None else ({}, {})
+    @staticmethod
+    def _parse_offer_cards(
+        html_text: str, target_week: str, request_url: str, market_id: str,
+    ) -> tuple[Any, dict[str, dict[str, str]], dict[str, Any]]:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html_text, "html.parser")
+        root = OfficialReweSource._best_offer_root(soup, target_week, request_url)
+        unique, rendered = OfficialReweSource._collect_offer_cards(root, market_id) if root is not None else ({}, {})
+        return root, unique, rendered
 
-        if root is None:
-            raise ToolError(f"REWE {target_week.upper()}-Bereich wurde nicht gefunden")
-        if not unique:
-            raise ToolError(f"REWE {target_week.upper()}-Bereich enthielt keine auswertbaren Angebotskarten")
-
-        cards = dict(rendered)
-        missing = [item for nan, item in unique.items() if nan not in cards]
+    def _fetch_missing_cards(self, session: Any, missing: list[dict[str, str]], request_url: str) -> dict[str, Any]:
+        from bs4 import BeautifulSoup
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -636,6 +649,7 @@ class OfficialReweSource:
             "Origin": self.BASE,
             "Referer": request_url,
         }
+        fetched: dict[str, Any] = {}
         for offset in range(0, len(missing), 25):
             chunk = missing[offset:offset + 25]
             payload = []
@@ -675,8 +689,17 @@ class OfficialReweSource:
                     continue
                 card_soup = BeautifulSoup(content, "html.parser")
                 card = card_soup.select_one(".cor-offer-renderer-tile") or card_soup
-                cards[nan] = card
+                fetched[nan] = card
+        return fetched
 
+    def _offers_from_cards(
+        self,
+        unique: dict[str, dict[str, str]],
+        cards: dict[str, Any],
+        market_id: str,
+        market_url: str,
+        reference_date: date | None,
+    ) -> tuple[list[Offer], int, int]:
         offers: list[Offer] = []
         bonus_only = 0
         unknown = 0
@@ -699,6 +722,37 @@ class OfficialReweSource:
                 unknown += 1
             else:
                 offers.append(offer)
+        return offers, bonus_only, unknown
+
+    def load(self, postal_code: str, market_id: str = "", offer_week: str = "current") -> list[Offer]:
+        try:
+            from bs4 import BeautifulSoup  # noqa: F401 - validated eagerly for a clear error message
+        except Exception as exc:
+            raise ToolError(f"REWE benötigt BeautifulSoup: {exc}") from exc
+
+        requested_market_id = clean_text(market_id)
+        requested_week = normalize_offer_week(offer_week)
+        reference_date = offer_week_reference(requested_week)
+        target_week = "next" if requested_week == "next" else self._target_week()
+        session, market_id, market_url, market_label, response, request_url = self._resolve_market_response(
+            postal_code, requested_market_id, requested_week
+        )
+        root, unique, rendered = self._parse_offer_cards(response.text, target_week, request_url, market_id)
+
+        if not unique:
+            rendered_page = self._render_market_page(request_url)
+            root, unique, rendered = self._parse_offer_cards(rendered_page, target_week, request_url, market_id)
+
+        if root is None:
+            raise ToolError(f"REWE {target_week.upper()}-Bereich wurde nicht gefunden")
+        if not unique:
+            raise ToolError(f"REWE {target_week.upper()}-Bereich enthielt keine auswertbaren Angebotskarten")
+
+        cards = dict(rendered)
+        missing = [item for nan, item in unique.items() if nan not in cards]
+        cards.update(self._fetch_missing_cards(session, missing, request_url))
+
+        offers, bonus_only, unknown = self._offers_from_cards(unique, cards, market_id, market_url, reference_date)
 
         self.last_market_id = market_id
         self.last_market_label = market_label
