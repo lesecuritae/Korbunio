@@ -257,29 +257,30 @@ class SourceLoader:
         # Retailers with maintained first-party adapters always prefer their
         # official source. A partial aggregator result must never suppress a
         # complete official catalogue or be mixed into it.
-        def load_rewe() -> list[Offer]:
+        def load_with_fallback(name: str, call_current: Any, call_next: Any) -> list[Offer]:
             if requested_week == "next":
                 try:
-                    return self.official_rewe.load(postal_code, rewe_market_id, "next")
-                except Exception:
-                    store_warnings.append("REWE: Noch keine Angebote der Folgewoche verfügbar; aktuelle Angebote werden angezeigt.")
-            return self.official_rewe.load(postal_code, rewe_market_id) if rewe_market_id else self.official_rewe.load(postal_code)
-
-        def load_with_week(source: Any, name: str) -> list[Offer]:
-            if requested_week == "next":
-                try:
-                    return source.load(postal_code, "next")
+                    return call_next()
                 except Exception:
                     store_warnings.append(f"{name}: Noch keine Angebote der Folgewoche verfügbar; aktuelle Angebote werden angezeigt.")
-            return source.load(postal_code)
+            return call_current()
+
+        def load_rewe() -> list[Offer]:
+            return load_with_fallback(
+                "REWE",
+                lambda: self.official_rewe.load(postal_code, rewe_market_id) if rewe_market_id else self.official_rewe.load(postal_code),
+                lambda: self.official_rewe.load(postal_code, rewe_market_id, "next"),
+            )
+
+        def load_with_week(source: Any, name: str) -> list[Offer]:
+            return load_with_fallback(name, lambda: source.load(postal_code), lambda: source.load(postal_code, "next"))
 
         def load_kaufland() -> list[Offer]:
-            if requested_week == "next":
-                try:
-                    return self.official_kaufland.load(postal_code, offer_week="next")
-                except Exception:
-                    store_warnings.append("Kaufland: Noch keine Angebote der Folgewoche verfügbar; aktuelle Angebote werden angezeigt.")
-            return self.official_kaufland.load(postal_code)
+            return load_with_fallback(
+                "Kaufland",
+                lambda: self.official_kaufland.load(postal_code),
+                lambda: self.official_kaufland.load(postal_code, offer_week="next"),
+            )
 
         official_loaders: dict[str, Any] = {
             "REWE": load_rewe, "EDEKA": lambda: load_with_week(self.official_edeka, "EDEKA"),
@@ -303,12 +304,11 @@ class SourceLoader:
             official_jobs["aktiv & irma"] = lambda: self.official_aktiv_irma.load(postal_code)
         if hasattr(self, "official_trinkgut") and "trinkgut" in active_contexts:
             def load_trinkgut() -> list[Offer]:
-                if requested_week == "next":
-                    try:
-                        return self.official_trinkgut.load(postal_code, trinkgut_market_id, "next")
-                    except Exception:
-                        store_warnings.append("trinkgut: Noch keine Angebote der Folgewoche verfügbar; aktuelle Angebote werden angezeigt.")
-                return self.official_trinkgut.load(postal_code, trinkgut_market_id) if trinkgut_market_id else self.official_trinkgut.load(postal_code)
+                return load_with_fallback(
+                    "trinkgut",
+                    lambda: self.official_trinkgut.load(postal_code, trinkgut_market_id) if trinkgut_market_id else self.official_trinkgut.load(postal_code),
+                    lambda: self.official_trinkgut.load(postal_code, trinkgut_market_id, "next"),
+                )
             official_jobs["trinkgut"] = load_trinkgut
         initial_aggregator = any(
             name in active_contexts and name != "Globus" for name in AGGREGATOR_RETAILERS
