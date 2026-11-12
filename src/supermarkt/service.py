@@ -167,23 +167,19 @@ class SourceLoader:
             count += 1
         return enriched, count
 
-    def load(self, postal_code: str, aldi_region: str, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "", trinkgut_market_id: str = "") -> dict[str, Any]:
-        notify = progress or (lambda **_fields: None)
-        notify(status="loading", progress=5, source="Standortdienst", retailer="Alle Händler", category="Region", step="Region und Filialen werden ermittelt")
-        contexts = self._contexts()
-        selected_retailers = set(retailers)
-        if selected_retailers:
-            contexts = {name: context for name, context in contexts.items() if name in selected_retailers}
-        request_errors: list[str] = []
-        incomplete_retailers: set[str] = set()
-        marktguru_incomplete = False
-        store_warnings: list[str] = []
-        challenge_urls: dict[str, str] = {}
-        requested_week = normalize_offer_week(offer_week)
-        target_date = offer_week_reference(requested_week)
+    def _resolve_aldi_region(
+        self,
+        postal_code: str,
+        requested_region: str,
+        selected_retailers: set[str],
+        selected_aldi: list[str],
+        request_errors: list[str],
+        store_warnings: list[str],
+    ) -> tuple[str, list[str], list[str], set[str], set[str], set[str]]:
+        """Resolve which ALDI Nord/Süd stores are actually reachable for this postal code.
 
-        requested_region = normalize_aldi_region(aldi_region)
-        selected_aldi = [name for name in ("ALDI Nord", "ALDI Süd") if name in selected_retailers]
+        Returns (resolved, resolved_regions, aldi_names, unavailable_retailers, unresolved_aldi, verified_regions).
+        """
         resolved = requested_region
         verified_regions: set[str] = set()
         if selected_aldi and requested_region == "auto":
@@ -227,6 +223,30 @@ class SourceLoader:
             detail = clean_text(self.aldi_region.last_error)
             warning = "ALDI-Region konnte geografisch nicht eindeutig bestimmt werden; ALDI wurde für diesen Abruf ausgelassen."
             store_warnings.append(warning + (f" ({detail})" if detail else ""))
+        return resolved, resolved_regions, aldi_names, unavailable_retailers, unresolved_aldi, verified_regions
+
+    def load(self, postal_code: str, aldi_region: str, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "", trinkgut_market_id: str = "") -> dict[str, Any]:
+        notify = progress or (lambda **_fields: None)
+        notify(status="loading", progress=5, source="Standortdienst", retailer="Alle Händler", category="Region", step="Region und Filialen werden ermittelt")
+        contexts = self._contexts()
+        selected_retailers = set(retailers)
+        if selected_retailers:
+            contexts = {name: context for name, context in contexts.items() if name in selected_retailers}
+        request_errors: list[str] = []
+        incomplete_retailers: set[str] = set()
+        marktguru_incomplete = False
+        store_warnings: list[str] = []
+        challenge_urls: dict[str, str] = {}
+        requested_week = normalize_offer_week(offer_week)
+        target_date = offer_week_reference(requested_week)
+
+        requested_region = normalize_aldi_region(aldi_region)
+        selected_aldi = [name for name in ("ALDI Nord", "ALDI Süd") if name in selected_retailers]
+        resolved, resolved_regions, aldi_names, unavailable_retailers, unresolved_aldi, verified_regions = (
+            self._resolve_aldi_region(
+                postal_code, requested_region, selected_retailers, selected_aldi, request_errors, store_warnings
+            )
+        )
 
         active_contexts = dict(contexts)
         for name in ("ALDI Nord", "ALDI Süd"):
