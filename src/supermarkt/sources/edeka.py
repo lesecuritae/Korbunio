@@ -25,6 +25,7 @@ from ..common import (
     date_is_current,
 )
 from ..config import BERLIN
+from ..http import curl_cffi_session
 from ..images import is_rejected_image_url, normalize_image_url
 from ..loyalty import parse_public_loyalty_prices
 from ..models import Offer, ToolError, PartialOffers
@@ -49,11 +50,7 @@ class OfficialEdekaSource:
         self.last_skipped_zero_price = 0
 
     def _session(self):
-        try:
-            from curl_cffi import requests as curl_requests
-        except Exception as exc:
-            raise ToolError(f"EDEKA benötigt curl_cffi: {exc}") from exc
-        return curl_requests.Session(impersonate="chrome")
+        return curl_cffi_session("EDEKA")
 
     @staticmethod
     def _markets(payload: Any) -> list[dict[str, Any]]:

@@ -35,6 +35,20 @@ def trusted_ssl_context() -> ssl.SSLContext:
     return context
 
 
+def curl_cffi_session(retailer_label: str, impersonate: str = "chrome"):
+    """A `curl_cffi` session with a browser TLS fingerprint, for retailer sites that reject urllib's handshake.
+
+    Shared by the retailer sources that need it (REWE, EDEKA, trinkgut) instead of each repeating the same
+    import/error-message/session-construction. `retailer_label` only affects the error message if curl_cffi is
+    missing from the environment.
+    """
+    try:
+        from curl_cffi import requests as curl_requests
+    except Exception as exc:
+        raise ToolError(f"{retailer_label} benötigt curl_cffi: {exc}") from exc
+    return curl_requests.Session(impersonate=impersonate)
+
+
 RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
 
 

@@ -28,7 +28,7 @@ from ..common import (
     parse_number,
     today_berlin,
 )
-from ..http import PostalCodeLocator
+from ..http import PostalCodeLocator, curl_cffi_session
 from ..images import is_rejected_image_url, normalize_image_url
 from ..models import Offer, ToolError, NoLocalMarketError, NoLocalMarketOffers, PartialOffers
 
@@ -201,11 +201,7 @@ class OfficialTrinkgutSource:
         return value if value and cls._is_trinkgut_url(value) else fallback
 
     def _session(self):
-        try:
-            from curl_cffi import requests as curl_requests
-        except Exception as exc:
-            raise ToolError(f"trinkgut benötigt curl_cffi: {exc}") from exc
-        return curl_requests.Session(impersonate="chrome")
+        return curl_cffi_session("trinkgut")
 
     @staticmethod
     def _slug(value: str) -> str:

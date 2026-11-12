@@ -15,7 +15,7 @@ from typing import Any, Optional
 from urllib.parse import urljoin, urlsplit
 
 from ..common import build_match_key, clean_text, deduplicate_offers, normalize_offer_week, normalize_pack, offer_reference_date, offer_week_reference, parse_base_price_text, parse_deposit_text, parse_number, today_berlin
-from ..http import PostalCodeLocator
+from ..http import PostalCodeLocator, curl_cffi_session
 from ..models import LoyaltyBenefit, Offer, ToolError, PartialOffers
 from .browser import chromium_command
 
@@ -197,11 +197,7 @@ class OfficialReweSource:
         return f"{market_url}{separator}week=next"
 
     def _session(self):
-        try:
-            from curl_cffi import requests as curl_requests
-        except Exception as exc:
-            raise ToolError(f"REWE benötigt curl_cffi: {exc}") from exc
-        return curl_requests.Session(impersonate="chrome")
+        return curl_cffi_session("REWE")
 
     @staticmethod
     def _offer_root(soup: Any, week: str) -> Any:
