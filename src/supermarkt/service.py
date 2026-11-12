@@ -293,6 +293,105 @@ class SourceLoader:
             official_jobs["trinkgut"] = load_trinkgut
         return official_jobs
 
+    def _apply_kaufda_supplements(
+        self,
+        active_contexts: dict[str, Any],
+        postal_code: str,
+        target_date: Any,
+        final_by_retailer: dict[str, list[Offer]],
+        source_states: dict[str, str],
+        store_warnings: list[str],
+        incomplete_retailers: set[str],
+        request_errors: list[str],
+    ) -> None:
+        """Complement a filled aggregator catalogue as well as an empty one with each configured
+        retailer's regional KaufDA flyer. A regional source failure must not discard the primary offers."""
+        supplements = getattr(self, "kaufda_supplements", {})
+        if not supplements and hasattr(self, "kaufda_lidl"):
+            supplements = {"Lidl": self.kaufda_lidl}
+        for name, source in supplements.items():
+            if name not in active_contexts:
+                continue
+            try:
+                locality = self.locator.locality(postal_code)
+                extra = source.load_regional(locality, target_date, self.locator.coordinates(postal_code))
+                primary = final_by_retailer.get(name, [])
+                merged = supplement_offers(primary, extra)
+                if len(merged) > len(primary):
+                    final_by_retailer[name] = merged
+                    original = source_states.get(name, "")
+                    source_states[name] = f"{original} + KaufDA-Ortsprospekt" if primary else "KaufDA-Ortsprospekt"
+                    store_warnings.append(f"{name}: ergänzender KaufDA-Ortsprospekt für {locality}; keine filialgenaue Bestandsaussage.")
+            except Exception as exc:
+                incomplete_retailers.add(name)
+                request_errors.append(f"{name} KaufDA-Ergänzung: {type(exc).__name__}: {exc}")
+
+    def _backfill_market_labels(
+        self, active_contexts: dict[str, Any], adapter_state: dict[str, dict[str, Any]], source_states: dict[str, str]
+    ) -> None:
+        """Attach the actual store label/URL an official adapter used, but only when that adapter's
+        catalogue is what's actually shown (never label a store that fell back to Marktguru/KaufDA)."""
+        for name, label_field, url_field in (
+            ("REWE", "last_market_label", "last_market_url"), ("EDEKA", "last_market_label", "last_market_url"),
+            ("Marktkauf", "last_market_label", "last_market_url"), ("Globus", "last_market_label", "last_market_url"),
+            ("Netto schwarz", "last_market_label", "last_market_url"), ("trinkgut", "last_market_label", "last_market_url"),
+        ):
+            state = adapter_state.get(name, {})
+            official = source_states.get(name, "").startswith("offiziell") if name == "Globus" else source_states.get(name) == "offiziell"
+            if official and state.get(url_field):
+                active_contexts[name] = self._context_with_market(active_contexts[name], state.get(label_field, ""), state[url_field])
+        kaufland_state = adapter_state.get("Kaufland", {})
+        if source_states.get("Kaufland") == "offiziell" and kaufland_state.get("last_store_url"):
+            active_contexts["Kaufland"] = self._context_with_market(
+                active_contexts["Kaufland"], "Kaufland " + clean_text(kaufland_state.get("last_locality", "")), kaufland_state["last_store_url"]
+            )
+
+    def _apply_next_week_preview_filter(
+        self, final_by_retailer: dict[str, list[Offer]], target_date: Any, store_warnings: list[str]
+    ) -> None:
+        """Narrow a next-week catalogue to the entries that actually cover target_date; fall back to
+        showing the retailer's unfiltered (effectively current-week) entries with a warning if none do."""
+        for name, retailer_offers in list(final_by_retailer.items()):
+            preview = []
+            for offer in retailer_offers:
+                start = parse_iso_date(offer.valid_from)
+                end = parse_iso_date(offer.valid_until)
+                if (start or end) and (start is None or start <= target_date) and (end is None or target_date <= end):
+                    preview.append(offer)
+            if preview:
+                final_by_retailer[name] = preview
+            else:
+                store_warnings.append(f"{name}: Noch keine Angebote der Folgewoche verfügbar; aktuelle Angebote werden angezeigt.")
+
+    def _normalize_offers(self, final_by_retailer: dict[str, list[Offer]], contexts: dict[str, RetailerContext]) -> list[Offer]:
+        """Flatten and dedupe every retailer's offers, then resolve each offer's final category (and
+        retailer URL fallback) via category_decision, logging any source/detected category conflict."""
+        offers = deduplicate_offers([
+            offer
+            for retailer_offers in final_by_retailer.values()
+            for offer in retailer_offers
+        ])
+        normalized_offers = []
+        for offer in offers:
+            source_category = offer.source_category or offer.category
+            decision = category_decision(
+                source_category, offer.retailer, offer.name, offer.description, offer.brand
+            )
+            if decision.category_conflict:
+                LOGGER.info(
+                    "category_conflict retailer=%r product=%r source_category=%r detected_category=%r",
+                    offer.retailer, offer.name, source_category, decision.detected_category,
+                )
+            normalized_offers.append(replace(
+                offer,
+                source_category=source_category,
+                detected_category=decision.detected_category,
+                category_conflict=decision.category_conflict,
+                category=decision.category,
+                retailer_url=offer.retailer_url or contexts.get(offer.retailer, RetailerContext("", (), (), "", "", "")).market_url,
+            ))
+        return normalized_offers
+
     def load(self, postal_code: str, aldi_region: str, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "", trinkgut_market_id: str = "") -> dict[str, Any]:
         notify = progress or (lambda **_fields: None)
         notify(status="loading", progress=5, source="Standortdienst", retailer="Alle Händler", category="Region", step="Region und Filialen werden ermittelt")
@@ -607,81 +706,19 @@ class SourceLoader:
 
         # Complement a filled aggregator catalogue as well as an empty one.
         # A regional source failure must not discard the primary offers.
-        supplements = getattr(self, "kaufda_supplements", {})
-        if not supplements and hasattr(self, "kaufda_lidl"):
-            supplements = {"Lidl": self.kaufda_lidl}
-        for name, source in supplements.items():
-            if name not in active_contexts:
-                continue
-            try:
-                locality = self.locator.locality(postal_code)
-                extra = source.load_regional(locality, target_date, self.locator.coordinates(postal_code))
-                primary = final_by_retailer.get(name, [])
-                merged = supplement_offers(primary, extra)
-                if len(merged) > len(primary):
-                    final_by_retailer[name] = merged
-                    original = source_states.get(name, "")
-                    source_states[name] = f"{original} + KaufDA-Ortsprospekt" if primary else "KaufDA-Ortsprospekt"
-                    store_warnings.append(f"{name}: ergänzender KaufDA-Ortsprospekt für {locality}; keine filialgenaue Bestandsaussage.")
-            except Exception as exc:
-                incomplete_retailers.add(name)
-                request_errors.append(f"{name} KaufDA-Ergänzung: {type(exc).__name__}: {exc}")
+        self._apply_kaufda_supplements(
+            active_contexts, postal_code, target_date,
+            final_by_retailer, source_states, store_warnings, incomplete_retailers, request_errors,
+        )
 
         # Update labels only from first-party adapters that actually supplied
         # the catalogue displayed to the user.
-        for name, label_field, url_field in (
-            ("REWE", "last_market_label", "last_market_url"), ("EDEKA", "last_market_label", "last_market_url"),
-            ("Marktkauf", "last_market_label", "last_market_url"), ("Globus", "last_market_label", "last_market_url"),
-            ("Netto schwarz", "last_market_label", "last_market_url"), ("trinkgut", "last_market_label", "last_market_url"),
-        ):
-            state = adapter_state.get(name, {})
-            official = source_states.get(name, "").startswith("offiziell") if name == "Globus" else source_states.get(name) == "offiziell"
-            if official and state.get(url_field):
-                active_contexts[name] = self._context_with_market(active_contexts[name], state.get(label_field, ""), state[url_field])
-        kaufland_state = adapter_state.get("Kaufland", {})
-        if source_states.get("Kaufland") == "offiziell" and kaufland_state.get("last_store_url"):
-            active_contexts["Kaufland"] = self._context_with_market(
-                active_contexts["Kaufland"], "Kaufland " + clean_text(kaufland_state.get("last_locality", "")), kaufland_state["last_store_url"]
-            )
+        self._backfill_market_labels(active_contexts, adapter_state, source_states)
 
         if requested_week == "next":
-            for name, retailer_offers in list(final_by_retailer.items()):
-                preview = []
-                for offer in retailer_offers:
-                    start = parse_iso_date(offer.valid_from)
-                    end = parse_iso_date(offer.valid_until)
-                    if (start or end) and (start is None or start <= target_date) and (end is None or target_date <= end):
-                        preview.append(offer)
-                if preview:
-                    final_by_retailer[name] = preview
-                else:
-                    store_warnings.append(f"{name}: Noch keine Angebote der Folgewoche verfügbar; aktuelle Angebote werden angezeigt.")
+            self._apply_next_week_preview_filter(final_by_retailer, target_date, store_warnings)
 
-        offers = deduplicate_offers([
-            offer
-            for retailer_offers in final_by_retailer.values()
-            for offer in retailer_offers
-        ])
-        normalized_offers = []
-        for offer in offers:
-            source_category = offer.source_category or offer.category
-            decision = category_decision(
-                source_category, offer.retailer, offer.name, offer.description, offer.brand
-            )
-            if decision.category_conflict:
-                LOGGER.info(
-                    "category_conflict retailer=%r product=%r source_category=%r detected_category=%r",
-                    offer.retailer, offer.name, source_category, decision.detected_category,
-                )
-            normalized_offers.append(replace(
-                offer,
-                source_category=source_category,
-                detected_category=decision.detected_category,
-                category_conflict=decision.category_conflict,
-                category=decision.category,
-                retailer_url=offer.retailer_url or contexts.get(offer.retailer, RetailerContext("", (), (), "", "", "")).market_url,
-            ))
-        offers = normalized_offers
+        offers = self._normalize_offers(final_by_retailer, contexts)
         confirmed_absence = selected_retailers and selected_retailers <= unavailable_retailers
         clean_empty = selected_retailers and catalogue_responded and not request_errors
         if not offers and not (confirmed_absence or clean_empty):
