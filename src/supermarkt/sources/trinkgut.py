@@ -11,7 +11,7 @@ from dataclasses import replace
 from datetime import date, datetime
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlencode, urljoin, urlparse
 
 from ..common import (
@@ -47,7 +47,7 @@ class OfficialTrinkgutSource:
         locator: PostalCodeLocator,
         timeout_seconds: int = 45,
         *,
-        cache_dir: Optional[Path] = None,
+        cache_dir: Path | None = None,
         store_cache_ttl_seconds: int = 86400,
         markets_cache_ttl_seconds: int = 86400,
         max_distance_km: float = 40.0,
@@ -58,21 +58,21 @@ class OfficialTrinkgutSource:
         self.max_distance_km = max(5.0, min(float(max_distance_km), 300.0))
         self.deposit_workers = max(1, min(int(deposit_workers), 12))
         self.deposit_cache_ttl_seconds = max(300, min(int(deposit_cache_ttl_seconds), 7 * 86400))
-        self._deposit_cache: dict[str, tuple[float, Optional[float]]] = {}
+        self._deposit_cache: dict[str, tuple[float, float | None]] = {}
         self._coordinate_cache: dict[str, tuple[float, float]] = {}
         self.timeout_seconds = max(10, min(int(timeout_seconds), 90))
         self.cache_dir = Path(cache_dir).expanduser() if cache_dir is not None else None
         self.store_cache_ttl_seconds = max(300, min(int(store_cache_ttl_seconds), 7 * 86400))
         self.markets_cache_ttl_seconds = max(300, min(int(markets_cache_ttl_seconds), 7 * 86400))
         self._cache_lock = threading.RLock()
-        self._all_markets_mem: Optional[list[dict[str, Any]]] = None
+        self._all_markets_mem: list[dict[str, Any]] | None = None
         self._all_markets_loaded_at: float = 0.0
 
         self.last_market_id = ""
         self.last_market_label = ""
         self.last_market_url = ""
         self.last_discovery = ""
-        self.last_distance_km: Optional[float] = None
+        self.last_distance_km: float | None = None
         self.last_current_count = 0
         self.last_unknown_count = 0
 
@@ -80,11 +80,11 @@ class OfficialTrinkgutSource:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     @property
-    def _store_cache_path(self) -> Optional[Path]:
+    def _store_cache_path(self) -> Path | None:
         return self.cache_dir / "stores.json" if self.cache_dir is not None else None
 
     @property
-    def _markets_cache_path(self) -> Optional[Path]:
+    def _markets_cache_path(self) -> Path | None:
         return self.cache_dir / "markets.json" if self.cache_dir is not None else None
 
     def _read_store_map(self) -> dict[str, dict[str, Any]]:
@@ -112,7 +112,7 @@ class OfficialTrinkgutSource:
         tmp.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         tmp.replace(path)
 
-    def _cleanup_store_cache(self, now: Optional[float] = None) -> dict[str, dict[str, Any]]:
+    def _cleanup_store_cache(self, now: float | None = None) -> dict[str, dict[str, Any]]:
         if self.cache_dir is None:
             return {}
         current = time.time() if now is None else float(now)
@@ -132,7 +132,7 @@ class OfficialTrinkgutSource:
                 self._write_store_map(mapping)
             return mapping
 
-    def _cached_market(self, postal_code: str) -> Optional[tuple[str, str, str, Optional[float]]]:
+    def _cached_market(self, postal_code: str) -> tuple[str, str, str, float | None] | None:
         code = clean_text(postal_code)
         mapping = self._cleanup_store_cache()
         item = mapping.get(code)
@@ -156,7 +156,7 @@ class OfficialTrinkgutSource:
         market_id: str,
         market_url: str,
         label: str,
-        distance_km: Optional[float] = None,
+        distance_km: float | None = None,
     ) -> None:
         if self.cache_dir is None:
             return
@@ -210,7 +210,7 @@ class OfficialTrinkgutSource:
         return re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
 
     @staticmethod
-    def _parse_truncated_deposit(description: str) -> Optional[float]:
+    def _parse_truncated_deposit(description: str) -> float | None:
         """Extract deposit from server-truncated card descriptions.
 
         trinkgut truncates descriptions to a fixed character width in the
@@ -245,7 +245,7 @@ class OfficialTrinkgutSource:
         value = sin(dlat / 2.0) ** 2 + cos(lat1r) * cos(lat2r) * sin(dlon / 2.0) ** 2
         return 6371.0088 * 2.0 * asin(sqrt(min(1.0, max(0.0, value))))
 
-    def _postal_coordinates(self, postal_code: str) -> Optional[tuple[float, float]]:
+    def _postal_coordinates(self, postal_code: str) -> tuple[float, float] | None:
         """Resolve latitude and longitude for a postal code via PostalCodeLocator or Nominatim."""
         remembered = self._coordinate_cache.get(postal_code)
         if remembered is not None:
@@ -314,7 +314,7 @@ class OfficialTrinkgutSource:
 
         return parsed_markets
 
-    def _get_all_markets(self, session: Optional[Any] = None) -> list[dict[str, Any]]:
+    def _get_all_markets(self, session: Any | None = None) -> list[dict[str, Any]]:
         now = time.time()
         with self._cache_lock:
             if self._all_markets_mem and (now - self._all_markets_loaded_at) < self.markets_cache_ttl_seconds:
@@ -357,7 +357,7 @@ class OfficialTrinkgutSource:
         *,
         use_cache: bool = True,
         market_id: str = "",
-    ) -> tuple[Any, str, str, str, Optional[float]]:
+    ) -> tuple[Any, str, str, str, float | None]:
         requested_market_id = clean_text(market_id)
         if use_cache and not requested_market_id:
             cached = self._cached_market(postal_code)
@@ -491,7 +491,7 @@ class OfficialTrinkgutSource:
         ]
 
     @classmethod
-    def _parse_validity(cls, soup: Any, reference_date: Optional[date] = None) -> tuple[Optional[date], Optional[date], str]:
+    def _parse_validity(cls, soup: Any, reference_date: date | None = None) -> tuple[date | None, date | None, str]:
         """Extract offer validity dates from the page text or intro."""
         text = soup.get_text(" ", strip=True) if hasattr(soup, "get_text") else str(soup)
         match = re.search(r"[Gg]ültig\s+vom\s+(\d{1,2}\.\d{1,2}\.\d{4})\s+bis\s+(\d{1,2}\.\d{1,2}\.\d{4})", text)
@@ -517,9 +517,9 @@ class OfficialTrinkgutSource:
         market_id: str,
         market_url: str,
         validity_label: str,
-        valid_from: Optional[date],
-        valid_until: Optional[date],
-    ) -> Optional[Offer]:
+        valid_from: date | None,
+        valid_until: date | None,
+    ) -> Offer | None:
         name_node = card.select_one(".product-name")
         title = clean_text(name_node.get_text(" ", strip=True) if name_node else "")
         if not title:
@@ -592,7 +592,7 @@ class OfficialTrinkgutSource:
             valid_until=valid_until.isoformat() if valid_until else None,
         )
 
-    def _deposit_cache_path(self) -> Optional[Path]:
+    def _deposit_cache_path(self) -> Path | None:
         return self.cache_dir / "trinkgut-deposits.json" if self.cache_dir is not None else None
 
     def _read_deposit_cache(self, now: float) -> None:
@@ -656,7 +656,7 @@ class OfficialTrinkgutSource:
         # from one search to the next, and the site should not be hit for it.
         now = time.time()
         self._read_deposit_cache(now)
-        remembered: dict[int, Optional[float]] = {}
+        remembered: dict[int, float | None] = {}
         to_request: list[tuple[int, str]] = []
         for idx, url in need_fetch:
             hit = self._deposit_cache.get(url)
@@ -666,7 +666,7 @@ class OfficialTrinkgutSource:
                 to_request.append((idx, url))
         need_fetch = to_request
 
-        def fetch_full_desc(args: tuple[int, str]) -> tuple[int, Optional[float]]:
+        def fetch_full_desc(args: tuple[int, str]) -> tuple[int, float | None]:
             idx, url = args
             try:
                 r = session.get(url, timeout=min(self.timeout_seconds, 15))
@@ -681,7 +681,7 @@ class OfficialTrinkgutSource:
             except Exception:
                 return idx, None
 
-        results: list[tuple[int, Optional[float]]] = list(remembered.items())
+        results: list[tuple[int, float | None]] = list(remembered.items())
         if need_fetch:
             workers = max(1, min(self.deposit_workers, len(need_fetch)))
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:

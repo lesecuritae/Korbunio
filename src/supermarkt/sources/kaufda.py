@@ -6,7 +6,7 @@ import json
 import re
 from datetime import date, datetime, timedelta
 from math import isfinite, radians, sin, cos, asin, sqrt
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import quote, urlsplit, urljoin
 
 from bs4 import BeautifulSoup
@@ -99,7 +99,7 @@ class KaufdaGlobusImageSource:
         return result
 
 
-def _local_date(value: Any) -> Optional[date]:
+def _local_date(value: Any) -> date | None:
     text = clean_text(value)
     if not text:
         return None
@@ -113,7 +113,7 @@ def _local_date(value: Any) -> Optional[date]:
 
 
 
-def _viewer_prices(deals: Any, member_conditions: tuple[str, ...] = ()) -> tuple[Optional[float], Optional[float]]:
+def _viewer_prices(deals: Any, member_conditions: tuple[str, ...] = ()) -> tuple[float | None, float | None]:
     """(regulärer Preis, App-Preis) aus den Preisangaben eines Prospektangebots."""
     regular_values: set[float] = set()
     member_values: set[float] = set()
@@ -196,7 +196,7 @@ class KaufdaRetailerSource:
     def url(self) -> str:
         return self.BASE.format(slug=quote(self.slug, safe="-"))
 
-    def load(self, target: Optional[date] = None) -> list[Offer]:
+    def load(self, target: date | None = None) -> list[Offer]:
         payload = self.http.get_bytes(self.url, {"Accept": "text/html", "Accept-Language": "de-DE,de;q=0.9"})
         if len(payload) > self.MAX_RESPONSE:
             raise ToolError(f"KaufDA-{self.retailer}-Seite überschreitet das Größenlimit")
@@ -232,7 +232,7 @@ class KaufdaRetailerSource:
             raise ToolError(f"KaufDA-{self.retailer}: keine datierten Angebote für die Zielwoche")
         return dated
 
-    def load_regional(self, locality: str, target: Optional[date] = None, coordinates: tuple[float, float] | None = None) -> list[Offer]:
+    def load_regional(self, locality: str, target: date | None = None, coordinates: tuple[float, float] | None = None) -> list[Offer]:
         """Supplement only a publisher-linked city brochure, never a national default.
 
         A city is not a branch/stock guarantee. Unknown cities and missing viewer
@@ -304,7 +304,7 @@ class KaufdaRetailerSource:
             raise ToolError(f"KaufDA-{self.retailer}: kein regionaler Prospekt verfügbar")
         return self._viewer_offers(text, target, regional_url, coordinates)
 
-    def _brochure_ids(self, page: str, require_publisher: bool = False, target: Optional[date] = None) -> list[str]:
+    def _brochure_ids(self, page: str, require_publisher: bool = False, target: date | None = None) -> list[str]:
         match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', page, flags=re.IGNORECASE | re.DOTALL)
         if not match:
             return []
@@ -357,7 +357,7 @@ class KaufdaRetailerSource:
             raise ToolError("KaufDA Prospektlimit überschritten; Auswahl nicht vollständig")
         return list(candidates)
 
-    def _viewer_offers(self, page: str, target: Optional[date], source_url: str = "", coordinates: tuple[float, float] | None = None) -> list[Offer]:
+    def _viewer_offers(self, page: str, target: date | None, source_url: str = "", coordinates: tuple[float, float] | None = None) -> list[Offer]:
         offers: list[Offer] = []
         query = self.VIEWER_QUERY if coordinates is None else {"partner": "kaufda_web", "lat": str(coordinates[0]), "lng": str(coordinates[1])}
         ids = self._brochure_ids(page, require_publisher=bool(source_url), target=target)
@@ -371,7 +371,7 @@ class KaufdaRetailerSource:
             offers.extend(self.parse_viewer(json.loads(payload.decode("utf-8", errors="replace")), brochure, target, source_url))
         return offers
 
-    def parse_viewer(self, data: dict[str, Any], brochure: str, target: Optional[date] = None, source_url: str = "") -> list[Offer]:
+    def parse_viewer(self, data: dict[str, Any], brochure: str, target: date | None = None, source_url: str = "") -> list[Offer]:
         """Angebote aus den Seiten des Prospekts. Regulärer Preis = Preis „ohne App“; ein App-Preis steht nur in der Beschreibung."""
         pages = data.get("contents") if isinstance(data, dict) else None
         if not isinstance(pages, list):
@@ -439,7 +439,7 @@ class KaufdaRetailerSource:
                     ))
         return result
 
-    def parse(self, page: str, target: Optional[date] = None) -> list[Offer]:
+    def parse(self, page: str, target: date | None = None) -> list[Offer]:
         match = re.search(
             r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
             page,

@@ -6,7 +6,7 @@ import threading
 import time
 import unicodedata
 from math import asin, cos, radians, sin, sqrt
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup
@@ -74,7 +74,7 @@ class AldiRegionResolver:
         # The global lock only guards the dict. Network I/O runs under a per-region lock, so a slow Nord catalogue
         # neither blocks Süd nor fresh cache hits, while concurrent callers of one region still share a single fetch.
         # A failed refresh raises (fail-closed): an old catalogue is never silently reused as confirmed evidence.
-        def fresh() -> Optional[list[dict[str, Any]]]:
+        def fresh() -> list[dict[str, Any]] | None:
             with self._catalogue_lock:
                 cached = self._catalogues.get(region)
             return cached[1] if cached and time.monotonic() - cached[0] < 3600 else None
@@ -128,7 +128,7 @@ class AldiRegionResolver:
             raise ToolError("ALDI lieferte keine gültigen Filialdaten")
         return stores
 
-    def _official_regions(self, code: str) -> Optional[str]:
+    def _official_regions(self, code: str) -> str | None:
         catalogues = {}
         errors = []
         for region in ("nord", "sued"):
@@ -234,7 +234,7 @@ class AldiRegionResolver:
             )
         )
 
-    def _postal_coordinates(self, postal_code: str) -> Optional[tuple[float, float]]:
+    def _postal_coordinates(self, postal_code: str) -> tuple[float, float] | None:
         query = urlencode(
             {
                 "postalcode": postal_code,

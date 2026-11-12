@@ -7,7 +7,7 @@ import threading
 import time
 import zlib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from .models import ToolError
 
@@ -94,14 +94,14 @@ class PersistentSnapshotStore:
                 [(row["search_id"],) for row in rows],
             )
 
-    def _decoded_row(self, db: sqlite3.Connection, row: sqlite3.Row) -> Optional[dict[str, Any]]:
+    def _decoded_row(self, db: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any] | None:
         try:
             return self._decode(row["payload"])
         except (OSError, UnicodeDecodeError, ValueError, zlib.error, ToolError):
             db.execute("DELETE FROM supermarket_snapshots WHERE search_id = ?", (row["search_id"],))
             return None
 
-    def get_by_key(self, cache_key: str, *, allow_stale: bool = False) -> Optional[dict[str, Any]]:
+    def get_by_key(self, cache_key: str, *, allow_stale: bool = False) -> dict[str, Any] | None:
         now = time.time()
         with self._lock, self._connect() as db:
             self._cleanup(db, now)
@@ -124,7 +124,7 @@ class PersistentSnapshotStore:
             payload["created_at"] = float(row["created_at"])
             return payload
 
-    def get_by_id(self, search_id: str) -> Optional[dict[str, Any]]:
+    def get_by_id(self, search_id: str) -> dict[str, Any] | None:
         now = time.time()
         with self._lock, self._connect() as db:
             self._cleanup(db, now)

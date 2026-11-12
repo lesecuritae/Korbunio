@@ -26,7 +26,7 @@ import time
 import threading
 import hashlib
 import json
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError as MCPToolError
@@ -113,10 +113,10 @@ class Offer(BaseModel):
     pack: str = Field(default="", description="Packungsgröße")
     unit_price: str = Field(default="", description="Grundpreis, z. B. 8,95 €/kg")
     price_without_bonus: str = Field(description="Preis ohne Bonusprogramm")
-    price_with_bonus: Optional[str] = Field(default=None, description="Günstigerer Mitgliederpreis an der Kasse, nur wenn es einen gibt")
-    bonus_credit: Optional[str] = Field(default=None, description="Nachträglich gutgeschriebenes Bonus-Guthaben, z. B. 0,20 € REWE Bonus")
-    price_after_credit: Optional[str] = Field(default=None, description="Effektiver Preis nach Abzug des Bonus-Guthabens, z. B. 0,79 €")
-    bonus_program: Optional[str] = Field(default=None, description="Welches Programm dafür nötig ist, z. B. Kaufland Card XTRA oder REWE Bonus")
+    price_with_bonus: str | None = Field(default=None, description="Günstigerer Mitgliederpreis an der Kasse, nur wenn es einen gibt")
+    bonus_credit: str | None = Field(default=None, description="Nachträglich gutgeschriebenes Bonus-Guthaben, z. B. 0,20 € REWE Bonus")
+    price_after_credit: str | None = Field(default=None, description="Effektiver Preis nach Abzug des Bonus-Guthabens, z. B. 0,79 €")
+    bonus_program: str | None = Field(default=None, description="Welches Programm dafür nötig ist, z. B. Kaufland Card XTRA oder REWE Bonus")
     multi_buy_quantity: int | None = None
     multi_buy_total_price: float | None = None
     single_price: float | None = None
@@ -127,11 +127,11 @@ class Offer(BaseModel):
     valid_from: str = ""
     valid_until: str = ""
     valid: str = Field(default="", description="Gültigkeit")
-    image_url: Optional[str] = Field(default=None, description="Bild des Angebots (Adresse beim Händler)")
+    image_url: str | None = Field(default=None, description="Bild des Angebots (Adresse beim Händler)")
     image_source: str = Field(default="", description="own | same_article_other_retailer; leer = kein Bild geliefert")
     image_match: str = Field(default="", description="exact | substitute (Ersatzbild: gleicher Artikel, andere Packung oder anderer Händler)")
     image_note: str = Field(default="", description="Kurzer Hinweis zur Herkunft eines Ersatzbilds")
-    image_fallback_url: Optional[str] = Field(default=None, description="Bildadresse des Ersatzbilds (gehört zu einem anderen Angebot); image_url bleibt unverändert")
+    image_fallback_url: str | None = Field(default=None, description="Bildadresse des Ersatzbilds (gehört zu einem anderen Angebot); image_url bleibt unverändert")
 
 
 class OfferResult(BaseModel):

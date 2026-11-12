@@ -5,7 +5,7 @@ import time
 import ssl
 import threading
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import SplitResult, urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -64,7 +64,7 @@ class HttpClient:
     def __init__(self, timeout_seconds: int) -> None:
         self.timeout_seconds = max(3, timeout_seconds)
 
-    def get_bytes(self, url: str, headers: Optional[dict[str, str]] = None) -> bytes:
+    def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> bytes:
         self._validate_https_url(url)
         request_headers = {
             "User-Agent": USER_AGENT,
@@ -93,7 +93,7 @@ class HttpClient:
                 raise ToolError(f"Abruf von {urlsplit(url).netloc} fehlgeschlagen: {exc}") from exc
         raise ToolError(f"Abruf von {urlsplit(url).netloc} fehlgeschlagen")  # pragma: no cover - loop always returns or raises
 
-    def get_json(self, url: str, headers: Optional[dict[str, str]] = None) -> dict[str, Any]:
+    def get_json(self, url: str, headers: dict[str, str] | None = None) -> dict[str, Any]:
         try:
             payload = json.loads(self.get_bytes(url, headers).decode("utf-8", errors="replace"))
         except json.JSONDecodeError as exc:

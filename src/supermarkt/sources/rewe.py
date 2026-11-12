@@ -11,7 +11,7 @@ import unicodedata
 from datetime import date
 from pathlib import Path
 import uuid
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from ..common import build_match_key, clean_text, deduplicate_offers, normalize_offer_week, normalize_pack, offer_reference_date, offer_week_reference, parse_base_price_text, parse_deposit_text, parse_number, today_berlin
@@ -31,7 +31,7 @@ class OfficialReweSource:
         locator: PostalCodeLocator,
         timeout_seconds: int = 45,
         *,
-        cache_dir: Optional[Path] = None,
+        cache_dir: Path | None = None,
         store_cache_ttl_seconds: int = 86400,
     ) -> None:
         self.locator = locator
@@ -50,7 +50,7 @@ class OfficialReweSource:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     @property
-    def _store_cache_path(self) -> Optional[Path]:
+    def _store_cache_path(self) -> Path | None:
         return self.cache_dir / "stores.json" if self.cache_dir is not None else None
 
     def _read_store_map(self) -> dict[str, dict[str, Any]]:
@@ -78,7 +78,7 @@ class OfficialReweSource:
         tmp.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         tmp.replace(path)
 
-    def _cleanup_store_cache(self, now: Optional[float] = None) -> dict[str, dict[str, Any]]:
+    def _cleanup_store_cache(self, now: float | None = None) -> dict[str, dict[str, Any]]:
         if self.cache_dir is None:
             return {}
         current = time.time() if now is None else float(now)
@@ -98,7 +98,7 @@ class OfficialReweSource:
                 self._write_store_map(mapping)
             return mapping
 
-    def _cached_market(self, postal_code: str) -> Optional[tuple[str, str, str]]:
+    def _cached_market(self, postal_code: str) -> tuple[str, str, str] | None:
         code = clean_text(postal_code)
         mapping = self._cleanup_store_cache()
         item = mapping.get(code)
@@ -147,7 +147,7 @@ class OfficialReweSource:
         return re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
 
     @staticmethod
-    def _money(node: Any) -> Optional[float]:
+    def _money(node: Any) -> float | None:
         if node is None:
             return None
         match = re.search(r"(?<!\d)(\d{1,4}(?:[.,]\d{1,2})?)\s*€", clean_text(node.get_text(" ", strip=True) if hasattr(node, "get_text") else node))
@@ -178,19 +178,19 @@ class OfficialReweSource:
         return ""
 
     @staticmethod
-    def _target_week(day: Optional[date] = None) -> str:
+    def _target_week(day: date | None = None) -> str:
         current = day or today_berlin()
         return "next" if current.weekday() == 6 else "current"
 
     @staticmethod
-    def _week_label(day: Optional[date] = None) -> str:
+    def _week_label(day: date | None = None) -> str:
         reference = offer_reference_date(day)
         monday = reference.fromordinal(reference.toordinal() - reference.weekday())
         sunday = reference.fromordinal(monday.toordinal() + 6)
         return f"{monday:%d.%m.}–{sunday:%d.%m.%Y}"
 
     @classmethod
-    def _market_week_url(cls, market_url: str, day: Optional[date] = None) -> str:
+    def _market_week_url(cls, market_url: str, day: date | None = None) -> str:
         if cls._target_week(day) != "next":
             return market_url
         separator = "&" if "?" in market_url else "?"
@@ -504,7 +504,7 @@ class OfficialReweSource:
         return re.sub(r"[¹²³⁴⁵⁶⁷⁸⁹⁰]+$", "", title).strip()
 
     @classmethod
-    def _bonus_amount(cls, card: Any, description: str = "") -> Optional[float]:
+    def _bonus_amount(cls, card: Any, description: str = "") -> float | None:
         """Return only an explicitly published Euro REWE Bonus amount.
 
         REWE currently renders the amount either in its loyalty badge or in an
@@ -526,7 +526,7 @@ class OfficialReweSource:
                     return amount
         return None
 
-    def _parse_card(self, card: Any, *, nan: str, category: str, market_id: str, market_url: str, reference_date: Optional[date] = None) -> tuple[Optional[Offer], bool]:
+    def _parse_card(self, card: Any, *, nan: str, category: str, market_id: str, market_url: str, reference_date: date | None = None) -> tuple[Offer | None, bool]:
         title_node = card.select_one(".cor-offer-information__title") if card is not None else None
         title = self._offer_title(title_node)
         price = self._money(card.select_one(".cor-offer-price__tag-price") if card is not None else None)

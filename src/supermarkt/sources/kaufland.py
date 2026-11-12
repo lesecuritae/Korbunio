@@ -13,7 +13,7 @@ import time
 from html.parser import HTMLParser
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import parse_qs, quote, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
@@ -46,12 +46,12 @@ class KauflandOfficialAnchorParser(HTMLParser):
         self.cards: list[dict[str, Any]] = []
         self.page_text_parts: list[str] = []
         self._depth = 0
-        self._current: Optional[dict[str, Any]] = None
+        self._current: dict[str, Any] | None = None
 
     def handle_starttag(
         self,
         tag: str,
-        attrs: list[tuple[str, Optional[str]]],
+        attrs: list[tuple[str, str | None]],
     ) -> None:
         tag = tag.casefold()
         attributes = {
@@ -128,7 +128,7 @@ class OfficialKauflandSource:
         locator: PostalCodeLocator,
         timeout_seconds: int = 45,
         *,
-        cache_dir: Optional[Path] = None,
+        cache_dir: Path | None = None,
         store_cache_ttl_seconds: int = 86400,
     ) -> None:
         self.http = http
@@ -138,7 +138,7 @@ class OfficialKauflandSource:
         self.last_store_postal_code = ""
         self.last_locality = ""
         self.last_discovery = ""
-        self._store_urls_cache: Optional[list[str]] = None
+        self._store_urls_cache: list[str] | None = None
         self.cache_dir = Path(cache_dir).expanduser() if cache_dir is not None else None
         self.store_cache_ttl_seconds = max(300, min(int(store_cache_ttl_seconds), 7 * 86400))
         self._cache_lock = threading.RLock()
@@ -422,10 +422,10 @@ class OfficialKauflandSource:
         return locality, candidates[:24]
 
     @property
-    def _store_cache_path(self) -> Optional[Path]:
+    def _store_cache_path(self) -> Path | None:
         return self.cache_dir / "store-map.json" if self.cache_dir is not None else None
 
-    def _profile_dir(self, selector: str) -> Optional[Path]:
+    def _profile_dir(self, selector: str) -> Path | None:
         if self.cache_dir is None:
             return None
         safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", clean_text(selector))
@@ -469,7 +469,7 @@ class OfficialKauflandSource:
         tmp.write_text(json.dumps(value, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         tmp.replace(path)
 
-    def _cleanup_store_cache(self, now: Optional[float] = None) -> dict[str, dict[str, Any]]:
+    def _cleanup_store_cache(self, now: float | None = None) -> dict[str, dict[str, Any]]:
         if self.cache_dir is None:
             return {}
         current = time.time() if now is None else float(now)
@@ -502,7 +502,7 @@ class OfficialKauflandSource:
                 self._write_store_map(mapping)
             return mapping
 
-    def _cached_store(self, postal_code: str) -> Optional[tuple[str, str, str]]:
+    def _cached_store(self, postal_code: str) -> tuple[str, str, str] | None:
         code = clean_text(postal_code)
         mapping = self._cleanup_store_cache()
         item = mapping.get(code)
@@ -586,7 +586,7 @@ class OfficialKauflandSource:
         context_text = " ".join(context_values)
         context_words = [word for word in self._slug_words(context_text) if word not in self._slug_words(locality)][:12]
         context_postals = list(dict.fromkeys(re.findall(r"\b\d{5}\b", context_text)))
-        best: Optional[tuple[int, str, str, str]] = None
+        best: tuple[int, str, str, str] | None = None
         errors: list[str] = []
         for search_score, url in candidates[:20]:
             try:
@@ -633,7 +633,7 @@ class OfficialKauflandSource:
         return f"DE{match.group(1)}" if match else ""
 
     @classmethod
-    def _overview_url(cls, day: Optional[date] = None) -> str:
+    def _overview_url(cls, day: date | None = None) -> str:
         # Kaufland's weekly cycle is Thursday through Wednesday. On Sunday the
         # application's Monday reference date still belongs to the current
         # Kaufland week, so jumping to the preview page would skip Mon-Wed.
@@ -781,7 +781,7 @@ class OfficialKauflandSource:
         year = today_berlin().year
         return f"Kaufland, gültig {day1:02d}.{month1:02d}.{year} bis {day2:02d}.{month2:02d}.{year}"
 
-    def _card_to_offer(self, card: dict[str, Any], index: int, validity_label: str, source_url: str) -> Optional[Offer]:
+    def _card_to_offer(self, card: dict[str, Any], index: int, validity_label: str, source_url: str) -> Offer | None:
         text = clean_text(" ".join(clean_text(part) for part in card.get("text_parts", []) if clean_text(part)))
         if not text or len(text) > 1200:
             return None

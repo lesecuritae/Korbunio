@@ -5,7 +5,7 @@ import json
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 from urllib.parse import urlencode
 
 from ..common import clean_text, find_marktguru_keys, first_regex_group
@@ -28,7 +28,7 @@ class MarktguruClient:
         self.http = http
         self.page_size = max(1, min(page_size, 1000))
         self.max_workers = max(1, max_workers)
-        self._credentials: Optional[tuple[str, str]] = None
+        self._credentials: tuple[str, str] | None = None
         self._credentials_lock = threading.Lock()
 
     def _headers(self) -> dict[str, str]:

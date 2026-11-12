@@ -4,7 +4,7 @@ from ..request_state import RequestState
 
 import html, json, math, re, threading
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 from ..common import build_match_key, clean_text, format_validity, normalize_pack, pack_metric, parse_iso_date, parse_number
@@ -29,11 +29,11 @@ class GlobusMarketResolver:
 
     def __init__(self, http_client: HttpClient) -> None:
         self.http = http_client
-        self._markets: Optional[tuple[GlobusMarket, ...]] = None
-        self._postal_cache: dict[str, Optional[GlobusMarket]] = {}
+        self._markets: tuple[GlobusMarket, ...] | None = None
+        self._postal_cache: dict[str, GlobusMarket | None] = {}
         self._lock = threading.Lock()
 
-    def resolve(self, postal_code: str) -> Optional[GlobusMarket]:
+    def resolve(self, postal_code: str) -> GlobusMarket | None:
         postal_code = clean_text(postal_code)
         if not re.fullmatch(r"\d{5}", postal_code): return None
         with self._lock:
@@ -70,7 +70,7 @@ class GlobusMarketResolver:
         with self._lock: self._markets = result
         return result
 
-    def _postal_coordinates(self, postal_code: str) -> Optional[tuple[float, float]]:
+    def _postal_coordinates(self, postal_code: str) -> tuple[float, float] | None:
         query = urlencode({"postalcode": postal_code, "country": "Germany", "format": "jsonv2", "limit": 1})
         try:
             payload = json.loads(self.http.get_bytes(f"{self.GEOCODE_URL}?{query}", {"Accept": "application/json"}).decode())
@@ -86,10 +86,10 @@ class OfficialGlobusSource:
     scope_note = RequestState("")
 
     FLYER_URL = "https://www.globus.de/faltblatt_online/aktuelle_woche/{code}/pageitems.json"
-    def __init__(self, http_client: HttpClient, resolver: Optional[GlobusMarketResolver] = None) -> None:
+    def __init__(self, http_client: HttpClient, resolver: GlobusMarketResolver | None = None) -> None:
         self.http, self.resolver = http_client, resolver or GlobusMarketResolver(http_client)
         self.last_market_label = self.last_market_url = ""
-        self.last_market: Optional[GlobusMarket] = None
+        self.last_market: GlobusMarket | None = None
 
     def load(self, postal_code: str) -> list[Offer]:
         self.scope_note = ""
@@ -156,7 +156,7 @@ def _article_image(item: dict[str, Any], base_url: str = "") -> str:
     return ""
 
 def _text(value: Any) -> str: return clean_text(html.unescape(clean_text(value)).replace("\x00", ""))
-def _price(value: Any) -> Optional[float]:
+def _price(value: Any) -> float | None:
     match = re.search(r"\d[\d. ]*(?:[,.]\d{1,2})?", _text(value))
     if not match: return None
     number = match.group(0).replace(" ", "")
@@ -187,7 +187,7 @@ def _variants(item: dict[str, Any]) -> list[dict[str, Any]]:
                  menge=f"Ø {diameter} cm", mgprice="", priceinfo="") for diameter, price in prices.items()]
 
 
-def _base_price(description: str, quantity: str, price: float) -> tuple[Optional[float], str]:
+def _base_price(description: str, quantity: str, price: float) -> tuple[float | None, str]:
     # Ranges/slash alternatives cannot be represented by one scalar unit price.
     metric = pack_metric(normalize_pack(quantity))
     if metric is None or metric[1] not in {"kg", "l"}:

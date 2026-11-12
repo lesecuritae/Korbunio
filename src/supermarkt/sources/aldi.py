@@ -7,7 +7,7 @@ import re
 import subprocess
 from datetime import date
 from html.parser import HTMLParser
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from ..common import (
@@ -51,12 +51,12 @@ class AldiSouthWeeklyParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.source_url = source_url
         self.cards: list[dict[str, Any]] = []
-        self._current: Optional[dict[str, Any]] = None
+        self._current: dict[str, Any] | None = None
         self._heading_tag = ""
         self._heading_parts: list[str] = []
         self._group_label = ""
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {str(key).casefold(): value or "" for key, value in attrs}
         tag = tag.casefold()
         if tag in {"h1", "h2", "h3", "h4", "h5"} and self._current is None:
@@ -131,7 +131,7 @@ class OfficialAldiSource:
     SOUTH_INDEX_URL = "https://www.aldi-sued.de/angebote"
 
     @staticmethod
-    def _south_global_period(text: str) -> tuple[Optional[date], Optional[date]]:
+    def _south_global_period(text: str) -> tuple[date | None, date | None]:
         match = re.search(
             r"Wochenangebote[^\d]{0,30}(?:Mo(?:ntag)?\.?[,]?\s*)?(\d{1,2})\.(\d{1,2})\.\s*[–-]\s*"
             r"(?:So|Sa|Fr|Do|Mi|Di|Mo)(?:ntag|nabend|itag|nnerstag|ttwoch|enstag)?\.?[,]?\s*"
@@ -152,7 +152,7 @@ class OfficialAldiSource:
         return min(candidates, key=lambda period: abs((period[0] - today).days)) if candidates else (None, None)
 
     @staticmethod
-    def _south_date_in_period(day: int, month: int, period: tuple[Optional[date], Optional[date]]) -> Optional[date]:
+    def _south_date_in_period(day: int, month: int, period: tuple[date | None, date | None]) -> date | None:
         start, end = period
         years = {offer_reference_date().year}
         if start:
@@ -173,8 +173,8 @@ class OfficialAldiSource:
     def _south_card_period(
         cls,
         card: dict[str, Any],
-        global_period: tuple[Optional[date], Optional[date]],
-    ) -> tuple[Optional[date], Optional[date], str]:
+        global_period: tuple[date | None, date | None],
+    ) -> tuple[date | None, date | None, str]:
         """Resolve card > group > weekly validity without inventing missing dates."""
         text = clean_text(" ".join(card.get("text_parts") or []))
         group = clean_text(card.get("group_label"))
@@ -223,7 +223,7 @@ class OfficialAldiSource:
             return LoadResult(self._load_south(reference_date), list(self.last_south_errors))
         return LoadResult([], ["ALDI-Region ist nicht eindeutig bestimmt"])
 
-    def _load_north(self, reference_date: Optional[date] = None) -> list[Offer]:
+    def _load_north(self, reference_date: date | None = None) -> list[Offer]:
         page = self.http.get_bytes(self.NORTH_URL).decode("utf-8", errors="replace")
         match = re.search(
             r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
@@ -240,7 +240,7 @@ class OfficialAldiSource:
         if not isinstance(api_data, list):
             raise ToolError("ALDI Nord lieferte kein lesbares Angebotsformat")
 
-        response_data: Optional[dict[str, Any]] = None
+        response_data: dict[str, Any] | None = None
         for entry in api_data:
             if (
                 isinstance(entry, list)
@@ -462,7 +462,7 @@ class OfficialAldiSource:
             raise ToolError("ALDI Süd Prospekt lieferte ungültiges JSON") from exc
 
     @staticmethod
-    def _south_publication_data(page: str) -> Optional[dict[str, Any]]:
+    def _south_publication_data(page: str) -> dict[str, Any] | None:
         match = re.search(r"\bvar\s+data\s*=\s*(\{.*?\})\s*;\s*Reader\.", page, flags=re.DOTALL)
         if not match:
             return None
@@ -473,7 +473,7 @@ class OfficialAldiSource:
         return value if isinstance(value, dict) else None
 
     @staticmethod
-    def _south_publication_period(description: Any) -> tuple[Optional[date], Optional[date]]:
+    def _south_publication_period(description: Any) -> tuple[date | None, date | None]:
         dates: list[date] = []
         for day, month, year in re.findall(r"(\d{1,2})\.(\d{1,2})\.(\d{4})", clean_text(description)):
             try:
@@ -487,8 +487,8 @@ class OfficialAldiSource:
         cls,
         product: dict[str, Any],
         publication_url: str,
-        period: tuple[Optional[date], Optional[date]],
-    ) -> Optional[Offer]:
+        period: tuple[date | None, date | None],
+    ) -> Offer | None:
         name = clean_text(product.get("title"))
         brand = clean_brand(product.get("brand"))
         identifier = clean_text(product.get("id") or product.get("webshopIdentifier"))
@@ -545,7 +545,7 @@ class OfficialAldiSource:
             valid_until=end.isoformat() if end else None,
         )
 
-    def _south_brochure_offers(self, publication_url: str, reference_date: Optional[date] = None) -> list[Offer]:
+    def _south_brochure_offers(self, publication_url: str, reference_date: date | None = None) -> list[Offer]:
         reference_date = reference_date or offer_reference_date()
         page = self._south_get_html(publication_url)
         publication = self._south_publication_data(page)
@@ -602,7 +602,7 @@ class OfficialAldiSource:
                         offers.append(offer)
         return deduplicate_offers(offers)
 
-    def _south_node_to_offer(self, node: dict[str, Any], source_url: str) -> Optional[Offer]:
+    def _south_node_to_offer(self, node: dict[str, Any], source_url: str) -> Offer | None:
         name = first_text(node, ("name", "title", "productName", "headline"))
         if not name or len(name) > 220:
             return None
@@ -642,11 +642,11 @@ class OfficialAldiSource:
     def _south_card_to_offer(
         self,
         card: dict[str, Any],
-        start: Optional[date],
-        end: Optional[date],
+        start: date | None,
+        end: date | None,
         index: int,
         category: str = "Wochenangebote",
-    ) -> Optional[Offer]:
+    ) -> Offer | None:
         product_url = clean_text(card.get("url"))
         text = clean_text(" ".join(card.get("text_parts") or []))
         label = clean_text(card.get("label"))
@@ -703,8 +703,8 @@ class OfficialAldiSource:
     def _south_card_to_offers(
         self,
         card: dict[str, Any],
-        start: Optional[date],
-        end: Optional[date],
+        start: date | None,
+        end: date | None,
         index: int,
         category: str = "Wochenangebote",
     ) -> list[Offer]:
@@ -805,7 +805,7 @@ class OfficialAldiSource:
         offers.extend(self._south_dom_offers(page, source_url))
         return deduplicate_offers(offers)
 
-    def _load_south(self, reference_date: Optional[date] = None) -> list[Offer]:
+    def _load_south(self, reference_date: date | None = None) -> list[Offer]:
         queue = [self.SOUTH_INDEX_URL]
         seen: set[str] = set()
         collected: list[Offer] = []
