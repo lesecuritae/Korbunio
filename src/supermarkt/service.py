@@ -225,58 +225,19 @@ class SourceLoader:
             store_warnings.append(warning + (f" ({detail})" if detail else ""))
         return resolved, resolved_regions, aldi_names, unavailable_retailers, unresolved_aldi, verified_regions
 
-    def load(self, postal_code: str, aldi_region: str, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "", trinkgut_market_id: str = "") -> dict[str, Any]:
-        notify = progress or (lambda **_fields: None)
-        notify(status="loading", progress=5, source="Standortdienst", retailer="Alle Händler", category="Region", step="Region und Filialen werden ermittelt")
-        contexts = self._contexts()
-        selected_retailers = set(retailers)
-        if selected_retailers:
-            contexts = {name: context for name, context in contexts.items() if name in selected_retailers}
-        request_errors: list[str] = []
-        incomplete_retailers: set[str] = set()
-        marktguru_incomplete = False
-        store_warnings: list[str] = []
-        challenge_urls: dict[str, str] = {}
-        requested_week = normalize_offer_week(offer_week)
-        target_date = offer_week_reference(requested_week)
+    def _build_official_jobs(
+        self,
+        active_contexts: dict[str, Any],
+        requested_week: str,
+        postal_code: str,
+        target_date: Any,
+        rewe_market_id: str,
+        netto_scottie_market_id: str,
+        trinkgut_market_id: str,
+        store_warnings: list[str],
+    ) -> dict[str, Any]:
+        """Build the per-retailer loader callables for every first-party adapter this host has configured."""
 
-        requested_region = normalize_aldi_region(aldi_region)
-        selected_aldi = [name for name in ("ALDI Nord", "ALDI Süd") if name in selected_retailers]
-        resolved, resolved_regions, aldi_names, unavailable_retailers, unresolved_aldi, verified_regions = (
-            self._resolve_aldi_region(
-                postal_code, requested_region, selected_retailers, selected_aldi, request_errors, store_warnings
-            )
-        )
-
-        active_contexts = dict(contexts)
-        for name in ("ALDI Nord", "ALDI Süd"):
-            if name not in aldi_names:
-                active_contexts.pop(name, None)
-
-        if "Netto Marken-Discount" in active_contexts and hasattr(self, "netto_marken_markets"):
-            try:
-                selected_netto = self.netto_marken_markets.resolve(postal_code, netto_market_id)
-                if selected_netto:
-                    option = self.netto_marken_markets._option(selected_netto, "exact" if clean_text(selected_netto.get("post_code")) == postal_code else "nearby")
-                    active_contexts["Netto Marken-Discount"] = self._context_with_market(active_contexts["Netto Marken-Discount"], option["label"], option["market_url"])
-                    store_warnings.append(
-                        "Netto Marken-Discount: Filiale ausgewählt; der aktuelle Angebotskatalog ist regional und nicht filialgenau. "
-                        "Die Filiale dient hier als Standortkontext, nicht als Bestandsnachweis."
-                    )
-            except Exception as exc:
-                if netto_market_id:
-                    raise
-                store_warnings.append(f"Netto Marken-Discount: Filialauflösung nicht verfügbar ({type(exc).__name__}: {exc}).")
-
-        source_states = dict.fromkeys(active_contexts, "keine Treffer")
-        source_states.update(dict.fromkeys(unresolved_aldi, "Region nicht bestätigt"))
-        final_by_retailer: dict[str, list[Offer]] = {}
-        failed_primary: set[str] = set()
-        catalogue_responded = False
-
-        # Retailers with maintained first-party adapters always prefer their
-        # official source. A partial aggregator result must never suppress a
-        # complete official catalogue or be mixed into it.
         def load_with_fallback(name: str, call_current: Any, call_next: Any) -> list[Offer]:
             if requested_week == "next":
                 try:
@@ -330,6 +291,64 @@ class SourceLoader:
                     lambda: self.official_trinkgut.load(postal_code, trinkgut_market_id, "next"),
                 )
             official_jobs["trinkgut"] = load_trinkgut
+        return official_jobs
+
+    def load(self, postal_code: str, aldi_region: str, progress=None, retailers: tuple[str, ...] = (), rewe_market_id: str = "", netto_market_id: str = "", offer_week: str = "current", netto_scottie_market_id: str = "", trinkgut_market_id: str = "") -> dict[str, Any]:
+        notify = progress or (lambda **_fields: None)
+        notify(status="loading", progress=5, source="Standortdienst", retailer="Alle Händler", category="Region", step="Region und Filialen werden ermittelt")
+        contexts = self._contexts()
+        selected_retailers = set(retailers)
+        if selected_retailers:
+            contexts = {name: context for name, context in contexts.items() if name in selected_retailers}
+        request_errors: list[str] = []
+        incomplete_retailers: set[str] = set()
+        marktguru_incomplete = False
+        store_warnings: list[str] = []
+        challenge_urls: dict[str, str] = {}
+        requested_week = normalize_offer_week(offer_week)
+        target_date = offer_week_reference(requested_week)
+
+        requested_region = normalize_aldi_region(aldi_region)
+        selected_aldi = [name for name in ("ALDI Nord", "ALDI Süd") if name in selected_retailers]
+        resolved, resolved_regions, aldi_names, unavailable_retailers, unresolved_aldi, verified_regions = (
+            self._resolve_aldi_region(
+                postal_code, requested_region, selected_retailers, selected_aldi, request_errors, store_warnings
+            )
+        )
+
+        active_contexts = dict(contexts)
+        for name in ("ALDI Nord", "ALDI Süd"):
+            if name not in aldi_names:
+                active_contexts.pop(name, None)
+
+        if "Netto Marken-Discount" in active_contexts and hasattr(self, "netto_marken_markets"):
+            try:
+                selected_netto = self.netto_marken_markets.resolve(postal_code, netto_market_id)
+                if selected_netto:
+                    option = self.netto_marken_markets._option(selected_netto, "exact" if clean_text(selected_netto.get("post_code")) == postal_code else "nearby")
+                    active_contexts["Netto Marken-Discount"] = self._context_with_market(active_contexts["Netto Marken-Discount"], option["label"], option["market_url"])
+                    store_warnings.append(
+                        "Netto Marken-Discount: Filiale ausgewählt; der aktuelle Angebotskatalog ist regional und nicht filialgenau. "
+                        "Die Filiale dient hier als Standortkontext, nicht als Bestandsnachweis."
+                    )
+            except Exception as exc:
+                if netto_market_id:
+                    raise
+                store_warnings.append(f"Netto Marken-Discount: Filialauflösung nicht verfügbar ({type(exc).__name__}: {exc}).")
+
+        source_states = dict.fromkeys(active_contexts, "keine Treffer")
+        source_states.update(dict.fromkeys(unresolved_aldi, "Region nicht bestätigt"))
+        final_by_retailer: dict[str, list[Offer]] = {}
+        failed_primary: set[str] = set()
+        catalogue_responded = False
+
+        # Retailers with maintained first-party adapters always prefer their
+        # official source. A partial aggregator result must never suppress a
+        # complete official catalogue or be mixed into it.
+        official_jobs = self._build_official_jobs(
+            active_contexts, requested_week, postal_code, target_date,
+            rewe_market_id, netto_scottie_market_id, trinkgut_market_id, store_warnings,
+        )
         initial_aggregator = any(
             name in active_contexts and name != "Globus" for name in AGGREGATOR_RETAILERS
         )
