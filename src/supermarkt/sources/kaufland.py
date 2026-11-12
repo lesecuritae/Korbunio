@@ -251,48 +251,61 @@ class OfficialKauflandSource:
             errors.append(f"curl: {type(exc).__name__}: {exc}")
         raise ToolError(f"Kaufland-Sitemap nicht abrufbar ({url}): " + " | ".join(errors[-2:]))
 
-    @staticmethod
-    def _flatten_context(value: Any) -> list[str]:
+    @classmethod
+    def _flatten_walk(cls, item: Any, depth: int, result: list[str], seen: set[int]) -> None:
+        if item is None or depth > 4:
+            return
+        if isinstance(item, (str, int, float)):
+            cleaned = clean_text(item)
+            if cleaned:
+                result.append(cleaned)
+            return
+        marker = id(item)
+        if marker in seen:
+            return
+        seen.add(marker)
+        if isinstance(item, dict):
+            cls._flatten_dict(item, depth, result, seen)
+            return
+        if isinstance(item, (list, tuple, set)):
+            for child in item:
+                cls._flatten_walk(child, depth + 1, result, seen)
+            return
+        if cls._flatten_object_fallback(item, depth, result, seen):
+            return
+        rendered = clean_text(str(item))
+        if rendered:
+            result.append(rendered)
+
+    @classmethod
+    def _flatten_dict(cls, item: dict[Any, Any], depth: int, result: list[str], seen: set[int]) -> None:
+        for key, child in item.items():
+            if clean_text(key):
+                result.append(clean_text(key))
+            cls._flatten_walk(child, depth + 1, result, seen)
+
+    @classmethod
+    def _flatten_object_fallback(cls, item: Any, depth: int, result: list[str], seen: set[int]) -> bool:
+        """Try model_dump()/vars() fallbacks for arbitrary objects; True if handled."""
+        if hasattr(item, "model_dump"):
+            try:
+                cls._flatten_walk(item.model_dump(), depth + 1, result, seen)
+                return True
+            except Exception:
+                pass
+        if hasattr(item, "__dict__"):
+            try:
+                cls._flatten_walk(vars(item), depth + 1, result, seen)
+                return True
+            except Exception:
+                pass
+        return False
+
+    @classmethod
+    def _flatten_context(cls, value: Any) -> list[str]:
         result: list[str] = []
         seen: set[int] = set()
-        def walk(item: Any, depth: int = 0) -> None:
-            if item is None or depth > 4:
-                return
-            if isinstance(item, (str, int, float)):
-                cleaned = clean_text(item)
-                if cleaned:
-                    result.append(cleaned)
-                return
-            marker = id(item)
-            if marker in seen:
-                return
-            seen.add(marker)
-            if isinstance(item, dict):
-                for key, child in item.items():
-                    if clean_text(key):
-                        result.append(clean_text(key))
-                    walk(child, depth + 1)
-                return
-            if isinstance(item, (list, tuple, set)):
-                for child in item:
-                    walk(child, depth + 1)
-                return
-            if hasattr(item, "model_dump"):
-                try:
-                    walk(item.model_dump(), depth + 1)
-                    return
-                except Exception:
-                    pass
-            if hasattr(item, "__dict__"):
-                try:
-                    walk(vars(item), depth + 1)
-                    return
-                except Exception:
-                    pass
-            rendered = clean_text(str(item))
-            if rendered:
-                result.append(rendered)
-        walk(value)
+        cls._flatten_walk(value, 0, result, seen)
         return list(dict.fromkeys(result))
 
     @staticmethod
@@ -341,6 +354,27 @@ class OfficialKauflandSource:
             return ""
         return urlunsplit(("https", OfficialKauflandSource.STORE_HOST, path, "", ""))
 
+    def _sitemap_document_stores(self, xml_text: str, seen_docs: set[str], queue: list[str]) -> list[str]:
+        """Collect store URLs from one sitemap XML document and enqueue any nested sitemap documents it references."""
+        stores: list[str] = []
+        for raw in re.findall(r"<loc[^>]*>\s*(.*?)\s*</loc>", xml_text, flags=re.IGNORECASE | re.DOTALL):
+            loc = clean_text(html.unescape(raw))
+            if not loc:
+                continue
+            candidate = self._candidate_url(loc)
+            if candidate:
+                stores.append(candidate)
+                continue
+            try:
+                parsed = urlsplit(loc)
+            except ValueError:
+                continue
+            host = (parsed.hostname or "").casefold()
+            if host == self.STORE_HOST and (parsed.path or "").casefold().endswith(".xml"):
+                if loc not in seen_docs and loc not in queue:
+                    queue.append(loc)
+        return stores
+
     def _sitemap_store_urls(self) -> list[str]:
         if self._store_urls_cache is not None:
             return list(self._store_urls_cache)
@@ -358,22 +392,7 @@ class OfficialKauflandSource:
             except Exception as exc:
                 errors.append(f"{current}: {type(exc).__name__}: {exc}")
                 continue
-            for raw in re.findall(r"<loc[^>]*>\s*(.*?)\s*</loc>", xml_text, flags=re.IGNORECASE | re.DOTALL):
-                loc = clean_text(html.unescape(raw))
-                if not loc:
-                    continue
-                candidate = self._candidate_url(loc)
-                if candidate:
-                    stores.append(candidate)
-                    continue
-                try:
-                    parsed = urlsplit(loc)
-                except ValueError:
-                    continue
-                host = (parsed.hostname or "").casefold()
-                if host == self.STORE_HOST and (parsed.path or "").casefold().endswith(".xml"):
-                    if loc not in seen_docs and loc not in queue:
-                        queue.append(loc)
+            stores.extend(self._sitemap_document_stores(xml_text, seen_docs, queue))
         stores = list(dict.fromkeys(stores))
         if stores:
             self._store_urls_cache = stores
@@ -576,6 +595,36 @@ class OfficialKauflandSource:
             encoding="utf-8",
         )
 
+    def _score_candidate_page(
+        self,
+        page: str,
+        search_score: int,
+        postal_code: str,
+        locality: str,
+        context_words: list[str],
+        context_postals: list[str],
+    ) -> tuple[int, str] | None:
+        """Score one fetched store-page candidate; None if it isn't a Kaufland store page."""
+        page_text = strip_html(page)
+        folded = page_text.casefold()
+        if "kaufland" not in folded or "filiale" not in folded:
+            return None
+        store_postal = self._store_postal_code(page_text)
+        score = search_score + self._postal_prefix_score(postal_code, store_postal)
+        for context_postal in context_postals:
+            score += 20000 if context_postal == store_postal else 2 * self._postal_prefix_score(context_postal, store_postal)
+        if locality.casefold() in folded:
+            score += 700
+        if "aktuelle angebote und prospekte deiner filiale" in folded:
+            score += 400
+        if "gültig vom" in folded:
+            score += 150
+        folded_words = set(self._slug_words(folded))
+        for word in context_words:
+            if word in folded_words:
+                score += 350
+        return score, store_postal
+
     def _resolve_store_page(self, postal_code: str, retailer_context: Any = None) -> tuple[str, str, str, str]:
         cached = self._cached_store(postal_code)
         if cached is not None:
@@ -594,24 +643,10 @@ class OfficialKauflandSource:
             except Exception as exc:
                 errors.append(f"{urlsplit(url).path}: {type(exc).__name__}: {exc}")
                 continue
-            page_text = strip_html(page)
-            folded = page_text.casefold()
-            if "kaufland" not in folded or "filiale" not in folded:
+            scored = self._score_candidate_page(page, search_score, postal_code, locality, context_words, context_postals)
+            if scored is None:
                 continue
-            store_postal = self._store_postal_code(page_text)
-            score = search_score + self._postal_prefix_score(postal_code, store_postal)
-            for context_postal in context_postals:
-                score += 20000 if context_postal == store_postal else 2 * self._postal_prefix_score(context_postal, store_postal)
-            if locality.casefold() in folded:
-                score += 700
-            if "aktuelle angebote und prospekte deiner filiale" in folded:
-                score += 400
-            if "gültig vom" in folded:
-                score += 150
-            folded_words = set(self._slug_words(folded))
-            for word in context_words:
-                if word in folded_words:
-                    score += 350
+            score, store_postal = scored
             candidate = (score, url, page, store_postal)
             if best is None or candidate[0] > best[0]:
                 best = candidate
@@ -742,30 +777,33 @@ class OfficialKauflandSource:
             with lock:
                 if temporary_profile or not self._profile_is_fresh(profile_dir, selector):
                     select_store()
-                try:
-                    page = self._get_html(
-                        overview_url,
-                        required_any=("Aktuelle Angebote", "Topartikel", "Weitere Angebote anzeigen"),
-                        profile_dir=str(profile_dir),
-                    )
-                except ToolError:
-                    # A cached Chromium profile can become unusable before the
-                    # 24h TTL (cookie/session invalidated, interrupted browser
-                    # write, etc.). Re-select the store once and retry.
-                    if temporary_profile:
-                        raise
-                    select_store()
-                    page = self._get_html(
-                        overview_url,
-                        required_any=("Aktuelle Angebote", "Topartikel", "Weitere Angebote anzeigen"),
-                        profile_dir=str(profile_dir),
-                    )
-                if "aktuelle angebote" not in page.casefold():
-                    raise ToolError("Kaufland-Angebotsübersicht enthält keinen aktuellen Angebotsblock")
+                page = self._fetch_overview_page(profile_dir, overview_url, temporary_profile, select_store)
                 return page, overview_url
         finally:
             if temporary_profile:
                 shutil.rmtree(profile_dir, ignore_errors=True)
+
+    def _fetch_overview_page(
+        self,
+        profile_dir: Path,
+        overview_url: str,
+        temporary_profile: bool,
+        select_store,
+    ) -> str:
+        required_any = ("Aktuelle Angebote", "Topartikel", "Weitere Angebote anzeigen")
+        try:
+            page = self._get_html(overview_url, required_any=required_any, profile_dir=str(profile_dir))
+        except ToolError:
+            # A cached Chromium profile can become unusable before the
+            # 24h TTL (cookie/session invalidated, interrupted browser
+            # write, etc.). Re-select the store once and retry.
+            if temporary_profile:
+                raise
+            select_store()
+            page = self._get_html(overview_url, required_any=required_any, profile_dir=str(profile_dir))
+        if "aktuelle angebote" not in page.casefold():
+            raise ToolError("Kaufland-Angebotsübersicht enthält keinen aktuellen Angebotsblock")
+        return page
 
     @staticmethod
     def _price_marker(segment: str):
@@ -780,6 +818,32 @@ class OfficialKauflandSource:
         day1, month1, day2, month2 = (int(value) for value in match.groups())
         year = today_berlin().year
         return f"Kaufland, gültig {day1:02d}.{month1:02d}.{year} bis {day2:02d}.{month2:02d}.{year}"
+
+    @classmethod
+    def _xtra_price_from_text(cls, xtra_text: str) -> float | None:
+        if not xtra_text:
+            return None
+        xtra_match = cls._price_marker(xtra_text)
+        if xtra_match is None:
+            return None
+        xtra_price = parse_number(xtra_match.group(1))
+        if xtra_price is not None and xtra_price <= 0:
+            xtra_price = None
+        return xtra_price
+
+    @staticmethod
+    def _split_name_description(regular_text: str, price_start: int) -> tuple[str, str]:
+        left = clean_text(regular_text[:price_start])
+        left = re.sub(r"^(?:KNÜLLER|AKTION)\s+", "", left, flags=re.IGNORECASE)
+        name_match = re.search(r"\s+je\s+", left, flags=re.IGNORECASE)
+        if name_match:
+            name = clean_text(left[:name_match.start()])
+            description = clean_text(left[name_match.end():])
+        else:
+            name = left
+            description = ""
+        name = re.sub(r"^[*•\s]+|[*•\s]+$", "", name)
+        return name, description
 
     def _card_to_offer(self, card: dict[str, Any], index: int, validity_label: str, source_url: str) -> Offer | None:
         text = clean_text(" ".join(clean_text(part) for part in card.get("text_parts", []) if clean_text(part)))
@@ -798,23 +862,8 @@ class OfficialKauflandSource:
         price = parse_number(price_match.group(1))
         if price is None or price <= 0:
             return None
-        xtra_price = None
-        if xtra_text:
-            xtra_match = self._price_marker(xtra_text)
-            if xtra_match is not None:
-                xtra_price = parse_number(xtra_match.group(1))
-                if xtra_price is not None and xtra_price <= 0:
-                    xtra_price = None
-        left = clean_text(regular_text[:price_match.start()])
-        left = re.sub(r"^(?:KNÜLLER|AKTION)\s+", "", left, flags=re.IGNORECASE)
-        name_match = re.search(r"\s+je\s+", left, flags=re.IGNORECASE)
-        if name_match:
-            name = clean_text(left[:name_match.start()])
-            description = clean_text(left[name_match.end():])
-        else:
-            name = left
-            description = ""
-        name = re.sub(r"^[*•\s]+|[*•\s]+$", "", name)
+        xtra_price = self._xtra_price_from_text(xtra_text)
+        name, description = self._split_name_description(regular_text, price_match.start())
         if not name or len(name) < 2 or len(name) > 240:
             return None
         if name.casefold() in {"weitere angebote anzeigen", "aktuelle angebote", "topartikel", "zeige alle angebote"}:
@@ -893,20 +942,10 @@ class OfficialKauflandSource:
                 "multi_buy_mix_group": None, "minimum_quantity": quantity,
                 "offer_condition": condition, "comparison_eligible": False}
 
-    def _load_structured_offers(self, store_url: str, offer_week: str = "current") -> list[Offer]:
-        selector = self._store_selector(store_url)
-        if not selector:
-            raise ToolError(f"Kaufland-Filialkennung fehlt in {store_url}")
-        availability_url = f"https://filiale.kaufland.de/.kloffers.storeName={selector}.json"
-        try:
-            availability = json.loads(
-                self.http.get_bytes(availability_url, {"Accept": "application/json"}).decode("utf-8")
-            )
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ToolError("Kaufland-Verfügbarkeitsdaten sind ungültig") from exc
-        if not isinstance(availability, list):
-            raise ToolError("Kaufland-Verfügbarkeitsdaten haben ein unerwartetes Format")
-
+    @staticmethod
+    def _availability_window(
+        availability: list[Any], offer_week: str
+    ) -> tuple[dict[str, list[tuple[str, str]]], bool, str, str]:
         requested_next = str(offer_week).casefold() == "next"
         reference_day = offer_week_reference(offer_week)
         start_day = reference_day - timedelta(days=reference_day.weekday()) if requested_next else reference_day
@@ -920,8 +959,9 @@ class OfficialKauflandSource:
             start, end = clean_text(item.get("dateFrom")), clean_text(item.get("dateTo"))
             if key and start and end and start <= requested_end and end >= requested_start:
                 availability_by_id.setdefault(key, []).append((start, end))
-        available_ids = set(availability_by_id)
-        overview_url = self.NEXT_OVERVIEW_URL if requested_next else self._overview_url()
+        return availability_by_id, requested_next, requested_start, requested_end
+
+    def _fetch_offer_cycles(self, selector: str, overview_url: str) -> Any:
         # Kaufland prices differ by region. The site renders the overview for the
         # store named in the "x-aem-variant" cookie (the store picker sets it in the
         # browser); without it the page shows the default region, so a store in
@@ -936,10 +976,112 @@ class OfficialKauflandSource:
             raise ToolError("Kaufland-Angebotsseite enthält keine strukturierten Angebotsdaten")
         try:
             payload, _end = json.JSONDecoder().raw_decode(page[start:])
-            cycles = payload["props"]["offerData"]["cycles"]
+            return payload["props"]["offerData"]["cycles"]
         except (json.JSONDecodeError, KeyError, TypeError) as exc:
             raise ToolError("Kaufland-Angebotsdaten haben ein unerwartetes Format") from exc
 
+    @staticmethod
+    def _offer_period(
+        raw: dict[str, Any],
+        availability_by_id: dict[str, list[tuple[str, str]]],
+        requested_start: str,
+        requested_end: str,
+    ) -> tuple[str, str] | None:
+        starts = [clean_text(raw.get(field)) for field in ("dateFrom", "salesFrom") if raw.get(field)]
+        ends = [clean_text(raw.get(field)) for field in ("dateTo", "salesTo") if raw.get(field)]
+        if not starts or not ends:
+            return None
+        valid_from, valid_until = max(starts), min(ends)
+        periods = [(max(valid_from, start), min(valid_until, end))
+                   for start, end in availability_by_id[clean_text(raw.get("klNr"))]]
+        periods = [(start, end) for start, end in periods
+                   if start <= end and start <= requested_end and end >= requested_start]
+        return periods[0] if periods else None
+
+    def _offer_from_raw(
+        self,
+        raw: dict[str, Any],
+        category_name: str,
+        period: tuple[str, str],
+        seen: set[str],
+        store_url: str,
+        selector: str,
+        overview_url: str,
+    ) -> Offer | None:
+        valid_from, valid_until = period
+        offer_id = clean_text(raw.get("offerId"))
+        if not offer_id or offer_id in seen:
+            return None
+        title = clean_text(raw.get("title"))
+        subtitle = clean_text(raw.get("subtitle"))
+        name = clean_text(f"{title} {subtitle}")
+        price = parse_number(raw.get("formattedPrice") or raw.get("price"))
+        if not name or price is None or price <= 0:
+            return None
+        seen.add(offer_id)
+        unit = clean_text(raw.get("unit"))
+        description = clean_text(raw.get("detailDescription"))
+        base_text = clean_text(raw.get("formattedBasePrice") or raw.get("basePrice"))
+        base_price, base_unit = parse_base_price_text(base_text)
+        pack = normalize_pack(f"{name} {unit}")
+        image_url = normalize_image_url(raw.get("listImage", ""), base_url=overview_url)
+        if is_rejected_image_url(image_url):
+            image_url = ""
+        loyalty_text = re.sub(r"[^\d,.-]", "", clean_text(raw.get("loyaltyFormattedPrice")))
+        loyalty_price = parse_number(loyalty_text)
+        benefits = ()
+        if loyalty_price is not None and 0 < loyalty_price < price:
+            benefits = (LoyaltyBenefit("kaufland_xtra", "direct_price", loyalty_price, "Kaufland Card XTRA"),)
+        multi_buy = self._multi_buy_fields(raw, price, pack)
+        return Offer(
+            offer_id=f"kaufland-official:{offer_id}", retailer="Kaufland", category=category_name,
+            name=name, brand=title if subtitle else "", description=description, price=price,
+            base_price=base_price, base_unit=base_unit, pack_signature=pack,
+            validity_label=f"Kaufland, gültig {_german_date(valid_from)} bis {_german_date(valid_until)}",
+            match_key=build_match_key(title if subtitle else "", name, pack, offer_id),
+            source_url=overview_url, image_url=image_url, retailer_url=store_url,
+            coverage_note=f"Offizielle Filialangebote für {selector}", benefits=benefits,
+            valid_from=valid_from, valid_until=valid_until, **multi_buy,
+        )
+
+    def _offers_from_category(
+        self,
+        category: Any,
+        availability_by_id: dict[str, list[tuple[str, str]]],
+        available_ids: set[str],
+        requested_start: str,
+        requested_end: str,
+        seen: set[str],
+        store_url: str,
+        selector: str,
+        overview_url: str,
+    ) -> list[Offer]:
+        if not isinstance(category, dict):
+            return []
+        category_name = clean_text(category.get("displayName")) or "Kaufland Filialangebote"
+        offers: list[Offer] = []
+        for raw in category.get("offers", []):
+            if not isinstance(raw, dict) or clean_text(raw.get("klNr")) not in available_ids:
+                continue
+            period = self._offer_period(raw, availability_by_id, requested_start, requested_end)
+            if period is None:
+                continue
+            offer = self._offer_from_raw(raw, category_name, period, seen, store_url, selector, overview_url)
+            if offer is not None:
+                offers.append(offer)
+        return offers
+
+    def _offers_from_cycles(
+        self,
+        cycles: Any,
+        availability_by_id: dict[str, list[tuple[str, str]]],
+        available_ids: set[str],
+        requested_start: str,
+        requested_end: str,
+        store_url: str,
+        selector: str,
+        overview_url: str,
+    ) -> list[Offer]:
         result: list[Offer] = []
         seen: set[str] = set()
         # The later cycle contains Card-XTRA variants of otherwise identical
@@ -947,58 +1089,38 @@ class OfficialKauflandSource:
         # deduplication while the regular shelf price remains ``price``.
         for cycle in reversed(cycles) if isinstance(cycles, list) else []:
             for category in cycle.get("categories", []) if isinstance(cycle, dict) else []:
-                if not isinstance(category, dict):
-                    continue
-                category_name = clean_text(category.get("displayName")) or "Kaufland Filialangebote"
-                for raw in category.get("offers", []):
-                    if not isinstance(raw, dict) or clean_text(raw.get("klNr")) not in available_ids:
-                        continue
-                    starts = [clean_text(raw.get(field)) for field in ("dateFrom", "salesFrom") if raw.get(field)]
-                    ends = [clean_text(raw.get(field)) for field in ("dateTo", "salesTo") if raw.get(field)]
-                    if not starts or not ends:
-                        continue
-                    valid_from, valid_until = max(starts), min(ends)
-                    periods = [(max(valid_from, start), min(valid_until, end))
-                               for start, end in availability_by_id[clean_text(raw.get("klNr"))]]
-                    periods = [(start, end) for start, end in periods
-                               if start <= end and start <= requested_end and end >= requested_start]
-                    if not periods:
-                        continue
-                    valid_from, valid_until = periods[0]
-                    offer_id = clean_text(raw.get("offerId"))
-                    if not offer_id or offer_id in seen:
-                        continue
-                    title = clean_text(raw.get("title"))
-                    subtitle = clean_text(raw.get("subtitle"))
-                    name = clean_text(f"{title} {subtitle}")
-                    price = parse_number(raw.get("formattedPrice") or raw.get("price"))
-                    if not name or price is None or price <= 0:
-                        continue
-                    seen.add(offer_id)
-                    unit = clean_text(raw.get("unit"))
-                    description = clean_text(raw.get("detailDescription"))
-                    base_text = clean_text(raw.get("formattedBasePrice") or raw.get("basePrice"))
-                    base_price, base_unit = parse_base_price_text(base_text)
-                    pack = normalize_pack(f"{name} {unit}")
-                    image_url = normalize_image_url(raw.get("listImage", ""), base_url=overview_url)
-                    if is_rejected_image_url(image_url):
-                        image_url = ""
-                    loyalty_text = re.sub(r"[^\d,.-]", "", clean_text(raw.get("loyaltyFormattedPrice")))
-                    loyalty_price = parse_number(loyalty_text)
-                    benefits = ()
-                    if loyalty_price is not None and 0 < loyalty_price < price:
-                        benefits = (LoyaltyBenefit("kaufland_xtra", "direct_price", loyalty_price, "Kaufland Card XTRA"),)
-                    multi_buy = self._multi_buy_fields(raw, price, pack)
-                    result.append(Offer(
-                        offer_id=f"kaufland-official:{offer_id}", retailer="Kaufland", category=category_name,
-                        name=name, brand=title if subtitle else "", description=description, price=price,
-                        base_price=base_price, base_unit=base_unit, pack_signature=pack,
-                        validity_label=f"Kaufland, gültig {_german_date(valid_from)} bis {_german_date(valid_until)}",
-                        match_key=build_match_key(title if subtitle else "", name, pack, offer_id),
-                        source_url=overview_url, image_url=image_url, retailer_url=store_url,
-                        coverage_note=f"Offizielle Filialangebote für {selector}", benefits=benefits,
-                        valid_from=valid_from, valid_until=valid_until, **multi_buy,
-                    ))
+                result.extend(
+                    self._offers_from_category(
+                        category, availability_by_id, available_ids, requested_start, requested_end,
+                        seen, store_url, selector, overview_url,
+                    )
+                )
+        return result
+
+    def _load_structured_offers(self, store_url: str, offer_week: str = "current") -> list[Offer]:
+        selector = self._store_selector(store_url)
+        if not selector:
+            raise ToolError(f"Kaufland-Filialkennung fehlt in {store_url}")
+        availability_url = f"https://filiale.kaufland.de/.kloffers.storeName={selector}.json"
+        try:
+            availability = json.loads(
+                self.http.get_bytes(availability_url, {"Accept": "application/json"}).decode("utf-8")
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ToolError("Kaufland-Verfügbarkeitsdaten sind ungültig") from exc
+        if not isinstance(availability, list):
+            raise ToolError("Kaufland-Verfügbarkeitsdaten haben ein unerwartetes Format")
+
+        availability_by_id, requested_next, requested_start, requested_end = self._availability_window(
+            availability, offer_week
+        )
+        available_ids = set(availability_by_id)
+        overview_url = self.NEXT_OVERVIEW_URL if requested_next else self._overview_url()
+        cycles = self._fetch_offer_cycles(selector, overview_url)
+        result = self._offers_from_cycles(
+            cycles, availability_by_id, available_ids, requested_start, requested_end,
+            store_url, selector, overview_url,
+        )
         if len(result) < 100 and not requested_next:
             raise ToolError(f"Kaufland-Strukturdaten für {selector} lieferten nur {len(result)} Angebote")
         return result

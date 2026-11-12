@@ -351,57 +351,20 @@ class OfficialTrinkgutSource:
 
         return markets
 
-    def _find_market(
-        self,
-        postal_code: str,
-        *,
-        use_cache: bool = True,
-        market_id: str = "",
-    ) -> tuple[Any, str, str, str, float | None]:
-        requested_market_id = clean_text(market_id)
-        if use_cache and not requested_market_id:
-            cached = self._cached_market(postal_code)
-            if cached is not None:
-                cached_id, market_url, label, distance_km = cached
-                if distance_km is None or distance_km <= self.max_distance_km:
-                    return self._session(), cached_id, self._safe_url(market_url, self.MARKETS_URL), label, distance_km
+    def _market_fields(self, selected: dict[str, Any], distance_suffix: str = "") -> tuple[str, str, str]:
+        m_id = clean_text(selected.get("id"))
+        name = clean_text(selected.get("name"))
+        city = clean_text(selected.get("city"))
+        zip_code = clean_text(selected.get("zipCode"))
+        label = f"trinkgut {name} ({zip_code} {city}){distance_suffix}".strip()
+        url = self._safe_url(clean_text(selected.get("detailURL")), self.MARKETS_URL)
+        return m_id, label, url
 
-        session = self._session()
-        all_markets = self._get_all_markets(session)
-
-        if requested_market_id:
-            selected = next((m for m in all_markets if clean_text(m.get("id")) == requested_market_id), None)
-            if selected is None:
-                raise ToolError(f"Der gewählte trinkgut-Markt {requested_market_id} existiert nicht")
-            m_id = clean_text(selected.get("id"))
-            name = clean_text(selected.get("name"))
-            city = clean_text(selected.get("city"))
-            zip_code = clean_text(selected.get("zipCode"))
-            label = f"trinkgut {name} ({zip_code} {city})".strip()
-            url = self._safe_url(clean_text(selected.get("detailURL")), self.MARKETS_URL)
-            self.last_discovery = "Manuelle Auswahl"
-            self.last_distance_km = None
-            return session, m_id, url, label, None
-
-        # 1. Look for exact match by postal code
-        exact = [m for m in all_markets if clean_text(m.get("zipCode")) == postal_code]
-        if exact:
-            selected = exact[0]
-            m_id = clean_text(selected.get("id"))
-            name = clean_text(selected.get("name"))
-            city = clean_text(selected.get("city"))
-            zip_code = clean_text(selected.get("zipCode"))
-            label = f"trinkgut {name} ({zip_code} {city})".strip()
-            url = self._safe_url(clean_text(selected.get("detailURL")), self.MARKETS_URL)
-            self.last_discovery = "trinkgut Marktsuche (exakt)"
-            self.last_distance_km = 0.0
-            self._cache_market(postal_code, m_id, url, label, 0.0)
-            return session, m_id, url, label, 0.0
-
-        # 2. No exact match for postal code: the geographically nearest market,
-        #    but only within the configured distance. Never guess a market from
-        #    numerically close postal codes or take an arbitrary one: those can
-        #    be hundreds of kilometres away and would be shown as local offers.
+    def _nearest_market(self, postal_code: str, all_markets: list[dict[str, Any]]) -> tuple[float, dict[str, Any]]:
+        # No exact match for postal code: the geographically nearest market,
+        # but only within the configured distance. Never guess a market from
+        # numerically close postal codes or take an arbitrary one: those can
+        # be hundreds of kilometres away and would be shown as local offers.
         coords = self._postal_coordinates(postal_code)
         if coords is None:
             raise ToolError(
@@ -430,15 +393,50 @@ class OfficialTrinkgutSource:
                 f"trinkgut: kein Markt im Umkreis von {self.max_distance_km:.0f} km um {postal_code} "
                 f"(nächster: {near_name}, {selected_distance:.0f} km)"
             )
-        self.last_discovery = f"trinkgut Nächstsuche ({selected_distance:.1f} km)"
+        return selected_distance, selected
 
-        m_id = clean_text(selected.get("id"))
-        name = clean_text(selected.get("name"))
-        city = clean_text(selected.get("city"))
-        zip_code = clean_text(selected.get("zipCode"))
+    def _find_market(
+        self,
+        postal_code: str,
+        *,
+        use_cache: bool = True,
+        market_id: str = "",
+    ) -> tuple[Any, str, str, str, float | None]:
+        requested_market_id = clean_text(market_id)
+        if use_cache and not requested_market_id:
+            cached = self._cached_market(postal_code)
+            if cached is not None:
+                cached_id, market_url, label, distance_km = cached
+                if distance_km is None or distance_km <= self.max_distance_km:
+                    return self._session(), cached_id, self._safe_url(market_url, self.MARKETS_URL), label, distance_km
+
+        session = self._session()
+        all_markets = self._get_all_markets(session)
+
+        if requested_market_id:
+            selected = next((m for m in all_markets if clean_text(m.get("id")) == requested_market_id), None)
+            if selected is None:
+                raise ToolError(f"Der gewählte trinkgut-Markt {requested_market_id} existiert nicht")
+            m_id, label, url = self._market_fields(selected)
+            self.last_discovery = "Manuelle Auswahl"
+            self.last_distance_km = None
+            return session, m_id, url, label, None
+
+        # 1. Look for exact match by postal code
+        exact = [m for m in all_markets if clean_text(m.get("zipCode")) == postal_code]
+        if exact:
+            selected = exact[0]
+            m_id, label, url = self._market_fields(selected)
+            self.last_discovery = "trinkgut Marktsuche (exakt)"
+            self.last_distance_km = 0.0
+            self._cache_market(postal_code, m_id, url, label, 0.0)
+            return session, m_id, url, label, 0.0
+
+        # 2. No exact match: fall back to the nearest market within range.
+        selected_distance, selected = self._nearest_market(postal_code, all_markets)
+        self.last_discovery = f"trinkgut Nächstsuche ({selected_distance:.1f} km)"
         dist_suffix = f" [{selected_distance:.1f} km]" if selected_distance is not None else ""
-        label = f"trinkgut {name} ({zip_code} {city}){dist_suffix}".strip()
-        url = self._safe_url(clean_text(selected.get("detailURL")), self.MARKETS_URL)
+        m_id, label, url = self._market_fields(selected, dist_suffix)
         self.last_distance_km = selected_distance
         self._cache_market(postal_code, m_id, url, label, selected_distance)
         return session, m_id, url, label, selected_distance
@@ -627,6 +625,58 @@ class OfficialTrinkgutSource:
             except OSError:
                 pass
 
+    def _offers_needing_deposit_fetch(self, offers: list[Offer]) -> list[tuple[int, str]]:
+        # Identify which offers need enrichment (deposit unknown + truncated desc)
+        return [
+            (i, o.product_url)
+            for i, o in enumerate(offers)
+            if o.deposit is None
+            and o.product_url
+            and o.product_url != self.OFFERS_URL
+            and self._is_trinkgut_url(o.product_url)
+            and "..." in o.description
+        ]
+
+    def _split_cached_deposits(
+        self, need_fetch: list[tuple[int, str]], now: float
+    ) -> tuple[dict[int, float | None], list[tuple[int, str]]]:
+        remembered: dict[int, float | None] = {}
+        to_request: list[tuple[int, str]] = []
+        for idx, url in need_fetch:
+            hit = self._deposit_cache.get(url)
+            if hit is not None and now - hit[0] <= self.deposit_cache_ttl_seconds:
+                remembered[idx] = hit[1]
+            else:
+                to_request.append((idx, url))
+        return remembered, to_request
+
+    def _fetch_full_description_deposit(self, session: Any, args: tuple[int, str]) -> tuple[int, float | None]:
+        idx, url = args
+        try:
+            from bs4 import BeautifulSoup
+            r = session.get(url, timeout=min(self.timeout_seconds, 15))
+            if r.status_code != 200:
+                return idx, None
+            soup = BeautifulSoup(r.text, "html.parser")
+            el = soup.select_one("[itemprop=description]")
+            if el is None:
+                return idx, None
+            full_desc = clean_text(el.get_text(" ", strip=True))
+            return idx, parse_deposit_text(full_desc)
+        except Exception:
+            return idx, None
+
+    def _fetch_missing_deposits(self, session: Any, need_fetch: list[tuple[int, str]]) -> list[tuple[int, float | None]]:
+        import concurrent.futures
+        workers = max(1, min(self.deposit_workers, len(need_fetch)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            fetched = list(executor.map(lambda args: self._fetch_full_description_deposit(session, args), need_fetch))
+        stamp = time.time()
+        for (_idx, url), (_, deposit) in zip(need_fetch, fetched, strict=True):
+            self._deposit_cache[url] = (stamp, deposit)
+        self._write_deposit_cache()
+        return fetched
+
     def _enrich_deposits(self, offers: list[Offer], session: Any) -> list[Offer]:
         """Parallel-fetch detail pages for offers where the listing description was
         server-truncated and no deposit could be parsed from the card HTML.
@@ -637,65 +687,114 @@ class OfficialTrinkgutSource:
         ``[itemprop=description]``.
         """
         try:
-            from bs4 import BeautifulSoup
-            import concurrent.futures
+            from bs4 import BeautifulSoup  # noqa: F401 - validated eagerly; used in the fetch helper below
+            import concurrent.futures  # noqa: F401 - validated eagerly; used in the fetch helper below
         except Exception:
             return offers  # if BeautifulSoup is missing we already raised earlier
 
-        # Identify which offers need enrichment (deposit unknown + truncated desc)
-        need_fetch: list[tuple[int, str]] = [
-            (i, o.product_url)
-            for i, o in enumerate(offers)
-            if o.deposit is None
-            and o.product_url
-            and o.product_url != self.OFFERS_URL
-            and self._is_trinkgut_url(o.product_url)
-            and "..." in o.description
-        ]
+        need_fetch = self._offers_needing_deposit_fetch(offers)
         # What was read recently is not read again: a deposit does not change
         # from one search to the next, and the site should not be hit for it.
         now = time.time()
         self._read_deposit_cache(now)
-        remembered: dict[int, float | None] = {}
-        to_request: list[tuple[int, str]] = []
-        for idx, url in need_fetch:
-            hit = self._deposit_cache.get(url)
-            if hit is not None and now - hit[0] <= self.deposit_cache_ttl_seconds:
-                remembered[idx] = hit[1]
-            else:
-                to_request.append((idx, url))
-        need_fetch = to_request
-
-        def fetch_full_desc(args: tuple[int, str]) -> tuple[int, float | None]:
-            idx, url = args
-            try:
-                r = session.get(url, timeout=min(self.timeout_seconds, 15))
-                if r.status_code != 200:
-                    return idx, None
-                soup = BeautifulSoup(r.text, "html.parser")
-                el = soup.select_one("[itemprop=description]")
-                if el is None:
-                    return idx, None
-                full_desc = clean_text(el.get_text(" ", strip=True))
-                return idx, parse_deposit_text(full_desc)
-            except Exception:
-                return idx, None
+        remembered, need_fetch = self._split_cached_deposits(need_fetch, now)
 
         results: list[tuple[int, float | None]] = list(remembered.items())
         if need_fetch:
-            workers = max(1, min(self.deposit_workers, len(need_fetch)))
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
-                fetched = list(executor.map(fetch_full_desc, need_fetch))
-            stamp = time.time()
-            for (_idx, url), (_, deposit) in zip(need_fetch, fetched, strict=True):
-                self._deposit_cache[url] = (stamp, deposit)
-            self._write_deposit_cache()
-            results.extend(fetched)
+            results.extend(self._fetch_missing_deposits(session, need_fetch))
         for idx, deposit in results:
             if deposit is not None:
                 old = offers[idx]
                 offers[idx] = replace(old, deposit=deposit)
         return offers
+
+    def _fetch_offers_response(
+        self,
+        postal_code: str,
+        requested_market_id: str,
+        request_url: str,
+        session: Any,
+        market_id: str,
+        market_url: str,
+        market_label: str,
+        distance_km: float | None,
+    ) -> tuple[Any, str, str, str, float | None, Any]:
+        # Set market cookie for personalized store offers
+        session.cookies.set("market", market_id, domain="www.trinkgut.de")
+        response = session.get(request_url, timeout=self.timeout_seconds)
+        if response.status_code != 200 and self.last_discovery == "24h-Marktcache" and not requested_market_id:
+            self._drop_cached_market(postal_code)
+            session, market_id, market_url, market_label, distance_km = self._find_market(
+                postal_code, use_cache=False
+            )
+            session.cookies.set("market", market_id, domain="www.trinkgut.de")
+            response = session.get(request_url, timeout=self.timeout_seconds)
+        if response.status_code != 200:
+            raise ToolError(f"trinkgut Angebotsseite HTTP {response.status_code}")
+        return session, market_id, market_url, market_label, distance_km, response
+
+    def _parse_card_list(
+        self,
+        cards: Any,
+        start_index: int,
+        category: str,
+        market_id: str,
+        market_url: str,
+        validity_label: str,
+        valid_from: Any,
+        valid_until: Any,
+    ) -> tuple[list[Offer], int, int]:
+        offers: list[Offer] = []
+        unknown_cards = 0
+        card_index = start_index
+        for card in cards:
+            card_index += 1
+            offer = self._parse_card(
+                card,
+                index=card_index,
+                category=category,
+                market_id=market_id,
+                market_url=market_url,
+                validity_label=validity_label,
+                valid_from=valid_from,
+                valid_until=valid_until,
+            )
+            if offer is not None:
+                offers.append(offer)
+            else:
+                unknown_cards += 1
+        return offers, unknown_cards, card_index
+
+    def _cards_from_rows(
+        self,
+        cards_container: Any,
+        market_id: str,
+        market_url: str,
+        validity_label: str,
+        valid_from: Any,
+        valid_until: Any,
+    ) -> tuple[list[Offer], int, int, str]:
+        current_category = "Weitere Angebote"
+        offers: list[Offer] = []
+        unknown_cards = 0
+        card_index = 0
+        for child in cards_container.children:
+            if not getattr(child, "name", None):
+                continue
+            classes = child.get("class", [])
+            if "listing-divider" in classes or any("divider" in c for c in classes):
+                cat_heading = child.find(["h1", "h2", "h3", "h4", "h5"])
+                if cat_heading:
+                    current_category = clean_text(cat_heading.get_text(" ", strip=True))
+                continue
+
+            child_offers, child_unknown, card_index = self._parse_card_list(
+                child.select(".product-box"), card_index, current_category,
+                market_id, market_url, validity_label, valid_from, valid_until,
+            )
+            offers.extend(child_offers)
+            unknown_cards += child_unknown
+        return offers, unknown_cards, card_index, current_category
 
     def load(
         self,
@@ -720,21 +819,10 @@ class OfficialTrinkgutSource:
         requested_week = normalize_offer_week(offer_week)
         reference_date = offer_week_reference(requested_week)
 
-        # Set market cookie for personalized store offers
-        session.cookies.set("market", market_id, domain="www.trinkgut.de")
-
         request_url = f"{self.OFFERS_URL}?week=next" if requested_week == "next" else self.OFFERS_URL
-        response = session.get(request_url, timeout=self.timeout_seconds)
-        if response.status_code != 200 and self.last_discovery == "24h-Marktcache" and not requested_market_id:
-            self._drop_cached_market(postal_code)
-            session, market_id, market_url, market_label, distance_km = self._find_market(
-                postal_code, use_cache=False
-            )
-            session.cookies.set("market", market_id, domain="www.trinkgut.de")
-            response = session.get(request_url, timeout=self.timeout_seconds)
-
-        if response.status_code != 200:
-            raise ToolError(f"trinkgut Angebotsseite HTTP {response.status_code}")
+        session, market_id, market_url, market_label, distance_km, response = self._fetch_offers_response(
+            postal_code, requested_market_id, request_url, session, market_id, market_url, market_label, distance_km
+        )
 
         soup = BeautifulSoup(response.text, "html.parser")
         valid_from, valid_until, validity_label = self._parse_validity(soup, reference_date)
@@ -742,56 +830,17 @@ class OfficialTrinkgutSource:
         row = soup.select_one(".cms-listing-row")
         cards_container = row or soup.select_one(".cms-element-product-listing-wrapper") or soup
 
-        current_category = "Weitere Angebote"
-        offers: list[Offer] = []
-        unknown_cards = 0
-        card_index = 0
-
-        for child in cards_container.children:
-            if not getattr(child, "name", None):
-                continue
-            classes = child.get("class", [])
-            if "listing-divider" in classes or any("divider" in c for c in classes):
-                cat_heading = child.find(["h1", "h2", "h3", "h4", "h5"])
-                if cat_heading:
-                    current_category = clean_text(cat_heading.get_text(" ", strip=True))
-                continue
-
-            for card in child.select(".product-box"):
-                card_index += 1
-                offer = self._parse_card(
-                    card,
-                    index=card_index,
-                    category=current_category,
-                    market_id=market_id,
-                    market_url=market_url,
-                    validity_label=validity_label,
-                    valid_from=valid_from,
-                    valid_until=valid_until,
-                )
-                if offer is not None:
-                    offers.append(offer)
-                else:
-                    unknown_cards += 1
+        offers, unknown_cards, card_index, current_category = self._cards_from_rows(
+            cards_container, market_id, market_url, validity_label, valid_from, valid_until
+        )
 
         # Fallback if product-box cards were directly in container
         if not offers:
-            for card in cards_container.select(".product-box"):
-                card_index += 1
-                offer = self._parse_card(
-                    card,
-                    index=card_index,
-                    category=current_category,
-                    market_id=market_id,
-                    market_url=market_url,
-                    validity_label=validity_label,
-                    valid_from=valid_from,
-                    valid_until=valid_until,
-                )
-                if offer is not None:
-                    offers.append(offer)
-                else:
-                    unknown_cards += 1
+            offers, fallback_unknown, card_index = self._parse_card_list(
+                cards_container.select(".product-box"), card_index, current_category,
+                market_id, market_url, validity_label, valid_from, valid_until,
+            )
+            unknown_cards += fallback_unknown
 
         self.last_market_id = market_id
         self.last_market_label = market_label
