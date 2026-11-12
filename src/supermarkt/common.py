@@ -566,43 +566,48 @@ def format_validity(start: date | None, end: date | None) -> str:
         return f"bis {end:%d.%m.%Y}"
     return "Aktuell"
 
+def _dedupe_aldi_sued_offer(unique: dict[tuple[Any, ...], Offer], offer: Offer, benefits: tuple[Any, ...]) -> None:
+    """ALDI Süd meldet dieselbe Aktion teils mehrfach mit unterschiedlich präzisem Gültigkeits-Label;
+    bevorzugt die präzisere Angabe und verwirft die doppelten vagen/präzisen Einträge derselben Identität."""
+    try:
+        source_host = (urlsplit(offer.source_url).hostname or "").casefold()
+    except ValueError:
+        source_host = ""
+    identity = (offer.retailer, offer.offer_id, offer.price, offer.pack_signature, benefits, source_host)
+    vague = offer.validity_label.casefold() in {"aktuell", "aktuelle woche", "aktuelle angebotsseite"}
+    competing = [key for key in unique if key[:6] == identity]
+    if competing:
+        precise = next((key for key in competing if key[6] is False), None)
+        if vague and precise is not None:
+            return
+        if not vague:
+            same_period = next(
+                (
+                    key for key in competing
+                    if key[6] is False
+                    and key[7][:2] == (offer.valid_from or "", offer.valid_until or "")
+                ),
+                None,
+            )
+            if same_period is not None:
+                existing_specific = unique[same_period].validity_label.casefold().startswith("nur ")
+                incoming_specific = offer.validity_label.casefold().startswith("nur ")
+                if not incoming_specific or existing_specific:
+                    return
+                del unique[same_period]
+            for key in competing:
+                if key in unique and key[6] is True:
+                    del unique[key]
+    period = (offer.valid_from or "", offer.valid_until or "", offer.validity_label.casefold())
+    key = identity + (vague, period)
+    unique.setdefault(key, offer)
+
 def deduplicate_offers(offers: Iterable[Offer]) -> list[Offer]:
     unique: dict[tuple[Any, ...], Offer] = {}
     for offer in offers:
         benefits = tuple((benefit.program_id, benefit.kind, benefit.value) for benefit in offer.benefits)
         if offer.retailer == "ALDI Süd":
-            try:
-                source_host = (urlsplit(offer.source_url).hostname or "").casefold()
-            except ValueError:
-                source_host = ""
-            identity = (offer.retailer, offer.offer_id, offer.price, offer.pack_signature, benefits, source_host)
-            vague = offer.validity_label.casefold() in {"aktuell", "aktuelle woche", "aktuelle angebotsseite"}
-            competing = [key for key in unique if key[:6] == identity]
-            if competing:
-                precise = next((key for key in competing if key[6] is False), None)
-                if vague and precise is not None:
-                    continue
-                if not vague:
-                    same_period = next(
-                        (
-                            key for key in competing
-                            if key[6] is False
-                            and key[7][:2] == (offer.valid_from or "", offer.valid_until or "")
-                        ),
-                        None,
-                    )
-                    if same_period is not None:
-                        existing_specific = unique[same_period].validity_label.casefold().startswith("nur ")
-                        incoming_specific = offer.validity_label.casefold().startswith("nur ")
-                        if not incoming_specific or existing_specific:
-                            continue
-                        del unique[same_period]
-                    for key in competing:
-                        if key in unique and key[6] is True:
-                            del unique[key]
-            period = (offer.valid_from or "", offer.valid_until or "", offer.validity_label.casefold())
-            key = identity + (vague, period)
-            unique.setdefault(key, offer)
+            _dedupe_aldi_sued_offer(unique, offer, benefits)
             continue
         key = (
             offer.retailer,
@@ -713,34 +718,49 @@ def _marktguru_offer_image_url(value: Any, base_url: str = "") -> str:
     return ""
 
 
+_IMAGE_PREFERRED_FIELDS = (
+    "thumbnailUrl", "thumbnailURL", "thumbnail_url", "thumbnail",
+    "imageUrl", "imageURL", "image_url", "productImageUrl", "productImage",
+    "mainImage", "image", "images", "picture", "photo", "contentUrl",
+    "bild_app", "bild_web130", "bild_web90",
+)
+
+def _image_from_preferred_fields(value: dict[str, Any], base_url: str = "") -> str:
+    """Prüft erst die üblichen Bildfeld-Namen, dann jeden Schlüssel, der nach einem Bild klingt."""
+    for field in _IMAGE_PREFERRED_FIELDS:
+        if field in value:
+            candidate = _coerce_image_url(value.get(field), base_url=base_url, path_hint=field)
+            if candidate and not is_rejected_image_url(candidate):
+                return candidate
+    for key, item in value.items():
+        key_text = str(key).casefold()
+        if any(token in key_text for token in ("thumbnail", "image", "picture", "photo", "media", "asset", "bild")):
+            candidate = _coerce_image_url(item, base_url=base_url, path_hint=str(key))
+            if candidate and not is_rejected_image_url(candidate):
+                return candidate
+    return ""
+
+def _image_from_nested_dict_values(value: dict[str, Any], base_url: str = "") -> str:
+    """Steigt in verschachtelte dict/list-Werte ab, falls kein Treffer über die bekannten Feldnamen kam."""
+    for item in value.values():
+        if isinstance(item, (dict, list)):
+            candidate = extract_image_url(item, base_url=base_url)
+            if candidate:
+                return candidate
+    return ""
+
 def extract_image_url(value: Any, base_url: str = "") -> str:
     marktguru = _marktguru_offer_image_url(value, base_url=base_url)
     if marktguru:
         return marktguru
 
-    preferred_fields = (
-        "thumbnailUrl", "thumbnailURL", "thumbnail_url", "thumbnail",
-        "imageUrl", "imageURL", "image_url", "productImageUrl", "productImage",
-        "mainImage", "image", "images", "picture", "photo", "contentUrl",
-        "bild_app", "bild_web130", "bild_web90",
-    )
     if isinstance(value, dict):
-        for field in preferred_fields:
-            if field in value:
-                candidate = _coerce_image_url(value.get(field), base_url=base_url, path_hint=field)
-                if candidate and not is_rejected_image_url(candidate):
-                    return candidate
-        for key, item in value.items():
-            key_text = str(key).casefold()
-            if any(token in key_text for token in ("thumbnail", "image", "picture", "photo", "media", "asset", "bild")):
-                candidate = _coerce_image_url(item, base_url=base_url, path_hint=str(key))
-                if candidate and not is_rejected_image_url(candidate):
-                    return candidate
-        for item in value.values():
-            if isinstance(item, (dict, list)):
-                candidate = extract_image_url(item, base_url=base_url)
-                if candidate:
-                    return candidate
+        candidate = _image_from_preferred_fields(value, base_url=base_url)
+        if candidate:
+            return candidate
+        candidate = _image_from_nested_dict_values(value, base_url=base_url)
+        if candidate:
+            return candidate
     elif isinstance(value, list):
         for item in value:
             candidate = extract_image_url(item, base_url=base_url)

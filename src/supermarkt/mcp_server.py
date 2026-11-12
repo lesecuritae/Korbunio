@@ -277,7 +277,7 @@ def _start_warmup() -> None:
 def _watch_postal_codes() -> list[str]:
     try:
         return sorted({watch["postal_code"] for watch in history.list_watches()})
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - background warmup is best-effort; a storage hiccup must not abort it
         return []
 
 
@@ -290,53 +290,76 @@ def _check_watches(plz: str, snapshot: dict[str, Any]) -> None:
 def _deliver_watches(plz: str, snapshot: dict[str, Any]) -> None:
     week = snapshot.get("offer_week", "current")
     for watch in history.list_watches(plz):
-        if watch["offer_week"] not in {week, "all"}:
+        selected = _watch_selected_retailers(watch, week)
+        if selected is None:
             continue
-        if any(i not in WATCH_RETAILERS for i in watch["retailer_ids"]):
+        keys = _watch_offer_keys(snapshot, watch, selected)
+        pending = _pending_watch_keys(watch, keys)
+        _notify_watch_batches(watch, keys, pending)
+
+
+def _watch_selected_retailers(watch: dict[str, Any], week: str) -> tuple[str, ...] | None:
+    """Liefert die gewählten Händler einer Beobachtung, oder None wenn Woche oder Händler nicht passen."""
+    if watch["offer_week"] not in {week, "all"}:
+        return None
+    if any(i not in WATCH_RETAILERS for i in watch["retailer_ids"]):
+        return None
+    return tuple(WATCH_RETAILERS[i] for i in watch["retailer_ids"])
+
+
+def _watch_offer_keys(snapshot: dict[str, Any], watch: dict[str, Any], selected: tuple[str, ...]) -> dict[str, tuple[Any, str]]:
+    """Baut die stabilen Identitäts-Schlüssel (und die Legacy-Schlüssel) der aktuellen Treffer einer Beobachtung."""
+    keys: dict[str, tuple[Any, str]] = {}
+    for offer in _offers_from(snapshot, watch["query"], None, selected):
+        if selected and offer.retailer not in selected:
             continue
-        selected = tuple(WATCH_RETAILERS[i] for i in watch["retailer_ids"])
-        keys = {}
-        for offer in _offers_from(snapshot, watch["query"], None, selected):
-            if selected and offer.retailer not in selected:
-                continue
-            # Server watches have no selected membership list; compare the regular
-            # checkout amount. Conditional member prices may only be shown alongside.
-            if offer.multi_buy_quantity and re.search(r"card|karte|coupon|kupon|aktivier|mitglied|xtra|\bapp\b", offer.multi_buy_condition, re.IGNORECASE):
-                continue  # No verified membership/coupon selection on server watches.
-            shown = offer.price_without_bonus
-            if watch["max_cents"] is not None and _euro(shown) * 100 > watch["max_cents"] + 0.5:
-                continue
-            # The same advertised validity retains its identity when preview becomes current.
-            # Legacy keys remain readable so an upgrade does not repeat delivered offers.
-            legacy = f"{offer.retailer}|{offer.product}|{shown}|{offer.valid}"
-            identity = [offer.retailer, offer.product, offer.pack, shown,
-                        offer.valid_from or offer.valid, offer.valid_until, offer.multi_buy_quantity]
-            stable = "v2:" + hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
-            keys[stable] = (offer, legacy)
-        fresh = set(history.unnotified(watch["id"], list(keys)))
-        old_fresh = set(history.unnotified(watch["id"], [legacy for _, legacy in keys.values()]))
-        pending = [key for key in keys if key in fresh and keys[key][1] in old_fresh]
-        for start in range(0, len(pending), 5):
-            batch = pending[start:start + 5]
-            lines = []
-            for key in batch:
-                offer = keys[key][0]
-                extra = f" (optional mit {offer.bonus_program}: {offer.price_with_bonus})" if offer.price_with_bonus else ""
-                if offer.bonus_credit:
-                    extra += f" (zusätzlich {offer.bonus_credit} {_program_name(offer)} Guthaben nach dem Kauf; nicht abgezogen)"
-                if offer.multi_buy_quantity and offer.multi_buy_total_price is not None:
-                    extra += f" · {offer.multi_buy_quantity} Stück für insgesamt {format_euro(offer.multi_buy_total_price)}"
-                    extra += f" ({format_euro(offer.multi_buy_total_price / offer.multi_buy_quantity)} je Stück nur im Mehrkauf)"
-                    extra += f" · {offer.multi_buy_condition}" if offer.multi_buy_condition else ""
-                validity = f" ({offer.valid})" if offer.valid else ""
-                lines.append(f"{offer.retailer}: {offer.product} {offer.price_without_bonus}{extra}{validity}")
-            try:
-                notify.send(f"Korbuino: {watch['query']} im Angebot", "\n".join(lines))
-            except notify.NotifyError:
-                # Exceptions can contain the secret topic URL or response body.
-                log.warning("Benachrichtigung für Beobachtung %s fehlgeschlagen", watch["id"])
-                break
-            history.mark_notified(watch["id"], batch)
+        # Server watches have no selected membership list; compare the regular
+        # checkout amount. Conditional member prices may only be shown alongside.
+        if offer.multi_buy_quantity and re.search(r"card|karte|coupon|kupon|aktivier|mitglied|xtra|\bapp\b", offer.multi_buy_condition, re.IGNORECASE):
+            continue  # No verified membership/coupon selection on server watches.
+        shown = offer.price_without_bonus
+        if watch["max_cents"] is not None and _euro(shown) * 100 > watch["max_cents"] + 0.5:
+            continue
+        # The same advertised validity retains its identity when preview becomes current.
+        # Legacy keys remain readable so an upgrade does not repeat delivered offers.
+        legacy = f"{offer.retailer}|{offer.product}|{shown}|{offer.valid}"
+        identity = [offer.retailer, offer.product, offer.pack, shown,
+                    offer.valid_from or offer.valid, offer.valid_until, offer.multi_buy_quantity]
+        stable = "v2:" + hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
+        keys[stable] = (offer, legacy)
+    return keys
+
+
+def _pending_watch_keys(watch: dict[str, Any], keys: dict[str, tuple[Any, str]]) -> list[str]:
+    """Filtert die Schlüssel, die weder unter dem stabilen noch unter dem Legacy-Schlüssel schon gemeldet wurden."""
+    fresh = set(history.unnotified(watch["id"], list(keys)))
+    old_fresh = set(history.unnotified(watch["id"], [legacy for _, legacy in keys.values()]))
+    return [key for key in keys if key in fresh and keys[key][1] in old_fresh]
+
+
+def _notify_watch_batches(watch: dict[str, Any], keys: dict[str, tuple[Any, str]], pending: list[str]) -> None:
+    """Sendet die ausstehenden Treffer einer Beobachtung in Fünfer-Batches und markiert erfolgreiche als gemeldet."""
+    for start in range(0, len(pending), 5):
+        batch = pending[start:start + 5]
+        lines = []
+        for key in batch:
+            offer = keys[key][0]
+            extra = f" (optional mit {offer.bonus_program}: {offer.price_with_bonus})" if offer.price_with_bonus else ""
+            if offer.bonus_credit:
+                extra += f" (zusätzlich {offer.bonus_credit} {_program_name(offer)} Guthaben nach dem Kauf; nicht abgezogen)"
+            if offer.multi_buy_quantity and offer.multi_buy_total_price is not None:
+                extra += f" · {offer.multi_buy_quantity} Stück für insgesamt {format_euro(offer.multi_buy_total_price)}"
+                extra += f" ({format_euro(offer.multi_buy_total_price / offer.multi_buy_quantity)} je Stück nur im Mehrkauf)"
+                extra += f" · {offer.multi_buy_condition}" if offer.multi_buy_condition else ""
+            validity = f" ({offer.valid})" if offer.valid else ""
+            lines.append(f"{offer.retailer}: {offer.product} {offer.price_without_bonus}{extra}{validity}")
+        try:
+            notify.send(f"Korbuino: {watch['query']} im Angebot", "\n".join(lines))
+        except notify.NotifyError:
+            # Exceptions can contain the secret topic URL or response body.
+            log.warning("Benachrichtigung für Beobachtung %s fehlgeschlagen", watch["id"])
+            break
+        history.mark_notified(watch["id"], batch)
 
 
 _background_checks: set[asyncio.Task] = set()
@@ -604,16 +627,8 @@ async def find_offers(
         return _waiting_result(plz, product)
     except CatalogueUnavailable as exc:
         return _unavailable_result(plz, product, exc)
-    also_search = [*(also_search or []), *_synonyms(product)]
-    offers = await asyncio.to_thread(_offers_from, snapshot, product.strip(), also_search, wanted)
-    widened = False
-    if not offers:
-        variants = _search_variants(product)
-        if variants:
-            offers = await asyncio.to_thread(_offers_from, snapshot, product.strip(), [*(also_search or []), *variants], wanted)
-            widened = bool(offers)
-    # store_warnings carry fallback notes (e.g. "offizielle Seite nicht lesbar; KaufDA nur ein Ausschnitt"); errors alone would mislead.
-    diagnostics = list(dict.fromkeys(str(note)[:240] for note in [*snapshot.get("request_errors", []), *snapshot.get("store_warnings", [])] if note))[:8]
+    offers, widened = await _search_offers_with_widening(snapshot, product, also_search, wanted)
+    diagnostics = _offer_diagnostics(snapshot)
     status = "partial" if diagnostics else ("ok" if offers else "empty")
     page = offers[offset:offset + limit]
     result = OfferResult(
@@ -631,36 +646,69 @@ async def find_offers(
             text = "Keine Treffer in den verfügbaren Daten; der Abruf ist unvollständig. " + " | ".join(diagnostics)
         return CallToolResult(content=[TextContent(type="text", text=text)], structured_content=result.model_dump())
     content: list[TextContent | ImageContent] = [TextContent(type="text", text=_summary(result))]
+    _append_offer_hints(content[0], result, diagnostics, widened)
+    if with_images and max_images > 0:
+        await _attach_offer_images(content, result, offers, max_images)
+    return CallToolResult(content=content, structured_content=result.model_dump())
+
+
+async def _search_offers_with_widening(
+    snapshot: dict[str, Any], product: str, also_search: list[str] | None, wanted: tuple[str, ...]
+) -> tuple[list[Any], bool]:
+    """Sucht ``product`` im Snapshot; weitet bei leerem Ergebnis auf Wort-Varianten aus."""
+    also_search = [*(also_search or []), *_synonyms(product)]
+    offers = await asyncio.to_thread(_offers_from, snapshot, product.strip(), also_search, wanted)
+    if offers:
+        return offers, False
+    variants = _search_variants(product)
+    if not variants:
+        return offers, False
+    offers = await asyncio.to_thread(_offers_from, snapshot, product.strip(), [*also_search, *variants], wanted)
+    return offers, bool(offers)
+
+
+def _offer_diagnostics(snapshot: dict[str, Any]) -> list[str]:
+    """store_warnings tragen Fallback-Hinweise (z. B. "offizielle Seite nicht lesbar; KaufDA nur ein Ausschnitt");
+    Fehler allein würden in die Irre führen."""
+    return list(dict.fromkeys(str(note)[:240] for note in [*snapshot.get("request_errors", []), *snapshot.get("store_warnings", [])] if note))[:8]
+
+
+def _append_offer_hints(text_content: TextContent, result: OfferResult, diagnostics: list[str], widened: bool) -> None:
+    """Hängt Diagnose- und Hinweistexte (fehlende Bonuspreise, App-only-Preise) an das Summary-TextContent an."""
     if diagnostics:
-        content[0].text += "\nAbruf unvollständig: " + " | ".join(diagnostics)
+        text_content.text += "\nAbruf unvollständig: " + " | ".join(diagnostics)
     if widened:
-        content[0].text += "\n(Nichts mit genau diesem Begriff; gezeigt sind ähnliche Treffer zu einzelnen Wörtern.)"
+        text_content.text += "\n(Nichts mit genau diesem Begriff; gezeigt sind ähnliche Treffer zu einzelnen Wörtern.)"
     silent = sorted({offer.retailer for offer in result.offers if offer.retailer in NO_COMPUTED_BONUS and not offer.price_with_bonus})
     if silent:
-        content[0].text += f"\nHinweis: Bei {', '.join(silent)} gibt es keinen berechenbaren Bonuspreis; das heißt nicht, dass es keinen Vorteil gibt."
+        text_content.text += f"\nHinweis: Bei {', '.join(silent)} gibt es keinen berechenbaren Bonuspreis; das heißt nicht, dass es keinen Vorteil gibt."
     apps = [APP_ONLY_PRICES[name] for name in APP_ONLY_PRICES if any(offer.retailer == name for offer in result.offers)]
     if apps:
-        content[0].text += f"\nHinweis: App-Preise und persönliche Coupons ({', '.join(apps)}) sind nicht enthalten; gezeigt sind die öffentlichen Preise. Dort kann es günstiger sein."
-    if with_images and max_images > 0:
-        wanted_images = min(max_images, MAX_IMAGES)
-        found_images = 0
-        # Walk the page cheapest-first; each offer tries its own image, then the same article from another retailer.
-        # At most 6 offers are tried, so dead image links cannot cause an unbounded number of downloads.
-        for offer in result.offers[:6]:
-            block = await asyncio.to_thread(_image_with_fallback, offer, offers)
-            if block is None:
-                continue
-            label = f"Bild: {offer.retailer} – {offer.product}"
-            if offer.image_source == "same_article_other_retailer":
-                label += f" ({offer.image_note})"
-            content.append(TextContent(type="text", text=label))
-            content.append(block)
-            found_images += 1
-            if found_images >= wanted_images:
-                break
-        if not found_images:
-            content[0].text += "\nKein passendes Produktbild gefunden (weder eigenes noch von demselben Artikel bei einem anderen Händler)."
-    return CallToolResult(content=content, structured_content=result.model_dump())
+        text_content.text += f"\nHinweis: App-Preise und persönliche Coupons ({', '.join(apps)}) sind nicht enthalten; gezeigt sind die öffentlichen Preise. Dort kann es günstiger sein."
+
+
+async def _attach_offer_images(
+    content: list[TextContent | ImageContent], result: OfferResult, offers: list[Any], max_images: int
+) -> None:
+    """Hängt bis zu ``max_images`` Produktbilder (eigenes oder vom selben Artikel bei einem anderen Händler) an."""
+    wanted_images = min(max_images, MAX_IMAGES)
+    found_images = 0
+    # Walk the page cheapest-first; each offer tries its own image, then the same article from another retailer.
+    # At most 6 offers are tried, so dead image links cannot cause an unbounded number of downloads.
+    for offer in result.offers[:6]:
+        block = await asyncio.to_thread(_image_with_fallback, offer, offers)
+        if block is None:
+            continue
+        label = f"Bild: {offer.retailer} – {offer.product}"
+        if offer.image_source == "same_article_other_retailer":
+            label += f" ({offer.image_note})"
+        content.append(TextContent(type="text", text=label))
+        content.append(block)
+        found_images += 1
+        if found_images >= wanted_images:
+            break
+    if not found_images:
+        content[0].text += "\nKein passendes Produktbild gefunden (weder eigenes noch von demselben Artikel bei einem anderen Händler)."
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False))

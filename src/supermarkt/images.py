@@ -36,33 +36,41 @@ def _clean(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
-def normalize_image_url(value: Any, base_url: str = "") -> str:
-    if isinstance(value, dict):
-        for field in ("url", "src", "contentUrl", "content_url", "href"):
-            candidate = normalize_image_url(value.get(field), base_url)
-            if candidate:
-                return candidate
-        return ""
-    if isinstance(value, list):
-        for item in value:
-            candidate = normalize_image_url(item, base_url)
-            if candidate:
-                return candidate
-        return ""
-    text = _clean(value)
-    if not text:
-        return ""
-    if "," in text and re.search(r"\s(?:\d+w|\d+(?:\.\d+)?x)(?:,|$)", text):
-        parts = [item.strip().split()[0] for item in text.split(",") if item.strip()]
-        for part in reversed(parts):
-            candidate = normalize_image_url(part, base_url)
-            if candidate:
-                return candidate
-        return ""
+def _normalize_image_url_dict(value: dict[str, Any], base_url: str) -> str:
+    for field in ("url", "src", "contentUrl", "content_url", "href"):
+        candidate = normalize_image_url(value.get(field), base_url)
+        if candidate:
+            return candidate
+    return ""
+
+
+def _normalize_image_url_list(value: list[Any], base_url: str) -> str:
+    for item in value:
+        candidate = normalize_image_url(item, base_url)
+        if candidate:
+            return candidate
+    return ""
+
+
+def _resolve_srcset_candidate(text: str, base_url: str) -> str:
+    """``srcset``-artige Listen ("foo.jpg 1x, bar.jpg 2x"): nimmt die höchstaufgelöste Angabe zuerst."""
+    parts = [item.strip().split()[0] for item in text.split(",") if item.strip()]
+    for part in reversed(parts):
+        candidate = normalize_image_url(part, base_url)
+        if candidate:
+            return candidate
+    return ""
+
+
+def _resolve_relative_image_url(text: str, base_url: str) -> str:
     if text.startswith("//"):
-        text = "https:" + text
-    elif base_url and text.startswith(("/", "./", "../")):
-        text = urljoin(base_url, text)
+        return "https:" + text
+    if base_url and text.startswith(("/", "./", "../")):
+        return urljoin(base_url, text)
+    return text
+
+
+def _validate_http_image_url(text: str) -> str:
     try:
         parsed = urlsplit(text)
     except ValueError:
@@ -70,6 +78,20 @@ def normalize_image_url(value: Any, base_url: str = "") -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return ""
     return text[:5000]
+
+
+def normalize_image_url(value: Any, base_url: str = "") -> str:
+    if isinstance(value, dict):
+        return _normalize_image_url_dict(value, base_url)
+    if isinstance(value, list):
+        return _normalize_image_url_list(value, base_url)
+    text = _clean(value)
+    if not text:
+        return ""
+    if "," in text and re.search(r"\s(?:\d+w|\d+(?:\.\d+)?x)(?:,|$)", text):
+        return _resolve_srcset_candidate(text, base_url)
+    text = _resolve_relative_image_url(text, base_url)
+    return _validate_http_image_url(text)
 
 
 def is_rejected_image_url(value: Any) -> bool:
