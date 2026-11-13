@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../api/client.dart';
 import '../api/kitchenowl_client.dart';

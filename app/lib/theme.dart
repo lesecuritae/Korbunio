@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Colour tokens taken verbatim from the web interface so the app and the
 /// browser view read as one product. The web stylesheets define these as CSS

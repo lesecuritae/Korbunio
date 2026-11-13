@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../screens/local_shopping_list_screen.dart';
 import '../services/local_shopping_list.dart';
