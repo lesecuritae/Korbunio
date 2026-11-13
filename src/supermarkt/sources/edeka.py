@@ -7,7 +7,7 @@ import re
 from collections import Counter
 from dataclasses import replace
 from datetime import date, datetime
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 from urllib.parse import quote, urljoin, urlsplit
 
 from ..common import (
@@ -25,6 +25,7 @@ from ..common import (
     date_is_current,
 )
 from ..config import BERLIN
+from ..http import curl_cffi_session
 from ..images import is_rejected_image_url, normalize_image_url
 from ..loyalty import parse_public_loyalty_prices
 from ..models import Offer, ToolError, PartialOffers
@@ -49,11 +50,7 @@ class OfficialEdekaSource:
         self.last_skipped_zero_price = 0
 
     def _session(self):
-        try:
-            from curl_cffi import requests as curl_requests
-        except Exception as exc:
-            raise ToolError(f"EDEKA benötigt curl_cffi: {exc}") from exc
-        return curl_requests.Session(impersonate="chrome")
+        return curl_cffi_session("EDEKA")
 
     @staticmethod
     def _markets(payload: Any) -> list[dict[str, Any]]:
@@ -97,7 +94,7 @@ class OfficialEdekaSource:
         return []
 
     @staticmethod
-    def _date_value(value: Any) -> Optional[date]:
+    def _date_value(value: Any) -> date | None:
         if isinstance(value, (int, float)):
             timestamp = float(value)
             if timestamp > 10_000_000_000:
@@ -109,7 +106,7 @@ class OfficialEdekaSource:
         return parse_iso_date(value)
 
     @classmethod
-    def _validity_dates(cls, doc: dict[str, Any], payload: dict[str, Any]) -> tuple[Optional[date], Optional[date]]:
+    def _validity_dates(cls, doc: dict[str, Any], payload: dict[str, Any]) -> tuple[date | None, date | None]:
         start = cls._date_value(
             doc.get("gueltig_von")
             or doc.get("validFrom")
@@ -212,7 +209,7 @@ class OfficialEdekaSource:
         retailer: str,
         market_id: str,
         market_url: str,
-        reference_date: Optional[date] = None,
+        reference_date: date | None = None,
     ) -> tuple[list[Offer], int, int]:
         response = session.get(
             self.OFFERS_API,

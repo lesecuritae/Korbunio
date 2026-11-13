@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-from typing import Optional
 
 from .config import (
     IMAGE_CACHE_DIR,
@@ -14,11 +13,11 @@ from .images import ImageService
 from .service import SupermarketEngine
 from .jobs import SearchJobStore
 
-_engine: Optional[SupermarketEngine] = None
+_engine: SupermarketEngine | None = None
 _engine_lock = threading.Lock()
-_image_service: Optional[ImageService] = None
+_image_service: ImageService | None = None
 _image_service_lock = threading.Lock()
-_jobs: Optional[SearchJobStore] = None
+_jobs: SearchJobStore | None = None
 _jobs_lock = threading.Lock()
 
 

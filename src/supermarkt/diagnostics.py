@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         report = evaluate(result)
         if args.references:
             report["reference_coverage"] = evaluate_reference_coverage(result, json.loads(args.references.read_text()))
-    except Exception as exc:
+    except Exception as exc:  # CLI entrypoint: turn any failure into a clean exit instead of a traceback
         if args.as_json:
             print(json.dumps({"ok": False, "fatal_error": f"{type(exc).__name__}: {exc}"}, ensure_ascii=False))
         else:

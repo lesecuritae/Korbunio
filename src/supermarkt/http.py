@@ -5,7 +5,7 @@ import time
 import ssl
 import threading
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import SplitResult, urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -35,6 +35,20 @@ def trusted_ssl_context() -> ssl.SSLContext:
     return context
 
 
+def curl_cffi_session(retailer_label: str, impersonate: str = "chrome"):
+    """A `curl_cffi` session with a browser TLS fingerprint, for retailer sites that reject urllib's handshake.
+
+    Shared by the retailer sources that need it (REWE, EDEKA, trinkgut) instead of each repeating the same
+    import/error-message/session-construction. `retailer_label` only affects the error message if curl_cffi is
+    missing from the environment.
+    """
+    try:
+        from curl_cffi import requests as curl_requests
+    except Exception as exc:
+        raise ToolError(f"{retailer_label} benötigt curl_cffi: {exc}") from exc
+    return curl_requests.Session(impersonate=impersonate)
+
+
 RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
 
 
@@ -50,7 +64,7 @@ class HttpClient:
     def __init__(self, timeout_seconds: int) -> None:
         self.timeout_seconds = max(3, timeout_seconds)
 
-    def get_bytes(self, url: str, headers: Optional[dict[str, str]] = None) -> bytes:
+    def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> bytes:
         self._validate_https_url(url)
         request_headers = {
             "User-Agent": USER_AGENT,
@@ -79,7 +93,7 @@ class HttpClient:
                 raise ToolError(f"Abruf von {urlsplit(url).netloc} fehlgeschlagen: {exc}") from exc
         raise ToolError(f"Abruf von {urlsplit(url).netloc} fehlgeschlagen")  # pragma: no cover - loop always returns or raises
 
-    def get_json(self, url: str, headers: Optional[dict[str, str]] = None) -> dict[str, Any]:
+    def get_json(self, url: str, headers: dict[str, str] | None = None) -> dict[str, Any]:
         try:
             payload = json.loads(self.get_bytes(url, headers).decode("utf-8", errors="replace"))
         except json.JSONDecodeError as exc:

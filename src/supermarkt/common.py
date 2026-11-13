@@ -4,19 +4,19 @@ import html
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 from urllib.parse import urljoin, urlsplit
 
 from .config import BERLIN
 from .images import is_rejected_image_url, normalize_image_url
 from .models import Offer, RetailerContext
 
-def validate_postal_code(value: Any) -> Optional[str]:
+def validate_postal_code(value: Any) -> str | None:
     postal_code = clean_text(value)
     return postal_code if re.fullmatch(r"\d{5}", postal_code) else None
 
 
-def parse_deposit_text(value: Any, *, container_count: Optional[int] = None) -> Optional[float]:
+def parse_deposit_text(value: Any, *, container_count: int | None = None) -> float | None:
     """Return the explicitly published total deposit for one sales unit.
 
     ``container_count`` is supplied only when the source explicitly identifies
@@ -80,7 +80,7 @@ def parse_deposit_text(value: Any, *, container_count: Optional[int] = None) -> 
     return None
 
 
-def parse_deposit_components(value: Any, *, container_count: Optional[int] = None) -> tuple[Optional[float], Optional[float], Optional[float]]:
+def parse_deposit_components(value: Any, *, container_count: int | None = None) -> tuple[float | None, float | None, float | None]:
     """Return total, per-container and packaging deposit when explicitly known."""
     text = clean_text(value)
     total = parse_deposit_text(text, container_count=container_count)
@@ -168,7 +168,7 @@ def today_berlin() -> date:
     return datetime.now(BERLIN).date()
 
 
-def offer_reference_date(day: Optional[date] = None) -> date:
+def offer_reference_date(day: date | None = None) -> date:
     """Return the weekly-offer reference date used by retailer adapters.
 
     On Sundays the old week has ended while the coming week's offers are
@@ -179,7 +179,7 @@ def offer_reference_date(day: Optional[date] = None) -> date:
     return current + timedelta(days=1) if current.weekday() == 6 else current
 
 
-def offer_week_reference(value: Any, day: Optional[date] = None) -> date:
+def offer_week_reference(value: Any, day: date | None = None) -> date:
     reference = offer_reference_date(day)
     return reference + timedelta(days=7) if clean_text(value).casefold() == "next" else reference
 
@@ -217,7 +217,7 @@ def strip_html(value: Any) -> str:
 def clean_description(value: Any) -> str:
     return clean_text(re.sub(r"~twx[a-z0-9_]*~", " ", str(value or ""), flags=re.IGNORECASE))
 
-def parse_number(value: Any) -> Optional[float]:
+def parse_number(value: Any) -> float | None:
     if value is None or value == "":
         return None
     try:
@@ -231,7 +231,7 @@ def format_euro(value: Any) -> str:
     number = parse_number(value)
     return "–" if number is None else f"{number:.2f} €".replace(".", ",")
 
-def parse_iso_date(value: Any) -> Optional[date]:
+def parse_iso_date(value: Any) -> date | None:
     text = clean_text(value)
     if not text:
         return None
@@ -245,7 +245,7 @@ def parse_iso_date(value: Any) -> Optional[date]:
 
 def offer_validity(
     raw_offer: dict[str, Any],
-    reference_date: Optional[date] = None,
+    reference_date: date | None = None,
 ) -> tuple[bool, str]:
     """Select the remaining offer week, including published Thursday previews.
 
@@ -440,7 +440,7 @@ def advertiser_labels(raw_offer: dict[str, Any]) -> list[str]:
 def identify_retailer(
     raw_offer: dict[str, Any],
     retailers: dict[str, RetailerContext],
-) -> Optional[str]:
+) -> str | None:
     labels = " | ".join(advertiser_labels(raw_offer))
     if not labels:
         return None
@@ -473,7 +473,7 @@ def normalize_base_unit(value: str) -> str:
         return "blatt"
     return ""
 
-def pack_metric(pack: str) -> Optional[tuple[float, str]]:
+def pack_metric(pack: str) -> tuple[float, str] | None:
     if not pack or "+" in pack:
         return None
     match = re.fullmatch(r"(?:(\d+)x)?(\d+(?:\.\d+)?)(g|ml|portion|stk|rollen|blatt)", pack)
@@ -492,8 +492,8 @@ def pack_metric(pack: str) -> Optional[tuple[float, str]]:
 
 def calculate_unit_price(
     offer: Offer,
-    total_price: Optional[float],
-) -> Optional[tuple[float, str, bool]]:
+    total_price: float | None,
+) -> tuple[float, str, bool] | None:
     metric = pack_metric(offer.pack_signature)
     if metric is None or total_price is None:
         return None
@@ -505,7 +505,7 @@ def calculate_unit_price(
         return offer.base_price, unit, False
     return calculated, unit, True
 
-def format_unit_price(value: Optional[float], unit: str) -> str:
+def format_unit_price(value: float | None, unit: str) -> str:
     labels = {
         "l": "l",
         "kg": "kg",
@@ -546,9 +546,9 @@ def format_pack(pack: str) -> str:
     return one(pack)
 
 def date_is_current(
-    start: Optional[date],
-    end: Optional[date],
-    reference_date: Optional[date] = None,
+    start: date | None,
+    end: date | None,
+    reference_date: date | None = None,
 ) -> bool:
     today = offer_reference_date(reference_date)
     if start is not None and today < start:
@@ -557,7 +557,7 @@ def date_is_current(
         return False
     return True
 
-def format_validity(start: Optional[date], end: Optional[date]) -> str:
+def format_validity(start: date | None, end: date | None) -> str:
     if start and end:
         return f"{start:%d.%m.} – {end:%d.%m.%Y}"
     if start:
@@ -566,43 +566,48 @@ def format_validity(start: Optional[date], end: Optional[date]) -> str:
         return f"bis {end:%d.%m.%Y}"
     return "Aktuell"
 
+def _dedupe_aldi_sued_offer(unique: dict[tuple[Any, ...], Offer], offer: Offer, benefits: tuple[Any, ...]) -> None:
+    """ALDI Süd meldet dieselbe Aktion teils mehrfach mit unterschiedlich präzisem Gültigkeits-Label;
+    bevorzugt die präzisere Angabe und verwirft die doppelten vagen/präzisen Einträge derselben Identität."""
+    try:
+        source_host = (urlsplit(offer.source_url).hostname or "").casefold()
+    except ValueError:
+        source_host = ""
+    identity = (offer.retailer, offer.offer_id, offer.price, offer.pack_signature, benefits, source_host)
+    vague = offer.validity_label.casefold() in {"aktuell", "aktuelle woche", "aktuelle angebotsseite"}
+    competing = [key for key in unique if key[:6] == identity]
+    if competing:
+        precise = next((key for key in competing if key[6] is False), None)
+        if vague and precise is not None:
+            return
+        if not vague:
+            same_period = next(
+                (
+                    key for key in competing
+                    if key[6] is False
+                    and key[7][:2] == (offer.valid_from or "", offer.valid_until or "")
+                ),
+                None,
+            )
+            if same_period is not None:
+                existing_specific = unique[same_period].validity_label.casefold().startswith("nur ")
+                incoming_specific = offer.validity_label.casefold().startswith("nur ")
+                if not incoming_specific or existing_specific:
+                    return
+                del unique[same_period]
+            for key in competing:
+                if key in unique and key[6] is True:
+                    del unique[key]
+    period = (offer.valid_from or "", offer.valid_until or "", offer.validity_label.casefold())
+    key = identity + (vague, period)
+    unique.setdefault(key, offer)
+
 def deduplicate_offers(offers: Iterable[Offer]) -> list[Offer]:
     unique: dict[tuple[Any, ...], Offer] = {}
     for offer in offers:
         benefits = tuple((benefit.program_id, benefit.kind, benefit.value) for benefit in offer.benefits)
         if offer.retailer == "ALDI Süd":
-            try:
-                source_host = (urlsplit(offer.source_url).hostname or "").casefold()
-            except ValueError:
-                source_host = ""
-            identity = (offer.retailer, offer.offer_id, offer.price, offer.pack_signature, benefits, source_host)
-            vague = offer.validity_label.casefold() in {"aktuell", "aktuelle woche", "aktuelle angebotsseite"}
-            competing = [key for key in unique if key[:6] == identity]
-            if competing:
-                precise = next((key for key in competing if key[6] is False), None)
-                if vague and precise is not None:
-                    continue
-                if not vague:
-                    same_period = next(
-                        (
-                            key for key in competing
-                            if key[6] is False
-                            and key[7][:2] == (offer.valid_from or "", offer.valid_until or "")
-                        ),
-                        None,
-                    )
-                    if same_period is not None:
-                        existing_specific = unique[same_period].validity_label.casefold().startswith("nur ")
-                        incoming_specific = offer.validity_label.casefold().startswith("nur ")
-                        if not incoming_specific or existing_specific:
-                            continue
-                        del unique[same_period]
-                    for key in competing:
-                        if key in unique and key[6] is True:
-                            del unique[key]
-            period = (offer.valid_from or "", offer.valid_until or "", offer.validity_label.casefold())
-            key = identity + (vague, period)
-            unique.setdefault(key, offer)
+            _dedupe_aldi_sued_offer(unique, offer, benefits)
             continue
         key = (
             offer.retailer,
@@ -713,34 +718,49 @@ def _marktguru_offer_image_url(value: Any, base_url: str = "") -> str:
     return ""
 
 
+_IMAGE_PREFERRED_FIELDS = (
+    "thumbnailUrl", "thumbnailURL", "thumbnail_url", "thumbnail",
+    "imageUrl", "imageURL", "image_url", "productImageUrl", "productImage",
+    "mainImage", "image", "images", "picture", "photo", "contentUrl",
+    "bild_app", "bild_web130", "bild_web90",
+)
+
+def _image_from_preferred_fields(value: dict[str, Any], base_url: str = "") -> str:
+    """Prüft erst die üblichen Bildfeld-Namen, dann jeden Schlüssel, der nach einem Bild klingt."""
+    for field in _IMAGE_PREFERRED_FIELDS:
+        if field in value:
+            candidate = _coerce_image_url(value.get(field), base_url=base_url, path_hint=field)
+            if candidate and not is_rejected_image_url(candidate):
+                return candidate
+    for key, item in value.items():
+        key_text = str(key).casefold()
+        if any(token in key_text for token in ("thumbnail", "image", "picture", "photo", "media", "asset", "bild")):
+            candidate = _coerce_image_url(item, base_url=base_url, path_hint=str(key))
+            if candidate and not is_rejected_image_url(candidate):
+                return candidate
+    return ""
+
+def _image_from_nested_dict_values(value: dict[str, Any], base_url: str = "") -> str:
+    """Steigt in verschachtelte dict/list-Werte ab, falls kein Treffer über die bekannten Feldnamen kam."""
+    for item in value.values():
+        if isinstance(item, (dict, list)):
+            candidate = extract_image_url(item, base_url=base_url)
+            if candidate:
+                return candidate
+    return ""
+
 def extract_image_url(value: Any, base_url: str = "") -> str:
     marktguru = _marktguru_offer_image_url(value, base_url=base_url)
     if marktguru:
         return marktguru
 
-    preferred_fields = (
-        "thumbnailUrl", "thumbnailURL", "thumbnail_url", "thumbnail",
-        "imageUrl", "imageURL", "image_url", "productImageUrl", "productImage",
-        "mainImage", "image", "images", "picture", "photo", "contentUrl",
-        "bild_app", "bild_web130", "bild_web90",
-    )
     if isinstance(value, dict):
-        for field in preferred_fields:
-            if field in value:
-                candidate = _coerce_image_url(value.get(field), base_url=base_url, path_hint=field)
-                if candidate and not is_rejected_image_url(candidate):
-                    return candidate
-        for key, item in value.items():
-            key_text = str(key).casefold()
-            if any(token in key_text for token in ("thumbnail", "image", "picture", "photo", "media", "asset", "bild")):
-                candidate = _coerce_image_url(item, base_url=base_url, path_hint=str(key))
-                if candidate and not is_rejected_image_url(candidate):
-                    return candidate
-        for item in value.values():
-            if isinstance(item, (dict, list)):
-                candidate = extract_image_url(item, base_url=base_url)
-                if candidate:
-                    return candidate
+        candidate = _image_from_preferred_fields(value, base_url=base_url)
+        if candidate:
+            return candidate
+        candidate = _image_from_nested_dict_values(value, base_url=base_url)
+        if candidate:
+            return candidate
     elif isinstance(value, list):
         for item in value:
             candidate = extract_image_url(item, base_url=base_url)
@@ -767,7 +787,7 @@ def first_text(value: dict[str, Any], fields: Iterable[str]) -> str:
             return clean_text(candidate)
     return ""
 
-def first_number(value: dict[str, Any], fields: Iterable[str]) -> Optional[float]:
+def first_number(value: dict[str, Any], fields: Iterable[str]) -> float | None:
     for field in fields:
         candidate = value.get(field)
         if isinstance(candidate, dict):
@@ -780,7 +800,7 @@ def first_number(value: dict[str, Any], fields: Iterable[str]) -> Optional[float
                 return parsed
     return None
 
-def first_date(value: dict[str, Any], fields: Iterable[str]) -> Optional[date]:
+def first_date(value: dict[str, Any], fields: Iterable[str]) -> date | None:
     for field in fields:
         parsed = parse_iso_date(value.get(field))
         if parsed is not None:
@@ -792,14 +812,14 @@ def normalize_heading(value: str) -> str:
     normalized = "".join(character for character in normalized if not unicodedata.combining(character))
     return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
 
-def heading_index(headers: list[str], names: Iterable[str]) -> Optional[int]:
+def heading_index(headers: list[str], names: Iterable[str]) -> int | None:
     normalized_names = [normalize_heading(name) for name in names]
     for index, header in enumerate(headers):
         if any(name == header or name in header for name in normalized_names):
             return index
     return None
 
-def identify_retailer_text(value: Any, retailers: dict[str, RetailerContext]) -> Optional[str]:
+def identify_retailer_text(value: Any, retailers: dict[str, RetailerContext]) -> str | None:
     label = clean_text(value).casefold()
     if not label:
         return None
@@ -810,14 +830,14 @@ def identify_retailer_text(value: Any, retailers: dict[str, RetailerContext]) ->
             return name
     return None
 
-def parse_price_text(value: Any) -> Optional[float]:
+def parse_price_text(value: Any) -> float | None:
     text = clean_text(value)
     match = re.search(r"(?<!\d)(\d{1,4}(?:[.,]\d{1,2})?)\s*€", text)
     if match:
         return parse_number(match.group(1))
     return parse_number(text)
 
-def parse_base_price_text(value: Any) -> tuple[Optional[float], str]:
+def parse_base_price_text(value: Any) -> tuple[float | None, str]:
     text = clean_text(value)
     match = re.search(
         r"(?:1\s*)?(kg|kilogramm|l|liter|wl|waschladungen?|stück|stueck|stk\.?)\s*=\s*(?:€\s*)?(\d+(?:[.,]\d{1,2})?)"
@@ -853,9 +873,9 @@ def flatten_json_text(value: Any, limit: int = 5000) -> str:
     walk(value)
     return " | ".join(parts)[:limit]
 
-def find_marktguru_keys(value: Any) -> tuple[Optional[str], Optional[str]]:
-    api_key: Optional[str] = None
-    client_key: Optional[str] = None
+def find_marktguru_keys(value: Any) -> tuple[str | None, str | None]:
+    api_key: str | None = None
+    client_key: str | None = None
 
     def walk(item: Any) -> None:
         nonlocal api_key, client_key
@@ -874,7 +894,7 @@ def find_marktguru_keys(value: Any) -> tuple[Optional[str], Optional[str]]:
     walk(value)
     return api_key, client_key
 
-def first_regex_group(value: str, patterns: Iterable[str]) -> Optional[str]:
+def first_regex_group(value: str, patterns: Iterable[str]) -> str | None:
     for pattern in patterns:
         match = re.search(pattern, value, re.IGNORECASE)
         if match:

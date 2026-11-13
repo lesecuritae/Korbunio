@@ -5,7 +5,7 @@ import json
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable
 from urllib.parse import urlencode
 
 from ..common import clean_text, find_marktguru_keys, first_regex_group
@@ -28,7 +28,7 @@ class MarktguruClient:
         self.http = http
         self.page_size = max(1, min(page_size, 1000))
         self.max_workers = max(1, max_workers)
-        self._credentials: Optional[tuple[str, str]] = None
+        self._credentials: tuple[str, str] | None = None
         self._credentials_lock = threading.Lock()
 
     def _headers(self) -> dict[str, str]:
@@ -152,6 +152,25 @@ class MarktguruClient:
             raise ToolError("Marktguru lieferte eine ungültige Gesamtzahl")
         return SearchPage(results, total)
 
+    def _fetch_consistent_page(
+        self,
+        postal_code: str,
+        query_text: str,
+        offset: int,
+        headers: dict[str, str],
+        expected_total: int | None,
+    ) -> tuple[Any, int | None]:
+        """Fetch one page and check its self-reported total against earlier pages of the same query."""
+        page = self._fetch_page(postal_code, query_text, offset, headers)
+        total = getattr(page, "total_results", None)
+        if total is not None:
+            if expected_total is not None and total != expected_total:
+                raise ToolError("Marktguru Gesamtzahl hat sich während des Abrufs verändert")
+            expected_total = total
+        if expected_total is not None and (offset + len(page) > expected_total or (not page and offset < expected_total)):
+            raise ToolError("Marktguru Teilantwort: angekündigte Treffer fehlen oder Gesamtzahl widersprüchlich")
+        return page, expected_total
+
     def _fetch_query_pages(
         self,
         postal_code: str,
@@ -164,14 +183,7 @@ class MarktguruClient:
         expected_total = None
         for page_number in range(MAX_PAGES):
             try:
-                page = self._fetch_page(postal_code, query_text, offset, headers)
-                total = getattr(page, "total_results", None)
-                if total is not None:
-                    if expected_total is not None and total != expected_total:
-                        raise ToolError("Marktguru Gesamtzahl hat sich während des Abrufs verändert")
-                    expected_total = total
-                if expected_total is not None and (offset + len(page) > expected_total or (not page and offset < expected_total)):
-                    raise ToolError("Marktguru Teilantwort: angekündigte Treffer fehlen oder Gesamtzahl widersprüchlich")
+                page, expected_total = self._fetch_consistent_page(postal_code, query_text, offset, headers, expected_total)
             except Exception as exc:
                 if not collected:
                     raise

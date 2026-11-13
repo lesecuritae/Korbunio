@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 class NoLocalMarketOffers(list):
@@ -148,8 +148,8 @@ class Offer:
     name: str
     brand: str
     description: str
-    price: Optional[float]
-    base_price: Optional[float]
+    price: float | None
+    base_price: float | None
     base_unit: str
     pack_signature: str
     validity_label: str
@@ -161,27 +161,27 @@ class Offer:
     category_conflict: bool = False
     product_url: str = ""
     retailer_url: str = ""
-    deposit: Optional[float] = None
-    container_deposit: Optional[float] = None
-    packaging_deposit: Optional[float] = None
-    multi_buy_quantity: Optional[int] = None
-    multi_buy_total_price: Optional[float] = None
-    single_price: Optional[float] = None
+    deposit: float | None = None
+    container_deposit: float | None = None
+    packaging_deposit: float | None = None
+    multi_buy_quantity: int | None = None
+    multi_buy_total_price: float | None = None
+    single_price: float | None = None
     pack_size: str = ""
     multi_buy_condition: str = ""
-    multi_buy_mix_group: Optional[str] = None
-    minimum_quantity: Optional[int] = None
+    multi_buy_mix_group: str | None = None
+    minimum_quantity: int | None = None
     offer_condition: str = ""
     comparison_eligible: bool = True
     coverage_note: str = ""
-    valid_from: Optional[str] = None
-    valid_until: Optional[str] = None
+    valid_from: str | None = None
+    valid_until: str | None = None
     product_gtins: tuple[str, ...] = ()
     benefits: tuple[LoyaltyBenefit, ...] = ()
 
     # These fields are calculated for a request and are not part of source parsing.
-    effective_price: Optional[float] = None
-    checkout_price: Optional[float] = None
+    effective_price: float | None = None
+    checkout_price: float | None = None
     loyalty_savings: float = 0.0
     applied_benefits: tuple[LoyaltyBenefit, ...] = ()
     regular_comparison_note: str = ""
