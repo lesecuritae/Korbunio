@@ -1,3 +1,10 @@
+## 0.1.77
+
+- Interne Codequalität in `src/supermarkt/`: Dopplungen entfernt (gemeinsame curl_cffi-Session
+  für REWE/EDEKA/trinkgut, vereinheitlichter Wochenfallback-Lader) und die auffälligsten
+  Komplexitätsstellen per Extract-Method aufgeteilt, u. a. `service.py::load()` (Komplexität
+  98 → 55). Keine funktionale Änderung; gegen die volle Testsuite nach jedem Schritt verifiziert.
+
 ## 0.1.76
 
 - Angebotsabdeckung aller 19 Händler geprüft, ausgehend von fehlenden Lidl-Angeboten;
