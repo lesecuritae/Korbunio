@@ -14,8 +14,14 @@ from .models import ToolError, resolve_retailer_names
 from .preferences import home_defaults
 from . import runtime
 from .ui import build_home_html, build_results_html, build_shopping_html
+from .ui import static_text
 
 router = APIRouter()
+
+
+@router.get("/availability", include_in_schema=False, response_class=HTMLResponse)
+def availability_page() -> HTMLResponse:
+    return HTMLResponse(static_text("availability.html"), headers={"Cache-Control": "no-store"})
 
 
 def _home_html(*, error: str = "", postal_code: str = "") -> str:

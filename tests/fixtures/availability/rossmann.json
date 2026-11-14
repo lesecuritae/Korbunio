@@ -1,0 +1,5 @@
+[
+  {"id":101,"city":"Teststadt","street":"Testweg 1","zipCode":"12345","productInfos":[{"dan":"120585","stock":"5+","available":true}]},
+  {"id":102,"city":"Teststadt","street":"Testweg 2","zipCode":"12345","productInfos":[{"dan":"120585","stock":"0","available":true}]},
+  {"id":103,"city":"Teststadt","street":"Testweg 3","zipCode":"12345","productInfos":[{"dan":"120585","stock":"?","available":true}]}
+]

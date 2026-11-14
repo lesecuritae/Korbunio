@@ -247,6 +247,12 @@ class AldiRegionResolver:
             )
         )
 
+    def postal_coordinates(self, postal_code: str) -> tuple[float, float] | None:
+        """Resolve an exact German postal area for other regional features."""
+        if not validate_postal_code(postal_code):
+            raise ToolError("Ungültige Postleitzahl")
+        return self._postal_coordinates(postal_code)
+
     def _postal_coordinates(self, postal_code: str) -> tuple[float, float] | None:
         query = urlencode(
             {
