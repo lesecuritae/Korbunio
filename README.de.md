@@ -418,3 +418,13 @@ Korbuino ist unabhängig und steht in keiner Verbindung zu den genannten Händle
 ## KitchenOwl (native Android)
 
 Die native Android-App unterstützt KitchenOwl direkt mit Benutzername/E-Mail und Passwort oder mit einem bestehenden Token. Offizieller Dienst, AdminForge und eigene Instanzen sind über ihre HTTPS-Adresse wählbar; SSO-Konten können einen KitchenOwl-Token verwenden. [Einrichtung und Sicherheit](docs/kitchenowl-login.md).
+
+### Rossmann-Filialbestand ohne Händler-App
+
+Unter **Filialbestand prüfen** können die native Android-App und die Docker-Weboberfläche bis zu fünf Rossmann-Artikelnummern für eine Postleitzahl abfragen. Die sechsstellige Artikelnummer steht auf der Rossmann-Produktseite; eine EAN oder ein Produktname ist kein Ersatz dafür. Die Android-App fragt direkt ab und benötigt keinen Korbuino-Server.
+
+Für Agenten steht `get_store_availability(postal_code, dans, store_ids=[])` bereit. Die geschützte HTTP-Schnittstelle ist `POST /api/v1/availability` mit demselben JSON-Vertrag. Beispiel: `{"postal_code":"04109","dans":["120585"]}`. Bei eingerichteter Server-Authentifizierung ist der vorhandene Bearer-Token erforderlich. Die OpenAPI-Schnittstelle für den bisherigen Angebotsvergleich bleibt unverändert.
+
+Die Funktion benötigt weder die Rossmann-App noch ein Rossmann-Konto, API-Schlüssel, Gerätekennungen oder Tracking-SDKs. Übertragen werden Suchkoordinaten und Artikelnummern an Rossmann sowie die PLZ zur Auflösung an OpenStreetMap/Nominatim; die jeweilige Gegenstelle sieht die IP-Adresse. Es gibt kein automatisches Bestandsmonitoring.
+
+Jeder Artikel wird einzeln mit mindestens zwei Sekunden Abstand abgefragt; höchstens eine Bestandsabfrage läuft pro Prozess. Erfolgreiche Ergebnisse werden 60 Sekunden im Arbeitsspeicher gehalten und mit Abrufzeit angezeigt. **„5+“ bedeutet mindestens fünf; `available=true` beweist keinen positiven Bestand.** Nullbestand, unbekannter Bestand und Abruffehler bleiben getrennt. Ein HTTP-406-Fehler ist keine Ausverkauft-Meldung. Die Werte sind Buchbestände, keine Reservierung oder Garantie für Regalware. Die verwendete mobile Schnittstelle kann sich ändern und wird hier nicht als offiziell unterstützte Drittanbieter-API ausgegeben.
