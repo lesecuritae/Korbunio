@@ -1,3 +1,13 @@
+## 0.1.81
+
+### Deutsch
+
+- dm-Bestandsabfrage: Artikelnummern mit führender Null (z. B. "0123456") wurden an dms API fälschlich ohne die führende Null gesendet, ohne beim Zurücklesen wieder exakt der ursprünglichen Nummer zugeordnet zu werden; betroffene Abfragen schlugen dadurch mit "Bestand unbekannt" statt eines Treffers fehl. Die Zuordnung erfolgt jetzt über den Zahlenwert auf beiden Seiten, ausgegeben wird aber immer die ursprüngliche Artikelnummer als Zeichenkette. Gefunden von Codex beim Review der 0.1.79-Arbeit.
+
+### English
+
+- dm stock lookup: article numbers with a leading zero (e.g. "0123456") were sent to dm's API without that leading zero, but not matched back to the original number on the way out, causing affected lookups to fail as "stock unknown" instead of returning a match. Matching now compares by numeric value on both sides while always surfacing the original article number string. Found by Codex while reviewing the 0.1.79 work.
+
 ## 0.1.80
 
 ### Deutsch
