@@ -176,18 +176,23 @@ def check_stock(client: DmMcp, postal: str, dans: list[str], store_ids: list[str
         stores = [s for s in stores if s["store_id"] in store_ids]
     if not stores:
         return {"retailer": "dm", "status": "no_nearby_stores", "results": [], "postal_code": postal}
-    raw = client.call("getStoreAvailability", {"storeIds": [s["store_id"] for s in stores], "dans": [int(d) for d in dict.fromkeys(dans)]})
+    # dm's API takes the DAN as an integer; a 7-digit scraped DAN with a leading
+    # zero (e.g. "0123456") must still round-trip to that exact original string
+    # here, not the API's zero-stripped int form - compare and index by the
+    # integer value on both sides, and only ever surface the original string.
+    dan_by_int = {int(d): d for d in dict.fromkeys(dans)}
+    raw = client.call("getStoreAvailability", {"storeIds": [s["store_id"] for s in stores], "dans": list(dan_by_int)})
     try:
         data = json.loads(raw["result"]) if isinstance(raw["result"], str) else raw["result"]
         rows = data["productAvailabilities"]
         if data.get("errorMessage") or not isinstance(rows, list):
             raise ValueError("upstream error")
-        by_dan = {str(row["dan"]): row for row in rows}
-        if len(by_dan) != len(rows) or set(by_dan) != set(dans):
+        by_dan_int = {int(row["dan"]): row for row in rows}
+        if len(by_dan_int) != len(rows) or set(by_dan_int) != set(dan_by_int):
             raise ValueError("article mismatch")
         products = []
-        for dan in dict.fromkeys(dans):
-            row = by_dan[dan]
+        for dan_int, dan in dan_by_int.items():
+            row = by_dan_int[dan_int]
             if row.get("found") is False:
                 products.append({"dan": dan, "status": "unknown_product", "stores": [], "checked_at": raw["checked_at"]})
                 continue

@@ -41,6 +41,20 @@ def test_real_shape_handshake_mapping_cache_and_untrusted_instruction():
     assert calls[-1]['params']['arguments'] == {'storeIds':['D1','D2'], 'dans':[1234567]}
 
 
+def test_leading_zero_article_number_round_trips():
+    # dm's API strips a leading zero by taking the DAN as an int; the original
+    # 7-digit string (e.g. '0123456') must still come back as itself, not the
+    # API's int-stripped form, and must not be confused with a different DAN.
+    value = {"productAvailabilities": [{"dan": 123456, "found": True, "stores": [
+        {"storeId": "D2", "status": "NICHT_VERFUEGBAR"},
+        {"storeId": "D1", "status": "VERFUEGBAR", "stockLevel": 2}]}], "errorMessage": None}
+    c, calls, _ = client(value)
+    result = check_stock(c, '12345', ['0123456'])
+    assert result['status'] == 'ok'
+    assert result['results'][0]['dan'] == '0123456'
+    assert calls[-1]['params']['arguments'] == {'storeIds': ['D1', 'D2'], 'dans': [123456]}
+
+
 @pytest.mark.parametrize('change', ['wrong-product','wrong-store','duplicate-store','missing-store','negative','zero-available','unknown-status','missing-product','upstream-error'])
 def test_invalid_answers_never_become_zero(change):
     value = response(); row = value['productAvailabilities'][0]
