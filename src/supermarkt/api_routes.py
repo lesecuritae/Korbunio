@@ -12,8 +12,14 @@ from .models import ToolError, resolve_retailer_names
 from .security import create_client_token
 from . import kitchenowl, runtime
 from .preferences import home_defaults
+from .availability import StockRequest
 
 router = APIRouter()
+
+
+@router.post("/api/v1/availability", summary="Rossmann-Filialbestände prüfen", include_in_schema=False)
+def store_availability(request_data: StockRequest, _: None = Depends(require_api_auth)) -> dict[str, Any]:
+    return runtime.get_stock_service().check(request_data)
 
 
 def _kitchenowl_settings(entity_id: str = "") -> kitchenowl.Settings:

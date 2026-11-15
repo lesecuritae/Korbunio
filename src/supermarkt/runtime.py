@@ -19,6 +19,17 @@ _image_service: ImageService | None = None
 _image_service_lock = threading.Lock()
 _jobs: SearchJobStore | None = None
 _jobs_lock = threading.Lock()
+_stock_service = None
+_stock_lock = threading.Lock()
+
+
+def get_stock_service():
+    from .availability import StockService
+    with _stock_lock:
+        global _stock_service
+        if _stock_service is None:
+            _stock_service = StockService(lambda postal: get_engine().loader.aldi_region.postal_coordinates(postal))
+        return _stock_service
 
 
 def get_engine() -> SupermarketEngine:

@@ -39,6 +39,7 @@ from .image_match import match_article
 from .images import ImageServiceError
 from .loyalty import PROGRAMS
 from .models import RETAILER_SPECS, ToolError, resolve_retailer_names
+from .availability import StockRequest
 
 log = logging.getLogger(__name__)
 
@@ -155,6 +156,23 @@ class CatalogueUnavailable(Exception):
 
 
 mcp = MCPServer("korbuino", instructions=INSTRUCTIONS)
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
+async def get_store_availability(postal_code: str, dans: list[str], store_ids: list[str] | None = None) -> CallToolResult:
+    """Gemeldete Rossmann-Bestände für bis zu fünf Produkte im PLZ-Umkreis.
+
+    dans: sechsstellige Rossmann-Artikelnummern aus einer belegten Produktquelle,
+    keine EANs, Produktnamen oder geratenen Nummern. Mehrere Artikel werden
+    gedrosselt einzeln abgefragt. store_ids: optional auf bekannte Filialen filtern.
+    Keine Rossmann-App und kein Konto nötig. checked_at immer nennen; 5+ ist
+    eine Untergrenze, kein exakter Bestand. in_stock=null und status=unavailable
+    bedeuten unbekannt, nicht ausverkauft. listed=true allein beweist keinen Bestand.
+    Leere Filiallisten belegen keine bundesweite Nichtverfügbarkeit.
+    """
+    request = StockRequest(postal_code=postal_code, dans=dans, store_ids=store_ids or [])
+    result = await asyncio.to_thread(runtime.get_stock_service().check, request)
+    return CallToolResult(content=[TextContent(type="text", text=json.dumps(result, ensure_ascii=False))], structured_content=result)
 
 _inflight: dict[tuple, asyncio.Task] = {}
 _load_failures: dict[tuple, tuple[float, str]] = {}

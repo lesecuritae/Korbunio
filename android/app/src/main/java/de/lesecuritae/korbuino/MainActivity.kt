@@ -207,6 +207,7 @@ private fun KorbuinoApp(
     val importBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importBackup) }
     var showOverview by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showAvailability by rememberSaveable { mutableStateOf(false) }
     var showShopping by rememberSaveable { mutableStateOf(false) }
     var showFavorites by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(state.offers.size, state.loading) {
@@ -234,7 +235,9 @@ private fun KorbuinoApp(
     MaterialTheme(colorScheme = if (dark) darkScheme else lightScheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
           Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            if (showShopping || showFavorites) {
+            if (showAvailability) {
+                AvailabilityScreen(state.postalCode) { showAvailability = false }
+            } else if (showShopping || showFavorites) {
                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                     TextButton(onClick = { showShopping = false; showFavorites = false }) { Text("Zurück") }
                     Box(Modifier.weight(1f)) {
@@ -328,6 +331,7 @@ private fun KorbuinoApp(
                         Text("Update ${update.version} installieren")
                     }
                 }
+                Button(onClick = { showAvailability = true }) { Text("Filialbestand prüfen") }
                 Button(onClick = { showShopping = true }) { Text("Einkaufsliste öffnen") }
                 Button(onClick = { showFavorites = true }) { Text("Favoriten öffnen") }
             }

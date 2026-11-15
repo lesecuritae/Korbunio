@@ -406,3 +406,13 @@ Korbuino is independent and is not affiliated with any retailer or loyalty progr
 ## KitchenOwl (native Android)
 
 The native Android app connects directly to KitchenOwl with username/email and password or an existing token. Choose the HTTPS URL of the official service, AdminForge or your own instance; SSO-only accounts can use a KitchenOwl token. [Setup and security](docs/kitchenowl-login.md).
+
+### Rossmann store stock without the retailer app
+
+**Filialbestand prüfen** in native Android and the Docker web UI checks up to five six-digit Rossmann article numbers near a German postal code. Article numbers are shown on Rossmann product pages; product names and EANs must not be guessed or substituted. Android connects directly and does not require a Korbuino server.
+
+Agents can use `get_store_availability(postal_code, dans, store_ids=[])`. The authenticated HTTP endpoint is `POST /api/v1/availability`, for example `{"postal_code":"04109","dans":["120585"]}`. Existing server Bearer authentication applies. The existing comparison OpenAPI contract is preserved.
+
+No Rossmann app, retailer account, API key, device identifier or tracking SDK is required. Queries send area coordinates and article numbers to Rossmann and the postal code to OpenStreetMap/Nominatim; these services see the connecting IP. There is no automatic stock monitoring.
+
+Requests are sequential, at least two seconds apart, with one admitted batch per process and a 60-second memory cache for successful results. Responses include their check time. **“5+” is a lower bound; `available=true` alone does not prove stock.** Zero, unknown and failed retrieval remain distinct. HTTP 406 does not mean sold out. Book stock is neither a reservation nor a shelf-stock guarantee. The observed mobile endpoint is not claimed to be an officially supported third-party API.

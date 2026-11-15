@@ -1,0 +1,9 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Filialbestand · Korbuino</title><link rel="stylesheet" href="/static/home.css"><script defer src="/static/availability.js"></script></head><body><main>
+<p><a href="/">Zurück zu Korbuino</a></p><h1>Rossmann-Filialbestand</h1>
+<p>Ohne Rossmann-App und ohne Rossmann-Konto. Abgefragt werden die gemeldeten Buchbestände, keine reservierte Ware.</p>
+<form id="stock-form"><p><label>Postleitzahl <input id="postal" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" required></label></p>
+<p><label>Artikelnummern <textarea id="dans" rows="4" required placeholder="Eine sechsstellige Artikelnummer pro Zeile, höchstens fünf"></textarea></label></p>
+<p>Die Artikelnummer steht auf der jeweiligen Rossmann-Produktseite. Keine EAN verwenden. Produktnamen oder Nummern werden nicht geraten.</p>
+<button id="check" type="submit">Bestände prüfen</button></form><p id="status" role="status" aria-live="polite"></p><section id="results"></section>
+<p>„5+“ heißt mindestens fünf. Fehlende Daten bedeuten nicht ausverkauft. Abfrageort und Artikelnummern werden an Rossmann übermittelt, zur PLZ-Auflösung wird OpenStreetMap/Nominatim verwendet. Keine Standortberechtigung nötig.</p>
+</main></body></html>
