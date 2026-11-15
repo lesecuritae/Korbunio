@@ -63,8 +63,13 @@ class OfficialRossmannSource:
 
     @staticmethod
     def _validity(text: str) -> tuple[date | None, date | None]:
+        # Rossmann has used two header wordings for the same flyer-wide period:
+        # "Gültig ab <Wochentag>: DD.MM. - DD.MM.YYYY" and, since November 2026,
+        # "Täglich gültig vom DD.MM. – DD.MM.YYYY" (en dash). Both keep the short
+        # start date immediately followed by a dash, which per-product footnote
+        # periods elsewhere on the page (full dates on both sides, "bis"/"bis zum") never do.
         match = re.search(
-            r"Gültig\s+ab\s+\w+\s*:\s*(\d{2})\.(\d{2})\.\s*-\s*(\d{2})\.(\d{2})\.(\d{4})",
+            r"[Gg]ültig\s+(?:ab\s+\w+\s*:|vom)\s*(\d{2})\.(\d{2})\.\s*[-–]\s*(\d{2})\.(\d{2})\.(\d{4})",
             text,
             flags=re.IGNORECASE,
         )
