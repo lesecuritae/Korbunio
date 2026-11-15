@@ -1,3 +1,17 @@
+## 0.1.82
+
+### Deutsch
+
+- Rossmann lieferte wieder keine Angebote mehr, trotz des 0.1.80-Fixes für die Gültigkeits-Formulierung: Rossmann rendert die Angebotsseite jetzt über dieselbe Vorlage wie die normale Produktsuche und hat dabei die Markierung `data-testid="product-card"` von den Angebotskarten entfernt. Die Erkennung nutzt jetzt zusätzlich das weiterhin vorhandene `data-item-id`-Attribut derselben Karte, mit der alten Markierung als Rückfall.
+- Dabei zusätzlich behoben: ein einzelner Render konnte gelegentlich abgeschlossen sein, bevor das Gültigkeits-Banner selbst fertig geladen war (ein zeitliches, nicht inhaltliches Problem). Ein zweiter echter Render-Versuch wird jetzt automatisch unternommen, bevor endgültig mit einem Fehler abgebrochen wird; das Zeitbudget für den Browser wurde dafür von 12 auf 20 Sekunden angehoben.
+- Live gegen die echte Rossmann-Seite wiederholt verifiziert (mehrfach hintereinander, nicht nur einmal), bevor der Fix freigegeben wurde.
+
+### English
+
+- Rossmann had stopped returning any offers again, despite the 0.1.80 wording fix: Rossmann now renders the offers page through the same template as their regular product search, and dropped the `data-testid="product-card"` marker from the offer tiles in the process. Detection now additionally matches on the `data-item-id` attribute still present on the same tile, keeping the old marker as a fallback.
+- Also fixed along the way: a single render could occasionally finish before the validity banner itself had actually finished loading (a timing issue, not a content one). A second real render attempt is now made automatically before giving up with an error; the browser's time budget was raised from 12 to 20 seconds for this.
+- Verified repeatedly against the real live Rossmann page (several consecutive runs, not just one) before releasing this fix.
+
 ## 0.1.81
 
 ### Deutsch

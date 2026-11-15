@@ -48,3 +48,45 @@ def test_five_published_cards_with_the_november_2026_daily_wording():
     html = HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "Täglich gültig vom 09.11. – 13.11.2026")
     offers = OfficialRossmannSource(lambda _url: html).load("50939")
     assert all((o.valid_from, o.valid_until) == ("2026-11-09", "2026-11-13") for o in offers)
+
+
+def test_a_render_without_the_validity_banner_yet_is_retried_once():
+    """The banner can occasionally still be missing right after a fresh render
+    (a client-side timing gap, not a wording problem); one retried render that
+    does have it must still succeed instead of failing the whole page."""
+    calls = []
+
+    def renderer(_url):
+        calls.append(1)
+        return HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "") if len(calls) == 1 else HTML
+
+    offers = OfficialRossmannSource(renderer).load("50939")
+    assert len(calls) == 2
+    assert all((o.valid_from, o.valid_until) == ("2026-11-09", "2026-11-13") for o in offers)
+
+
+def test_cards_without_the_product_card_testid_are_still_found_by_item_id():
+    """Rossmann dropped data-testid="product-card" from the tiles when it moved this
+    page onto its generic search-results template; data-item-id stayed on the same
+    element, so the selector must still find the cards through that attribute alone."""
+    html = HTML.replace('data-testid="product-card"', "")
+    offers = OfficialRossmannSource(lambda _url: html).load("50939")
+    assert {o.name for o in offers} == {
+        "Melitta Kaffee Auslese Klassisch gemahlen",
+        "Wella Wellaflex Schaumfestiger Volumen Fülle & Style 5",
+        "Zewa Haushaltstücher Wisch & Weg Reinweiß",
+        "Pampers Feuchttücher 99% Wasser",
+        "L’Oréal Paris Excellence Crème Coloration 5 Hellbraun",
+    }
+
+
+def test_a_render_that_never_gets_the_validity_banner_still_fails_closed():
+    calls = []
+
+    def renderer(_url):
+        calls.append(1)
+        return HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "")
+
+    with pytest.raises(ToolError, match="(?i)gültigkeit"):
+        OfficialRossmannSource(renderer).load("50939")
+    assert len(calls) == 2
