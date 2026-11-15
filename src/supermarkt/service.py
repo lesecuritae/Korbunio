@@ -750,7 +750,7 @@ class SourceLoader:
 
 class SupermarketEngine:
     # v15 invalidates ALDI regions inferred from distant, sparsely tagged stores.
-    SNAPSHOT_SCHEMA = 17  # Re-fetch cross-source duplicates with normalized quantity typography.
+    SNAPSHOT_SCHEMA = 18  # Re-fetch retailer article numbers; stock stays outside the offer cache.
     def __init__(self) -> None:
         self.store = PersistentSnapshotStore(CACHE_DB, CACHE_TTL_MINUTES, RESULT_RETENTION_HOURS, CACHE_MAX_SNAPSHOTS)
         self.loader = SourceLoader()
@@ -871,6 +871,7 @@ class SupermarketEngine:
         loyalty_programs: tuple[str, ...] = (),
         sort: str = "price",
         include_image_urls: bool = False,
+        include_stock: bool = False,
     ) -> dict[str, Any]:
         offers = [offer_from_dict(item) for item in snapshot.get("offers", []) if isinstance(item, dict)]
         # Offers whose ISO end date is already past (Europe/Berlin) are over. Filter before comparing, so an expired
@@ -992,6 +993,9 @@ class SupermarketEngine:
             ]))[:12],
             "offers": self._with_substitute_images([offer_for_response(offer, include_image_urls=include_image_urls) for offer in selected], selected, offers, include_image_urls),
         }
+        if include_stock:
+            from .inline_stock import enrich
+            result["offers"] = enrich(result["offers"], snapshot["postal_code"])
         return result
 
     @staticmethod

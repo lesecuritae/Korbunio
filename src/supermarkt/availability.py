@@ -12,12 +12,12 @@ import json
 import re
 import threading
 import time
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .http import trusted_ssl_context
 from .models import ToolError
@@ -25,14 +25,37 @@ from .models import ToolError
 USER_AGENT = "Korbuino-Availability/1 (+https://github.com/lesecuritae/Korbunio)"
 ENDPOINT = "https://api-ocm-de-prod.rossmann.net/storefinder/.rest/rsmnapp/stores"
 DISCLAIMER = "Gemeldeter Buchbestand, keine Reservierung oder Garantie für Regalware. 5+ bedeutet mindestens fünf."
-Dan = Annotated[str, Field(pattern=r"^[0-9]{6}$")]
+Dan = Annotated[str, Field(pattern=r"^[0-9]{6,7}$")]
 
 
 class StockRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    retailer: Literal["Rossmann", "dm"] = "Rossmann"
     postal_code: str = Field(pattern=r"^[0-9]{5}$")
     dans: list[Dan] = Field(min_length=1, max_length=5)
-    store_ids: list[Annotated[str, Field(pattern=r"^[0-9]{1,12}$")]] = Field(default_factory=list, max_length=20)
+    store_ids: list[Annotated[str, Field(pattern=r"^[A-Za-z0-9]{1,16}$")]] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def retailer_identity(self):
+        length = 6 if self.retailer == "Rossmann" else 7
+        if any(len(d) != length for d in self.dans):
+            raise ValueError(f"{self.retailer} benötigt {length}-stellige Artikelnummern")
+        if self.retailer == "Rossmann" and any(not s.isascii() or not s.isdigit() for s in self.store_ids):
+            raise ValueError("Rossmann benötigt numerische Filialkennungen")
+        if self.retailer == "dm" and len(self.store_ids) > 5:
+            raise ValueError("Höchstens fünf dm-Märkte")
+        return self
+
+
+def check_availability(request: StockRequest) -> dict:
+    from . import runtime
+    if request.retailer == "Rossmann":
+        return runtime.get_stock_service().check(request)
+    from .dm_mcp import check_stock
+    try:
+        return check_stock(runtime.get_dm_mcp(), request.postal_code, request.dans, request.store_ids)
+    except ToolError as exc:
+        return {"retailer": "dm", "postal_code": request.postal_code, "status": "unavailable", "results": [], "error": str(exc)}
 
 
 class _NoRedirect(HTTPRedirectHandler):

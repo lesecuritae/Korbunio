@@ -30,6 +30,7 @@ class DmProvider(
         require(Regex("^\\d{5}$").matches(request.postalCode)) { "Ungültige PLZ" }
         val products = linkedMapOf<String, ProductEntity>()
         val offers = linkedMapOf<String, OfferEntity>()
+        val references = linkedMapOf<String, StockReference>()
         val seenPages = mutableSetOf<String>()
         var expectedCount: Int? = null
         var loadedCount = 0
@@ -60,10 +61,11 @@ class DmProvider(
             val result = parse(root)
             result.products.forEach { products[it.id] = it }
             result.offers.forEach { offers[it.id] = it }
+            references.putAll(result.stockReferences)
             check(offers.size <= 2000) { "dm Katalog zu groß" }
             if ((pages != null && page + 1 >= pages) || (pages == null && rows.size < 500)) {
                 check(expectedCount == null || loadedCount == expectedCount) { "dm Teilantwort: Produktzahl stimmt nicht mit Gesamtzahl überein" }
-                return@withContext ProviderResult(products.values.toList(), offers.values.toList(), paginationComplete = true)
+                return@withContext ProviderResult(products.values.toList(), offers.values.toList(), paginationComplete = true, stockReferences = references)
             }
         }
         error("dm Seitenlimit erreicht")
@@ -72,6 +74,7 @@ class DmProvider(
     private fun parse(root: JsonObject): ProviderResult {
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
+        val references = linkedMapOf<String, StockReference>()
         root["products"]?.jsonArray.orEmpty().forEach { raw ->
             val item = raw.jsonObject
             val tile = item["tileData"]?.jsonObject ?: return@forEach
@@ -84,6 +87,8 @@ class DmProvider(
             val price = priceRoot["price"]?.jsonObject?.get("current")?.jsonObject
                 ?.text("value")?.let(ProviderParsing::price) ?: return@forEach
             val productId = item.text("dan", "id", "productId") ?: tile.text("dan") ?: "${id}-${slug(name)}"
+            val dan = item.text("dan") ?: tile.text("dan")
+            if (dan != null && Regex("[0-9]{7}").matches(dan)) references["$id:$productId"] = StockReference("dm", dan)
             val image = tile["images"]?.jsonArray?.asSequence()
                 ?.mapNotNull { runCatching { it.jsonObject.text("tileSrc", "url", "src") }.getOrNull() }
                 ?.firstOrNull { !it.isNullOrBlank() }
@@ -97,7 +102,7 @@ class DmProvider(
                 cachedAt = System.currentTimeMillis(),
             )
         }
-        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id })
+        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id }, stockReferences = references)
     }
 
     private fun JsonObject.text(vararg keys: String): String? = keys.asSequence()

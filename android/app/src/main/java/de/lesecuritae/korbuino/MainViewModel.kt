@@ -96,9 +96,11 @@ data class OfferDisplay(
     val imageReferer: String? = null,
     /** Pictures of the same article elsewhere, tried when the own link turns out to be dead. */
     val imageFallbacks: List<ImageFallback> = emptyList(),
+    val stockSummary: String? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val stockSummaries = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val database = KorbuinoDatabase.create(application)
     private val registry = ProviderRegistry.default(NetworkClientFactory.create(application))
     private val _state = MutableStateFlow(MainUiState())
@@ -581,7 +583,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             val label = if (providers.size == 1) providers.single().displayName else "${providers.size} Händler"
             _state.value = _state.value.copy(loading = true, challengeUrl = null, message = "$label-Angebote werden direkt geladen …")
-            val fetched = fetchProviderBatch(providers, RetailerRequest(current.postalCode, citySlug = current.city))
+            stockSummaries.clear()
+            val fetched = fetchProviderBatch(providers.map { de.lesecuritae.korbuino.providers.StockEnrichingProvider(it) }, RetailerRequest(current.postalCode, citySlug = current.city))
             if (!current.serverMode) rememberEmptyRetailers(current.postalCode, fetched)
             val successes = mutableListOf<Pair<de.lesecuritae.korbuino.providers.RetailerProvider, de.lesecuritae.korbuino.providers.ProviderResult>>()
             var emptySources = 0
@@ -596,6 +599,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 result.onSuccess { value ->
                     val rejection = ProviderImportPolicy.rejectionReason(provider.id, value, previous?.offerCount ?: 0)
                     if (rejection == null) {
+                        stockSummaries.putAll(value.stockSummaries)
                         successes += provider to value
                     } else if (value.offers.isEmpty()) {
                         emptySources++
@@ -785,6 +789,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     imageNote = note,
                     imageReferer = referer,
                     imageFallbacks = fallbacks,
+                    stockSummary = stockSummaries[offer.id],
                 )
             }
         }

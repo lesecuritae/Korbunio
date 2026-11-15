@@ -705,6 +705,9 @@ private fun OfferOverview(
                                         Text(retailerNames[offer.offer.retailerId] ?: offer.offer.retailerId, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                                     }
                                     Text(offer.productName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    offer.stockSummary?.let { summary ->
+                                        Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                     offer.offer.categoryId?.takeIf { it.isNotBlank() }?.let { category ->
                                         Text(category, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                                     }
