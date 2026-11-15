@@ -15,6 +15,7 @@ def published_week(monkeypatch):
     # Historical captured offers must not expire when CI runs next week.
     monkeypatch.setattr("supermarkt.common.today_berlin", lambda: DAY)
     monkeypatch.setattr("supermarkt.mcp_server.today_berlin", lambda: DAY)
+    monkeypatch.setattr("supermarkt.service.today_berlin", lambda: DAY)
 
 
 def test_mcp_returns_regular_and_member_prices_without_species_fabrication(monkeypatch):
