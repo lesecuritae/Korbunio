@@ -1,3 +1,15 @@
+## 0.1.80
+
+### Deutsch
+
+- Rossmann lieferte zuletzt keine Angebote mehr: Rossmann hat die Formulierung der Prospekt-Gültigkeit auf der Angebotsseite geändert ("Täglich gültig vom DD.MM. – DD.MM.YYYY" statt "Gültig ab <Wochentag>: DD.MM. - DD.MM.YYYY"). Die Erkennung akzeptiert jetzt beide Formulierungen; einzelne Fußnoten-Zeiträume auf derselben Seite werden weiterhin nicht verwechselt.
+- Gefunden beim Live-Test des gerade veröffentlichten dm-/Rossmann-Bestandsabgleichs (0.1.79): dm lieferte korrekt Bestände, Rossmann aber gar keine Angebote mehr.
+
+### English
+
+- Rossmann had stopped returning any offers: Rossmann changed the flyer-validity wording on their offers page ("Täglich gültig vom DD.MM. – DD.MM.YYYY" instead of "Gültig ab <weekday>: DD.MM. - DD.MM.YYYY"). Detection now accepts both wordings, while still not confusing unrelated per-product footnote periods on the same page.
+- Found while live-testing the just-released dm/Rossmann stock enrichment (0.1.79): dm correctly returned stock, but Rossmann returned no offers at all.
+
 ## 0.1.79
 
 ### Deutsch

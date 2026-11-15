@@ -34,3 +34,17 @@ def test_missing_invalid_or_reversed_week_is_not_imported_as_undated_offers(head
 
 def test_published_year_boundary_uses_the_previous_year_for_december():
     assert OfficialRossmannSource._validity("Gültig ab Montag: 28.12. - 01.01.2027") == (date(2026, 12, 28), date(2027, 1, 1))
+
+
+def test_published_daily_wording_with_en_dash_is_also_understood():
+    """Rossmann reworded the flyer-wide header in November 2026 ("Täglich gültig
+    vom DD.MM. – DD.MM.YYYY", en dash) without dropping the older wording elsewhere."""
+    assert OfficialRossmannSource._validity("Täglich gültig vom 09.11. – 13.11.2026") == (date(2026, 11, 9), date(2026, 11, 13))
+    # A per-product footnote period in the same page text must not be mistaken for it.
+    assert OfficialRossmannSource._validity("Gültig vom 19.10.2026 bis 23.10.2026") == (None, None)
+
+
+def test_five_published_cards_with_the_november_2026_daily_wording():
+    html = HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "Täglich gültig vom 09.11. – 13.11.2026")
+    offers = OfficialRossmannSource(lambda _url: html).load("50939")
+    assert all((o.valid_from, o.valid_until) == ("2026-11-09", "2026-11-13") for o in offers)
