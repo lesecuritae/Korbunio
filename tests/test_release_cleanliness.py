@@ -115,7 +115,10 @@ def test_runtime_version_matches_package_metadata():
     metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert metadata["project"]["version"] == __version__
     assert USER_AGENT == f"korbunio/{__version__}"
-    assert __version__ == "0.1.77"
+    native = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
+    assert re.search(r'versionName\s*=\s*"([^"]+)"', native).group(1) == __version__
+    docker = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert re.search(r"(?m)^ARG APP_VERSION=(\S+)$", docker).group(1) == __version__
 
 
 def test_default_host_port_is_configurable_without_changing_container_port():

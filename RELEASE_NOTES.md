@@ -1,3 +1,23 @@
+## 0.1.78
+
+### Deutsch
+
+- Rossmann-Filialbestände direkt in der nativen Android-App, der Docker-Weboberfläche und über MCP abfragen – ohne Rossmann-App oder Händlerkonto. Benötigt werden PLZ und bestätigte Artikelnummern.
+- Buchbestand, Mindestbestand, unbekannte Werte und Abruffehler werden getrennt angezeigt. Abfragen sind begrenzt und gedrosselt; es gibt kein automatisches Bestandsmonitoring.
+- Lidl-Dubletten aus Marktguru und KaufDA mit lediglich unterschiedlichen Mengen-Schreibabständen werden zusammengeführt. Unterschiedliche Sorten, Packungen, Bonuspreise und Einkaufsbedingungen bleiben erhalten.
+- Android bewahrt unterschiedliche Produktdaten auch bei kollidierenden Quell-IDs. Historische Lidl-Tests sind vom aktuellen Kalenderdatum unabhängig.
+
+Die beobachtete Rossmann-Schnittstelle ist keine zugesicherte Drittanbieter-API. Buchbestand ist keine Reservierung oder Regalgarantie. Die regionale Lidl-Stichprobe belegt keine bundesweite Vollständigkeit.
+
+### English
+
+- Check Rossmann store stock directly in native Android, the Docker web UI and MCP without the retailer app or an account. A German postal code and confirmed article numbers are required.
+- Book stock, lower bounds, unknown values and retrieval failures remain distinct. Requests are bounded and paced; there is no automatic stock monitoring.
+- Merge evidenced Lidl duplicates from Marktguru and KaufDA when only quantity spacing differs. Keep distinct varieties, packs, membership prices and purchase conditions separate.
+- Android preserves conflicting product metadata despite source ID collisions. Historical Lidl tests no longer depend on the execution date.
+
+The observed Rossmann endpoint is not a guaranteed third-party API. Book stock is not a reservation or shelf-stock guarantee. The regional Lidl sample does not prove nationwide completeness.
+
 ## 0.1.77
 
 - Interne Codequalität in `src/supermarkt/`: Dopplungen entfernt (gemeinsame curl_cffi-Session
