@@ -180,7 +180,7 @@ jobs:
           compatibility_apk="korbunio-${version}.apk"
           cp "$release_apk" "$compatibility_apk"
           sha256sum "$compatibility_apk" > "${compatibility_apk}.sha256"
-          awk 'NR == 1 { next } /^# / { exit } { print }' RELEASE_NOTES.md > /tmp/release-notes.md
+          awk 'NR == 1 { next } /^##? / { exit } { print }' RELEASE_NOTES.md > /tmp/release-notes.md
 
       - name: Publish tagged APK release
         if: startsWith(github.ref, 'refs/tags/v')
