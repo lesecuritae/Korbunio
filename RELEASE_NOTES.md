@@ -1,3 +1,21 @@
+## 0.1.79
+
+### Deutsch
+
+- dm- und Rossmann-Filialbestände werden jetzt direkt an die zurückgegebenen Angebote angehängt (Android-App, Docker-Weboberfläche, MCP) – nicht mehr nur als separate Abfrage. Pro Seite werden höchstens fünf belegte Artikelnummern je Händler geprüft; nicht geprüfte oder nicht zuordenbare Angebote zeigen "Bestand unbekannt" statt eines geratenen Werts.
+- dm-Bestände nutzen jetzt dms eigenen, offiziellen MCP-Server (mcp.dm.de) für Marktsuche und Bestandsabfrage – rein lesend, ohne Konto. Die Artikelnummer stammt ausschließlich aus den Original-Angebotsdaten, nie aus einem Namensabgleich.
+- Drei zusätzliche dm-MCP-Werkzeuge (Produktsuche, Produktdetails, Marktfinder) stehen auch über den Korbuino-Docker-MCP für Hermes zur Verfügung, mit denselben strengen Prüfungen gegen erfundene Marktkennungen oder widersprüchliche Bestandsangaben.
+
+Die beobachteten dm- und Rossmann-Schnittstellen sind keine zugesicherten Drittanbieter-APIs. Gemeldeter Buchbestand ist keine Reservierung oder Regalgarantie.
+
+### English
+
+- dm and Rossmann store stock is now attached directly to the returned offers (Android app, Docker web UI, MCP) instead of only being a separate lookup. At most five confirmed article numbers per retailer are checked per page; offers that weren't checked or couldn't be matched show "stock unknown" rather than a guessed value.
+- dm stock now uses dm's own official MCP server (mcp.dm.de) for store lookup and availability - read-only, no account required. The article number is taken only from the original offer data, never from a name match.
+- Three additional dm MCP tools (product search, product details, store finder) are also exposed through the Korbuino Docker MCP for Hermes, with the same strict checks against fabricated store IDs or contradicting stock data.
+
+The observed dm and Rossmann endpoints are not guaranteed third-party APIs. Reported book stock is not a reservation or shelf-stock guarantee.
+
 ## 0.1.78
 
 ### Deutsch

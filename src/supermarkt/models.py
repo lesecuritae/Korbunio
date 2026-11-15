@@ -178,6 +178,8 @@ class Offer:
     valid_until: str | None = None
     product_gtins: tuple[str, ...] = ()
     benefits: tuple[LoyaltyBenefit, ...] = ()
+    # Only copied from the retailer's own product identifier, never a name guess.
+    article_number: str = ""
 
     # These fields are calculated for a request and are not part of source parsing.
     effective_price: float | None = None

@@ -12,14 +12,14 @@ from .models import ToolError, resolve_retailer_names
 from .security import create_client_token
 from . import kitchenowl, runtime
 from .preferences import home_defaults
-from .availability import StockRequest
+from .availability import StockRequest, check_availability
 
 router = APIRouter()
 
 
 @router.post("/api/v1/availability", summary="Rossmann-Filialbestände prüfen", include_in_schema=False)
 def store_availability(request_data: StockRequest, _: None = Depends(require_api_auth)) -> dict[str, Any]:
-    return runtime.get_stock_service().check(request_data)
+    return check_availability(request_data)
 
 
 def _kitchenowl_settings(entity_id: str = "") -> kitchenowl.Settings:
@@ -107,7 +107,7 @@ def supermarket_compare(request_data: SupermarketRequest, request: Request, _: N
         if request_data.offer_week == "next":
             snapshot_kwargs["offer_week"] = "next"
         snapshot, from_cache = engine.snapshot(request_data.postal_code, request_data.aldi_region, request_data.refresh, **snapshot_kwargs)
-        page = engine.page(snapshot, filter_text=request_data.filter_text, keywords=tuple(request_data.keywords), retailer=request_data.retailer, page=request_data.page, page_size=request_data.page_size, view=request_data.view, loyalty_programs=tuple(request_data.loyalty_programs), sort=request_data.sort, include_image_urls=request_data.include_image_urls)
+        page = engine.page(snapshot, filter_text=request_data.filter_text, keywords=tuple(request_data.keywords), retailer=request_data.retailer, page=request_data.page, page_size=request_data.page_size, view=request_data.view, loyalty_programs=tuple(request_data.loyalty_programs), sort=request_data.sort, include_image_urls=request_data.include_image_urls, include_stock=request_data.with_stock)
         page["status"] = "ok"
         page["from_cache"] = from_cache
         page["result_url"] = build_result_url(request, snapshot["search_id"], tuple(request_data.loyalty_programs))
@@ -192,7 +192,7 @@ def result_data(
         snapshot = engine.by_id(search_id)
         return proxy_page_images(engine.page(snapshot, filter_text=q, keywords=tuple(keywords), retailer=retailer,
             retailer_filters=tuple(retailers), category=category, page=page, page_size=page_size, view=view,
-            loyalty_programs=normalize_program_ids(loyalty.split(",")), sort=sort, include_image_urls=True))
+            loyalty_programs=normalize_program_ids(loyalty.split(",")), sort=sort, include_image_urls=True, include_stock=True))
     except ToolError as exc:
         raise HTTPException(status_code=410, detail=str(exc)) from exc
 

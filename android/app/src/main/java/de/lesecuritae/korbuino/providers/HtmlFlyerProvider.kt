@@ -80,6 +80,7 @@ class HtmlFlyerProvider(
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
         val warnings = mutableListOf<String>()
+        val references = linkedMapOf<String, StockReference>()
         val cards = doc.select(
             "[data-product], [data-testid*=product], .offer, .offer-card, .product-card, " +
                 ".product-tile, .kloffer, [aria-label^=\"product-\"], article, li[class*=offer], li[class*=product]",
@@ -133,6 +134,8 @@ class HtmlFlyerProvider(
                 .ifBlank { if (id == "netto-marken") card.selectFirst("[data-sku]")?.attr("data-sku").orEmpty() else "" }
                 .ifBlank { "$index-${normalize(name)}" }
             val productId = "$id-product-${normalize(name)}"
+            val dan = card.attr("data-item-id")
+            if (id == "rossmann" && Regex("[0-9]{6}").matches(dan)) references["$id:$external"] = StockReference("Rossmann", dan)
             val image = imageUrl(card)
             val declaredNettoPacks = if (id == "netto-schwarz") card.select("span").map { it.text() }.filter {
                 Regex("(?:\\d+\\s*[x×]\\s*)?\\d+(?:[.,]\\d+)?\\s*(?:kg|g|ml|l|Liter|Stück|Stk\\.?)", RegexOption.IGNORE_CASE).matches(it)
@@ -159,7 +162,7 @@ class HtmlFlyerProvider(
                 loyaltyPriceCents = memberPrice?.let(ProviderParsing::cents),
             )
         }
-        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id }, sourceWarnings = warnings)
+        return ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id }, sourceWarnings = warnings, stockReferences = references)
     }
 
     private fun publishedPeriod(text: String): Pair<java.time.LocalDate, java.time.LocalDate>? {

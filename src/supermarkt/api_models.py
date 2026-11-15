@@ -44,6 +44,7 @@ class SupermarketRequest(BaseModel):
     )
     sort: Literal["price", "unit_price", "retailer", "product", "category"] = Field(default="price")
     refresh: bool = Field(default=False, description="Servercache ignorieren und Quellen neu abrufen")
+    with_stock: bool = Field(default=True, description="Bis zu fünf belegte Artikel je dm/Rossmann auf dieser Seite mit Filialbeständen ergänzen")
     include_image_urls: bool = Field(
         default=False,
         description="Originale Bild- und Quell-URLs mitliefern, für Apps, die Bilder selbst laden. Standardmäßig aus, um Antworten klein zu halten.",

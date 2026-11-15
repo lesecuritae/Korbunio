@@ -118,6 +118,7 @@ class OfficialRossmannSource:
             pack = normalize_pack(details.split("(", 1)[0] if details_node else details)
             offer_id = f"rossmann:{index}:{_slug(name)}"
             product_url = urljoin(self.OFFERS_URL, clean_text(link.get("href")) if link else "")
+            dan = clean_text(card.get("data-item-id"))
             result.append(Offer(
                 offer_id, "Rossmann", "Drogerie", name, "", details, price,
                 base_price, base_unit, pack, "Aktuelle Werbung" if not start else f"{start:%d.%m.}–{end:%d.%m.%Y}",
@@ -127,6 +128,7 @@ class OfficialRossmannSource:
                 coverage_note="Offizielle Rossmann-Werbung; lokale Verfügbarkeit vorbehalten",
                 valid_from=start.isoformat() if start else None,
                 valid_until=end.isoformat() if end else None,
+                article_number=dan if re.fullmatch(r"[0-9]{6}", dan) else "",
             ))
         if not result:
             raise ToolError("Rossmann lieferte keine lesbaren Werbeangebote")
@@ -467,6 +469,7 @@ class OfficialDmSource:
                 product_url=urljoin("https://www.dm.de/", product_path),
                 retailer_url=self.last_market_url,
                 coverage_note="Offizieller dm-Ausverkauf; Onlinepreis, lokale Filialverfügbarkeit unbekannt",
+                article_number=product_id if re.fullmatch(r"[0-9]{7}", product_id) else "",
             ))
         if not result:
             raise ToolError("dm lieferte keine lesbaren Ausverkaufsangebote")

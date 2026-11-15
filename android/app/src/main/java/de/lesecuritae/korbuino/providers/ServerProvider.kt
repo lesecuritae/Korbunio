@@ -53,6 +53,9 @@ class ServerProvider(
             val body = buildJsonObject {
                 put("postal_code", request.postalCode)
                 put("refresh", page == 1)
+                // Batch import can span many pages. Enrich once, with the same
+                // bounded native policy, after all article references arrive.
+                put("with_stock", false)
                 put("offer_week", if (request.week == OfferWeek.NEXT) "next" else "current")
                 // Lets the app load product images itself, like for its own offers. Older servers ignore it.
                 put("include_image_urls", true)
@@ -103,6 +106,7 @@ class ServerProvider(
         } while (page <= pageCount)
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
+        val references = linkedMapOf<String, StockReference>()
         offerItems.forEachIndexed { index, item ->
             val name = item.text("product") ?: item.text("name") ?: return@forEachIndexed
             val price = item.number("regular_price") ?: item.number("price") ?: error("Korbuino: kein belegter Normalpreis")
@@ -110,6 +114,12 @@ class ServerProvider(
             val benefits = LoyaltyBenefits.parse(item["benefits"]?.toString().orEmpty())
             val retailer = localId ?: item.text("retailer") ?: "Unbekannt"
             val external = item.text("offer_id") ?: "$index-${name.lowercase().hashCode()}"
+            val actualRetailer = item.text("retailer")
+            val dan = item.text("article_number")
+            if ((actualRetailer == "dm" && dan?.matches(Regex("[0-9]{7}")) == true) ||
+                (actualRetailer == "Rossmann" && dan?.matches(Regex("[0-9]{6}")) == true)) {
+                references["${localId ?: "server"}:$external"] = StockReference(actualRetailer!!, dan!!)
+            }
             val gtins = item["product_gtins"]?.takeUnless { it is JsonNull }?.jsonArray.orEmpty().mapNotNull { (it as? JsonPrimitive)?.takeIf { v -> v.isString }?.content }
             // Stable across repricing and weekly offer IDs; different source,
             // pack or variety metadata must not collide on Java's name hash.
@@ -151,6 +161,7 @@ class ServerProvider(
             listOf(name, directId)
         }
         ProviderResult(products.distinctBy { it.id }, offers.distinctBy { it.id },
+            stockReferences = references,
             noLocalMarket = retailerName in unavailableNames && offers.isEmpty(),
             unavailableRetailerIds = unavailableIds,
             preserveMissingOffers = if (retailerName == null) incomplete.isNotEmpty() else retailerName in incomplete,

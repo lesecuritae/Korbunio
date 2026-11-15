@@ -10,6 +10,7 @@ data class RetailerRequest(
     val week: OfferWeek = OfferWeek.CURRENT,
 )
 enum class OfferWeek { CURRENT, NEXT }
+data class StockReference(val retailer: String, val dan: String)
 /** Match the shared backend week boundary, including the Sunday handover. */
 internal fun offerWeekContains(from: java.time.LocalDate, until: java.time.LocalDate, week: OfferWeek, today: java.time.LocalDate): Boolean {
     val day = if (today.dayOfWeek == java.time.DayOfWeek.SUNDAY) today.plusDays(1) else today
@@ -26,6 +27,8 @@ data class ProviderResult(
     val paginationComplete: Boolean = false,
     val preserveMissingOffers: Boolean = false,
     val preserveRetailerIds: List<String> = emptyList(),
+    val stockReferences: Map<String, StockReference> = emptyMap(),
+    val stockSummaries: Map<String, String> = emptyMap(),
 ) {
     init {
         require(!noLocalMarket || (products.isEmpty() && offers.isEmpty()))

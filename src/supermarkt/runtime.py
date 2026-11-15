@@ -21,6 +21,16 @@ _jobs: SearchJobStore | None = None
 _jobs_lock = threading.Lock()
 _stock_service = None
 _stock_lock = threading.Lock()
+_dm_mcp = None
+
+
+def get_dm_mcp():
+    from .dm_mcp import DmMcp
+    with _stock_lock:
+        global _dm_mcp
+        if _dm_mcp is None:
+            _dm_mcp = DmMcp()
+        return _dm_mcp
 
 
 def get_stock_service():

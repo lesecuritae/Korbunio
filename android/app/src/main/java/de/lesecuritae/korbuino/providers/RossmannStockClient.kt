@@ -14,8 +14,13 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 internal data class StockStore(val id: String, val city: String, val street: String, val postalCode: String,
-    val raw: String, val minimum: Int?, val exact: Boolean) {
-    val inStock: Boolean? get() = minimum?.let { if (it == 0 && !exact) null else it > 0 }
+    val raw: String, val minimum: Int?, val exact: Boolean, val status: String = "") {
+    val inStock: Boolean? get() = when (status) {
+        "VERFUEGBAR" -> true
+        "NICHT_VERFUEGBAR" -> false
+        "NUR_ONLINE", "PRODUKT_UNBEKANNT", "STORE_UNBEKANNT" -> null
+        else -> minimum?.let { if (it == 0 && !exact) null else it > 0 }
+    }
 }
 internal data class StockProduct(val dan: String, val stores: List<StockStore> = emptyList(),
     val checkedAt: String = "", val fromCache: Boolean = false, val error: String? = null)
