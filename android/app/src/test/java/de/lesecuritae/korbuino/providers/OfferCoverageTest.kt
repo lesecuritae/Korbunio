@@ -303,6 +303,27 @@ class OfferCoverageTest {
         }
     }
 
+    @Test fun `quantity typography merges duplicate sources but keeps variants and conditions`() = runTest {
+        val raw = result("Combino Nudeln")
+        val base = raw.copy(offers = raw.offers.map { it.copy(priceCents = 34, packSize = "500 g",
+            description = "Je 500 g", validFrom = "2026-11-16", validUntil = "2026-11-21") })
+        val duplicate = base.copy(offers = base.offers.map { it.copy(id = "other", externalId = "other",
+            packSize = "500g", description = "je 500g") })
+        val merged = SupplementingRetailerProvider(provider(base), provider(duplicate)).fetch(RetailerRequest("04109"))
+        assertEquals(base.offers, merged.offers)
+        for (variant in listOf(
+            duplicate.copy(offers = duplicate.offers.map { it.copy(description = "je 500g Vollkorn") }),
+            duplicate.copy(offers = duplicate.offers.map { it.copy(packSize = "1000g") }),
+            duplicate.copy(offers = duplicate.offers.map { it.copy(validFrom = "2026-11-19") }),
+            duplicate.copy(offers = duplicate.offers.map { it.copy(loyaltyCashbackCents = 10) }),
+            duplicate.copy(offers = duplicate.offers.map { it.copy(multiBuyCondition = "nur im Mix") }),
+            duplicate.copy(offers = duplicate.offers.map { it.copy(loyaltyLabel = "nur mit Coupon") }),
+            duplicate.copy(products = duplicate.products.map { it.copy(gtin = "1234567890123") }),
+        )) {
+            assertEquals(2, SupplementingRetailerProvider(provider(base), provider(variant)).fetch(RetailerRequest("04109")).offers.size)
+        }
+    }
+
     @Test fun `changed schema empty response and later page failure are distinguishable`() = runTest {
         for (body in listOf("{}", """{"results":{}}""", """{"results":[null]}""", """{"results":[]}""")) {
             MockWebServer().use { server ->

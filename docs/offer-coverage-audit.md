@@ -531,3 +531,11 @@ ungeklärte Globus-ab-Gruppen, ALDI-Süd-Prospekt unter dem normalen Host-DNS
 exakte Märkte in einzelnen PLZ, Drittanbieter-Timeouts sowie die mit
 `NOT_VERIFIED` markierten Filial- und Datumsabgleiche. Es gab keine produktive
 Installation und kein neues signiertes APK-Release.
+
+### Folgeprüfung: Dubletten aus ergänzenden Quellen (15.11.2026)
+
+Ein echter Lidl-Abruf für PLZ 04109 enthielt „Combino Nudeln“, 500 g, mit identischem Preis und Gültigkeitszeitraum zweimal. Die Quellen unterschieden sich nur in der Beschreibung (`Je 500 g` / `je 500g`) und den Leerzeichen der Datumsbeschriftung. Die gespeicherte Referenz liegt in `tests/fixtures/offer_coverage/lidl_same_offer_sources.json`.
+
+Die Zusammenführung normalisiert nun Schreibabstände vor Mengen-Einheiten und verwendet belegte Anfangs-/Enddaten statt ihrer formatierten Beschriftung. Die Primärquelle bleibt erhalten. Unterschiedliche Sorten, Packungen, Preise, GTINs, Pfandbeträge und Einkaufsbedingungen bleiben getrennt; ähnliche Namen allein werden nicht zusammengeführt. Native Android berücksichtigt diese Regeln ebenfalls und bewahrt abweichende Produktmetadaten trotz kollidierender Quell-IDs.
+
+Der unveränderte gespeicherte Abruf enthält nach dieser konservativen Korrektur 825 statt 826 Einträge; die belegte Nudeln-Dublette ist entfernt. Das ist keine Aussage über bundesweite Vollständigkeit oder die Identität anderer ähnlich benannter Angebote. Ein neuer Snapshot-Schlüssel erzwingt die erneute Verarbeitung bestehender Server-Caches, ohne gespeicherte Daten zu löschen.

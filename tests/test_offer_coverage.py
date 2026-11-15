@@ -406,3 +406,27 @@ def test_actual_next_week_dessert_is_not_imported_as_current_week():
     offer, = source.parse_viewer(raw, "2501324813", date(2026, 11, 16))
     assert (offer.price, offer.benefits[0].value, offer.pack_signature) == (2.49, 1.99, "125g")
     assert (offer.valid_from, offer.valid_until) == ("2026-11-16", "2026-11-21")
+
+
+def test_observed_lidl_source_spacing_collapses_without_losing_primary_evidence():
+    from supermarkt.models import offer_from_dict
+    rows = json.loads((FIXTURES / "lidl_same_offer_sources.json").read_text())
+    primary, supplemental = [offer_from_dict(row) for row in rows]
+    assert supplement_offers([primary], [supplemental]) == [primary]
+    assert deduplicate_offers([primary, supplemental]) == [primary]
+
+
+@pytest.mark.parametrize("change", [
+    {"description": "je 500g, Vollkorn"}, {"pack_signature": "1000g"},
+    {"valid_from": "2026-11-19"}, {"price": 0.49},
+    {"multi_buy_quantity": 2, "multi_buy_total_price": 0.68},
+    {"offer_condition": "nur mit Coupon"}, {"minimum_quantity": 2},
+    {"container_deposit": 0.25}, {"product_gtins": ("1234567890123",)},
+])
+def test_source_spacing_does_not_merge_different_variants_or_purchase_terms(change):
+    from supermarkt.models import offer_from_dict
+    rows = json.loads((FIXTURES / "lidl_same_offer_sources.json").read_text())
+    primary, other = [offer_from_dict(row) for row in rows]
+    other = replace(other, **change)
+    assert len(supplement_offers([primary], [other])) == 2
+    assert len(deduplicate_offers([primary, other])) == 2

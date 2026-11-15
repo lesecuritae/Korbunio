@@ -750,7 +750,7 @@ class SourceLoader:
 
 class SupermarketEngine:
     # v15 invalidates ALDI regions inferred from distant, sparsely tagged stores.
-    SNAPSHOT_SCHEMA = 16  # Re-fetch corrected quantities, conditional prices and Sale-only Müller data.
+    SNAPSHOT_SCHEMA = 17  # Re-fetch cross-source duplicates with normalized quantity typography.
     def __init__(self) -> None:
         self.store = PersistentSnapshotStore(CACHE_DB, CACHE_TTL_MINUTES, RESULT_RETENTION_HOURS, CACHE_MAX_SNAPSHOTS)
         self.loader = SourceLoader()

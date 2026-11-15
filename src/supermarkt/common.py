@@ -602,6 +602,25 @@ def _dedupe_aldi_sued_offer(unique: dict[tuple[Any, ...], Offer], offer: Offer, 
     key = identity + (vague, period)
     unique.setdefault(key, offer)
 
+def _description_identity(value: str) -> str:
+    text = clean_text(value).casefold()
+    # Typography only: do not remove variety names, conditions or punctuation.
+    return re.sub(r"(?<=\d)\s+(?=(?:kg|g|ml|l)\b)", "", text)
+
+
+def _period_identity(offer: Offer) -> tuple:
+    if parse_iso_date(offer.valid_from) and parse_iso_date(offer.valid_until):
+        return (offer.valid_from, offer.valid_until)
+    return (offer.valid_from, offer.valid_until, clean_text(offer.validity_label).casefold())
+
+
+def _purchase_terms(offer: Offer) -> tuple:
+    return (offer.benefits, offer.deposit, offer.container_deposit, offer.packaging_deposit,
+            offer.multi_buy_quantity, offer.multi_buy_total_price, offer.single_price,
+            offer.pack_size, offer.multi_buy_condition, offer.multi_buy_mix_group,
+            offer.minimum_quantity, offer.offer_condition, offer.comparison_eligible)
+
+
 def deduplicate_offers(offers: Iterable[Offer]) -> list[Offer]:
     unique: dict[tuple[Any, ...], Offer] = {}
     for offer in offers:
@@ -612,11 +631,12 @@ def deduplicate_offers(offers: Iterable[Offer]) -> list[Offer]:
         key = (
             offer.retailer,
             offer.match_key,
+            normalize_pack(offer.pack_signature),
             offer.price,
-            benefits,
-            offer.validity_label,
+            _purchase_terms(offer),
+            _period_identity(offer),
             tuple(offer.product_gtins),
-            re.sub(r"[^\w]+", " ", clean_text(offer.description).casefold()).strip(),
+            _description_identity(offer.description),
         )
         unique.setdefault(key, offer)
     return list(unique.values())
@@ -914,8 +934,8 @@ def supplement_offers(primary: Iterable[Offer], supplemental: Iterable[Offer]) -
     def identity(offer: Offer) -> tuple:
         return (offer.retailer, text(offer.name), text(offer.brand),
                 normalize_pack(offer.pack_signature), offer.price,
-                offer.valid_from, offer.valid_until, text(offer.description),
-                offer.benefits, offer.deposit, tuple(offer.product_gtins))
+                _period_identity(offer), _description_identity(offer.description),
+                _purchase_terms(offer), tuple(offer.product_gtins))
 
     result = list(primary)
     seen = {identity(offer) for offer in result}
