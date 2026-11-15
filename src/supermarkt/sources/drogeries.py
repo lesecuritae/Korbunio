@@ -42,7 +42,7 @@ class OfficialRossmannSource:
                     [
                         chromium_command(), "--headless=new", "--no-sandbox", "--disable-gpu",
                         "--disable-software-rasterizer", "--disable-crashpad-for-testing", "--single-process",
-                        "--disable-dev-shm-usage", "--virtual-time-budget=12000",
+                        "--disable-dev-shm-usage", "--virtual-time-budget=20000",
                         f"--user-data-dir={profile}", "--dump-dom", url,
                     ],
                     capture_output=True,
@@ -88,12 +88,26 @@ class OfficialRossmannSource:
             from bs4 import BeautifulSoup
         except Exception as exc:  # pragma: no cover
             raise ToolError(f"Rossmann benötigt BeautifulSoup: {exc}") from exc
-        page = BeautifulSoup(self.renderer(self.OFFERS_URL), "html.parser")
-        start, end = self._validity(page.get_text(" ", strip=True))
-        if not start or not end or start > end:
+        # A fresh render can occasionally finish before the validity banner has
+        # rendered (a client-side timing gap, not a wording problem - that was
+        # fixed separately). One extra real render attempt absorbs that gap
+        # without weakening the strict validation below.
+        page = start = end = None
+        for _attempt in range(2):
+            candidate = BeautifulSoup(self.renderer(self.OFFERS_URL), "html.parser")
+            candidate_start, candidate_end = self._validity(candidate.get_text(" ", strip=True))
+            if candidate_start and candidate_end and candidate_start <= candidate_end:
+                page, start, end = candidate, candidate_start, candidate_end
+                break
+        if page is None:
             raise ToolError("Rossmann: veröffentlichte Angebotsgültigkeit nicht lesbar oder widersprüchlich")
         result: list[Offer] = []
-        for index, card in enumerate(page.select('[data-testid="product-card"]'), 1):
+        # Rossmann dropped the data-testid="product-card" marker from this
+        # page (it now renders through the same template as their generic
+        # search results); the per-tile data-item-id attribute is still on
+        # the same element, so select on that, keeping the old marker too
+        # in case it comes back.
+        for index, card in enumerate(page.select('[data-testid="product-card"], [data-item-id]'), 1):
             text = clean_text(card.get_text(" ", strip=True))
             if "Aus der Werbung" not in text:
                 continue
