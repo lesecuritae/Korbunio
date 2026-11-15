@@ -33,17 +33,38 @@ class SupplementingRetailerProvider(
                 "Ergänzende Quelle fehlgeschlagen (${error.javaClass.simpleName}): ${error.message.orEmpty().take(160)}")
         }
         check(second.offers.all { it.retailerId == id }) { "Ergänzende Quelle liefert falschen Händler" }
+        // Both parsers can derive the same ID from a product name. Preserve
+        // conflicting metadata (e.g. different GTINs) instead of overwriting it.
+        val firstProducts = first?.products.orEmpty().associateBy { it.id }
+        val occupied = (firstProducts.keys + second.products.map { it.id }).toMutableSet()
+        val renamed = mutableMapOf<String, String>()
+        val secondProducts = second.products.map { product ->
+            if (firstProducts[product.id]?.let { it != product } == true) {
+                var candidate = "${product.id}:supplement"
+                while (!occupied.add(candidate)) candidate += ":supplement"
+                renamed[product.id] = candidate
+                product.copy(id = candidate)
+            } else product
+        }
+        val secondOffers = second.offers.map { offer ->
+            renamed[offer.productId]?.let { offer.copy(productId = it) } ?: offer
+        }
         val products = linkedMapOf<String, ProductEntity>()
-        ((first?.products ?: emptyList()) + second.products).forEach { products.putIfAbsent(it.id, it) }
+        ((first?.products ?: emptyList()) + secondProducts).forEach { products.putIfAbsent(it.id, it) }
         fun text(value: String) = value.lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+        fun quantityText(value: String) = value.lowercase(Locale.ROOT).trim()
+            .replace(Regex("\\s+"), " ")
+            .replace(Regex("(?<=\\d)\\s+(?=(?:kg|g|ml|l)\\b)"), "")
         fun key(offer: OfferEntity): List<Any?> {
             val product: ProductEntity = products[offer.productId] ?: error("Angebot ohne Produkt")
             return listOf(offer.retailerId, text(product.name), text(product.brand),
-                offer.priceCents, offer.packSize?.let(::text), offer.validFrom, offer.validUntil,
-                text(offer.description), offer.loyaltyProgram, offer.loyaltyPriceCents,
-                offer.loyaltyBenefitsJson, offer.multiBuyQuantity, offer.multiBuyTotalCents, offer.depositCents)
+                offer.priceCents, offer.packSize?.let(::quantityText), offer.validFrom, offer.validUntil,
+                quantityText(offer.description), product.gtin,
+                offer.loyaltyProgram, offer.loyaltyLabel, offer.loyaltyPriceCents, offer.loyaltyCashbackCents,
+                offer.loyaltyBenefitsJson, offer.multiBuyQuantity, offer.multiBuyTotalCents, offer.depositCents,
+                offer.singlePriceCents, offer.multiBuyCondition, offer.multiBuyMixGroup)
         }
-        val offers = ((first?.offers ?: emptyList()) + second.offers).distinctBy(::key)
+        val offers = ((first?.offers ?: emptyList()) + secondOffers).distinctBy(::key)
         val used = offers.map { it.productId }.toSet()
         return ProviderResult(products.values.filter { it.id in used }, offers,
             storeId = first?.storeId ?: second.storeId,
