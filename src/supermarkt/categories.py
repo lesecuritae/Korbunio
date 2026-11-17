@@ -23,9 +23,14 @@ _PRODUCT_RULES = (
     ("Drogerie & Körperpflege", r"\b(?:lippenbalsam|lippenpflege|lippenstift|duschgel|duschbad|bodylotion|handcreme|gesichts\w*|deo|deodorant|zahnpasta|zahnbuerste|zahnbürste|sonnencreme|haarspuelung|haarspülung|waschschaum)\b"),
     ("Baby & Kind", r"\b(?:quetschie|babyshampoo|body|strampler)\b|\bab \d+ (?:monaten|jahr\w*)\b|\bgr \d+ \d+\b"),
     ("Wohnen, Freizeit & Non-Food", r"\b(?:kochbuch|backbuch|buch)\b"),
+    # Winter-/Autozubehör erwähnt in Name/Beschreibung meist „Eis“/„Schnee“ und würde sonst von der
+    # Speiseeis-Regel unten erfasst (Issue #91: Eiskratzer, Sprühenteiser).
+    ("Wohnen, Freizeit & Non-Food", r"\b(?:eiskratzer|scheibenenteiser|sprühenteiser|spruehenteiser|enteiser\w*|frostschutz\w*|scheibenfrostschutz)\b"),
     ("Tierbedarf", r"\b(?:katzen\w*|hunde\w*|\w*futter|tiernahrung)\b"),
     # „eis“ nur als Speiseeis: Das frühere `\w*eis` traf auch Reis, Preis, Hinweis (Netto schreibt „HINWEIS: MIT NETTO PLUS APP …“
 # in fast jede Beschreibung) und sortierte Fleisch, Gemüse und Getränke in diese Gruppe (Issue #46).
+    # Das blanke `eis` bleibt noetig fuer Namen wie „Eis am Stiel“; Winter-/Autoartikel wie Eiskratzer
+    # oder Enteiser werden stattdessen durch die eigene Regel oben VOR dieser hier abgefangen (Issue #91).
     ("Tiefkühl / Eis & Dessert", r"\b(?:ice cream|eiscreme|eisbecher|eiskonfekt|eistorte|eiskugel|eiswaffel|speiseeis|stieleis|wassereis|softeis|milcheis|sahneeis|cremeeis|fruchteis|joghurteis|vanilleeis|schokoladeneis|erdbeereis|gelato|calippo|pirulo|dessert|mousse|eis)\b"),
     ("Haushalt & Reinigung", r"\b(?:bodenkehrer|kehrmaschine|besen|wischmopp|staubsauger|wc reiniger|\w*reiniger|grillanzuender|grillanzünder)\b"),
     ("Tierbedarf", r"\b(?:katzenfutter|hundefutter|katzenstreu|tierzubehoer|tierzubehör|tierfutter)\b"),
