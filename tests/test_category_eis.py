@@ -14,4 +14,14 @@ assert category_decision("", "", "Eistee Pfirsich", "").category != ICE and cate
 for name in ("Langnese Cremissimo Vanilleeis", "Magnum Eis am Stiel", "Schoko Speiseeis", "Häagen Dazs Eiscreme", "Ehrmann Grand Dessert", "Gelato d’Italia Eisbecher"):
     assert category_decision("", "", name, "").category == ICE, name
 assert category_decision("Tiefkühlgerichte", "", "Genuss Welt Fertiggerichte", "").category == ICE
+
+# Issue #91: Winter-/Autoartikel nennen in der Beschreibung „Schnee und Eis“ oder „gegen Eis“ und
+# landeten dadurch fälschlich in der Speiseeis-Gruppe statt bei Non-Food.
+NONFOOD = "Wohnen, Freizeit & Non-Food"
+assert category_decision("Tiefkühlkost", "K-Classic", "Sprühenteiser-Nachfüllung",
+                          "Enteiser-Spray zum Entfernen von Eis und Schnee auf Scheiben und Schloessern.").category == NONFOOD
+assert category_decision("Tiefkühlkost", "Ultimate Speed", "Eiskratzer mit Buerste",
+                          "Zum schnellen Entfernen von Schnee und Eis. Mit Schneefeger, Abstreiflippe und Buerste.").category == NONFOOD
+assert category_decision("Auto & Freizeit", "Ultimate Speed", "Eiskratzer mit Buerste",
+                          "Zum schnellen Entfernen von Schnee und Eis.").category == NONFOOD
 print("Nur Speiseeis und Desserts landen in der Eis-Gruppe: OK")
