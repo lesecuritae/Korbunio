@@ -1,3 +1,13 @@
+## 0.1.83
+
+### Deutsch
+
+- Winter-/Autoartikel wie Enteiser-Spray und Eiskratzer landeten fälschlich unter "Tiefkühl / Eis & Dessert": ihre Beschreibung erwähnt naturgemäß "Schnee und Eis", was dieselbe Erkennungsregel wie für Speiseeis auslöste und sogar eine korrekte Nicht-Lebensmittel-Kategorie überschrieb. Solche Produkte werden jetzt gezielt als "Wohnen, Freizeit & Non-Food" erkannt, bevor die Speiseeis-Regel greift.
+
+### English
+
+- Winter/car-care items like de-icer spray and ice scrapers were incorrectly showing up under "Tiefkühl / Eis & Dessert": their description naturally mentions "Schnee und Eis" (snow and ice), which triggered the same rule meant for actual ice cream and even overrode a correct non-food category. These items are now specifically recognized as "Wohnen, Freizeit & Non-Food" before the ice-cream rule is checked.
+
 ## 0.1.82
 
 ### Deutsch
