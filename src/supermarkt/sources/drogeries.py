@@ -88,19 +88,19 @@ class OfficialRossmannSource:
             from bs4 import BeautifulSoup
         except Exception as exc:  # pragma: no cover
             raise ToolError(f"Rossmann benötigt BeautifulSoup: {exc}") from exc
-        # A fresh render can occasionally finish before the validity banner has
-        # rendered (a client-side timing gap, not a wording problem - that was
-        # fixed separately). One extra real render attempt absorbs that gap
-        # without weakening the strict validation below.
+        # Retry once for late banners, but do not require a banner that the
+        # official page does not always publish. Coupon footnotes are not
+        # evidence of a flyer-wide period. Malformed published banners still fail.
         page = start = end = None
         for _attempt in range(2):
-            candidate = BeautifulSoup(self.renderer(self.OFFERS_URL), "html.parser")
-            candidate_start, candidate_end = self._validity(candidate.get_text(" ", strip=True))
-            if candidate_start and candidate_end and candidate_start <= candidate_end:
-                page, start, end = candidate, candidate_start, candidate_end
+            page = BeautifulSoup(self.renderer(self.OFFERS_URL), "html.parser")
+            text = page.get_text(" ", strip=True)
+            start, end = self._validity(text)
+            if start and end and start <= end:
                 break
-        if page is None:
-            raise ToolError("Rossmann: veröffentlichte Angebotsgültigkeit nicht lesbar oder widersprüchlich")
+            if re.search(r"gültig\s+ab\s+\w+\s*:|(?:täglich\s+)?gültig\s+vom\s+\d{2}\.\d{2}\.\s*[-–]", text, re.I):
+                raise ToolError("Rossmann: veröffentlichte Angebotsgültigkeit nicht lesbar oder widersprüchlich")
+            start = end = None
         result: list[Offer] = []
         # Rossmann dropped the data-testid="product-card" marker from this
         # page (it now renders through the same template as their generic
@@ -140,11 +140,13 @@ class OfficialRossmannSource:
             dan = clean_text(card.get("data-item-id"))
             result.append(Offer(
                 offer_id, "Rossmann", "Drogerie", name, "", details, price,
-                base_price, base_unit, pack, "Aktuelle Werbung" if not start else f"{start:%d.%m.}–{end:%d.%m.%Y}",
+                base_price, base_unit, pack, "Werbung – Gültigkeit unbestätigt" if not start else f"{start:%d.%m.}–{end:%d.%m.%Y}",
                 build_match_key("", name, pack, offer_id), self.OFFERS_URL,
                 image_url=urljoin(self.OFFERS_URL, clean_text(image.get("src"))) if image else "",
                 product_url=product_url, retailer_url=self.last_market_url,
-                coverage_note="Offizielle Rossmann-Werbung; lokale Verfügbarkeit vorbehalten",
+                coverage_note="Offizielle Rossmann-Werbung; lokale Verfügbarkeit vorbehalten" + (
+                    "; kein seitenweiter Zeitraum veröffentlicht, Gültigkeit unbestätigt" if not start else ""
+                ),
                 valid_from=start.isoformat() if start else None,
                 valid_until=end.isoformat() if end else None,
                 article_number=dan if re.fullmatch(r"[0-9]{6}", dan) else "",

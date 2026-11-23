@@ -25,7 +25,7 @@ def test_five_published_cards_keep_actual_cash_prices_primary_pack_and_week():
         OfficialRossmannSource(lambda _url: HTML.replace("Aus der Werbung", "Reguläres Sortiment")).load("50939")
 
 
-@pytest.mark.parametrize("header", ["Unbekanntes Schema", "Gültig ab Montag: 31.11. - 13.11.2026", "Gültig ab Montag: 14.11. - 13.11.2026"])
+@pytest.mark.parametrize("header", ["Gültig ab Montag: 31.11. - 13.11.2026", "Gültig ab Montag: 14.11. - 13.11.2026"])
 def test_missing_invalid_or_reversed_week_is_not_imported_as_undated_offers(header):
     html = HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", header)
     with pytest.raises(ToolError, match="(?i)gültigkeit"):
@@ -80,13 +80,45 @@ def test_cards_without_the_product_card_testid_are_still_found_by_item_id():
     }
 
 
-def test_a_render_that_never_gets_the_validity_banner_still_fails_closed():
+def test_missing_period_keeps_only_advertised_cards_with_explicit_unknown_validity():
     calls = []
+    html = HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "")
+    # A coupon footnote must never become the period for all advertised cards.
+    html += "<footer>Gültig vom 16.11.2026 bis 20.11.2026. Gültig bis zum 31.12.2026.</footer>"
 
     def renderer(_url):
         calls.append(1)
-        return HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "")
+        return html
 
-    with pytest.raises(ToolError, match="(?i)gültigkeit"):
-        OfficialRossmannSource(renderer).load("50939")
+    offers = OfficialRossmannSource(renderer).load("50939")
     assert len(calls) == 2
+    assert len(offers) == 5
+    assert all(o.valid_from is None and o.valid_until is None for o in offers)
+    assert all("unbestätigt" in o.validity_label and "unbestätigt" in o.coverage_note for o in offers)
+    assert offers[0].price == 5.49
+    assert offers[0].article_number == "712569"
+    with pytest.raises(ToolError, match="keine lesbaren Werbeangebote"):
+        OfficialRossmannSource(lambda _: html.replace("Aus der Werbung", "Sortiment")).load("50939")
+
+
+def test_missing_period_does_not_hide_a_broken_render():
+    with pytest.raises(ToolError, match="keine lesbaren Werbeangebote"):
+        OfficialRossmannSource(lambda _: "<html>Access denied</html>").load("50939")
+
+
+def test_missing_period_survives_response_and_mcp_search(monkeypatch, tmp_path):
+    from dataclasses import asdict
+    from supermarkt import config, mcp_server, runtime
+    from supermarkt.service import SupermarketEngine
+
+    monkeypatch.setattr(config, "HISTORY_DB", tmp_path / "history.sqlite3")
+    monkeypatch.setattr(runtime, "get_engine", lambda: SupermarketEngine())
+    html = HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "")
+    offers = OfficialRossmannSource(lambda _: html).load("50939")
+    snapshot = {"search_id": "rossmann-93", "postal_code": "50939", "offers": [asdict(o) for o in offers], "retailers": {}, "request_errors": []}
+    result = mcp_server._offers_from(snapshot, "Melitta", None, ("Rossmann",))
+    assert len(result) == 1
+    assert result[0].price_without_bonus == "5,49 €"
+    assert result[0].valid_from == result[0].valid_until == ""
+    assert "Gültigkeit unbestätigt" in result[0].valid
+    assert "Gültigkeit unbestätigt" in mcp_server._valid_text(result[0])

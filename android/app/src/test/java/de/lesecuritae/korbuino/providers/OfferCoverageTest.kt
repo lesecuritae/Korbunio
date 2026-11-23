@@ -217,7 +217,41 @@ class OfferCoverageTest {
         }
     }
 
-    @Test fun `published weekly HTML does not become next week or undated after schema changes`() = runTest {
+    @Test fun `Rossmann missing period does not inherit coupon expiry or invent a preview`() = runTest {
+        val html = fixture("rossmann_published_cards.html")
+            .replace("Gültig ab Montag: 09.11. - 13.11.2026", "")
+            .replace("data-testid=\"product-card\"", "") +
+            "<footer>Gültig vom 16.11.2026 bis 20.11.2026. Gültig bis zum 31.12.2026.</footer>"
+        MockWebServer().use { server ->
+            server.start()
+            val provider = HtmlFlyerProvider("rossmann", "Rossmann", server.url("/offers").toString(), OkHttpClient())
+            server.enqueue(MockResponse().setBody(html))
+            val result = provider.fetch(RetailerRequest("10115"))
+            assertEquals(5, result.offers.size)
+            assertTrue(result.offers.all { it.validFrom == null && it.validUntil == null && it.description.contains("Gültigkeit unbestätigt") })
+            assertEquals(549, result.offers.first { it.externalId == "712569" }.priceCents)
+            server.enqueue(MockResponse().setBody(html))
+            assertTrue(provider.fetch(RetailerRequest("10115", week = OfferWeek.NEXT)).offers.isEmpty())
+            server.enqueue(MockResponse().setBody(html.replace("Aus der Werbung", "Sortiment")))
+            assertTrue(runCatching { provider.fetch(RetailerRequest("10115")) }.isFailure)
+        }
+    }
+
+    @Test fun `Rossmann daily period remains dated and invalid period is refused`() = runTest {
+        MockWebServer().use { server ->
+            server.start()
+            val provider = HtmlFlyerProvider("rossmann", "Rossmann", server.url("/offers").toString(), OkHttpClient(),
+                now = { java.time.LocalDate.of(2026, 11, 10) })
+            for (period in listOf("Täglich gültig vom 09.11. – 13.11.2026", "Gültig ab Montag: 31.11. - 13.11.2026", "Gültig ab Montag: 14.11. - 13.11.2026")) {
+                server.enqueue(MockResponse().setBody(fixture("rossmann_published_cards.html").replace("Gültig ab Montag: 09.11. - 13.11.2026", period)))
+                val result = runCatching { provider.fetch(RetailerRequest("10115")) }
+                if (period.startsWith("Täglich")) assertTrue(result.getOrThrow().offers.all { it.validUntil == "2026-11-13" })
+                else assertTrue(result.isFailure)
+            }
+        }
+    }
+
+    @Test fun `published weekly HTML never invents next week and missing periods follow retailer policy`() = runTest {
         for ((id, file) in listOf("rossmann" to "rossmann_published_cards.html", "netto-schwarz" to "netto_black_integer_price.html")) {
             MockWebServer().use { server ->
                 server.start()
@@ -227,7 +261,11 @@ class OfferCoverageTest {
                 server.enqueue(MockResponse().setBody(html))
                 assertTrue(provider.fetch(RetailerRequest("50939", week = OfferWeek.NEXT)).offers.isEmpty())
                 server.enqueue(MockResponse().setBody(html.replace(Regex("<h2>.*?</h2>|<p>Gültig ab Montag:.*?</p>"), "")))
-                assertTrue(runCatching { provider.fetch(RetailerRequest("50939")) }.isFailure)
+                val missingPeriod = runCatching { provider.fetch(RetailerRequest("50939")) }
+                if (id == "rossmann") {
+                    assertEquals(5, missingPeriod.getOrThrow().offers.size)
+                    assertTrue(missingPeriod.getOrThrow().sourceWarnings.single().contains("Gültigkeit unbestätigt"))
+                } else assertTrue(missingPeriod.isFailure)
             }
         }
     }
