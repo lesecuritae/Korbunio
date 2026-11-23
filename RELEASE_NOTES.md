@@ -1,3 +1,15 @@
+## 0.1.84
+
+### Deutsch
+
+- Rossmann-Angebote lassen sich auch laden, wenn die offizielle Seite keinen übergreifenden Angebotszeitraum veröffentlicht. Docker/Web/MCP und Android kennzeichnen diese Artikel ausdrücklich mit „Gültigkeit unbestätigt“. Coupon-Fristen werden nicht auf andere Produkte übertragen; es werden keine Angebotsdaten erfunden.
+- Vorhandene gültige Zeiträume bleiben erhalten. Fehlerhafte oder widersprüchliche Datumsangaben werden weiterhin abgewiesen. Android erkennt außerdem die neuere Formulierung „Täglich gültig vom …“ und Karten ohne die frühere `product-card`-Markierung. Undatierte Artikel gelten nicht als bestätigte Android-Folgewoche.
+
+### English
+
+- Rossmann offers can be loaded when the official page does not publish a catalogue-wide validity period. Docker/web/MCP and Android explicitly label these items as having unconfirmed validity. Coupon footnotes never supply dates for unrelated products; no dates are invented.
+- Published valid periods remain intact; malformed or reversed dates are still rejected. Android also supports the newer daily-period wording and cards without the old `product-card` marker. Undated items do not establish an Android next-week preview.
+
 ## 0.1.83
 
 ### Deutsch

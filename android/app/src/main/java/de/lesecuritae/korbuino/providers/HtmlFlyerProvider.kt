@@ -80,8 +80,16 @@ class HtmlFlyerProvider(
         val products = mutableListOf<ProductEntity>()
         val offers = mutableListOf<OfferEntity>()
         val warnings = mutableListOf<String>()
+        val unknownRossmannPeriod = id == "rossmann" && period == null
+        val validityWarning = "Rossmann: Gültigkeit unbestätigt; kein seitenweiter Zeitraum veröffentlicht."
+        if (unknownRossmannPeriod) {
+            // An undated catalogue cannot establish a next-week preview.
+            if (week == OfferWeek.NEXT) return ProviderResult(emptyList(), emptyList(), paginationComplete = true, sourceWarnings = listOf(validityWarning))
+            warnings += validityWarning
+        }
         val references = linkedMapOf<String, StockReference>()
         val cards = doc.select(
+            (if (id == "rossmann") "[data-item-id], " else "") +
             "[data-product], [data-testid*=product], .offer, .offer-card, .product-card, " +
                 ".product-tile, .kloffer, [aria-label^=\"product-\"], article, li[class*=offer], li[class*=product]",
         )
@@ -156,7 +164,7 @@ class HtmlFlyerProvider(
                 externalId = external, priceCents = java.math.BigDecimal.valueOf(price).movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).intValueExact(),
                 sourceUrl = offersUrl, imageUrl = image, cachedAt = System.currentTimeMillis(),
                 validFrom = period?.first?.toString(), validUntil = period?.second?.toString(),
-                description = details,
+                description = if (unknownRossmannPeriod) "$details · $validityWarning".trimStart(' ', '·') else details,
                 packSize = ProviderParsing.packSize(publishedPack ?: "$name $details"),
                 loyaltyProgram = memberPrice?.let { "netto_scottie_plus" }, loyaltyLabel = memberPrice?.let { "Netto+ App-Preis" },
                 loyaltyPriceCents = memberPrice?.let(ProviderParsing::cents),
@@ -173,8 +181,14 @@ class HtmlFlyerProvider(
             val values = match.groupValues.drop(1).map(String::toInt)
             java.time.LocalDate.of(values[2], values[1], values[0]) to java.time.LocalDate.of(values[5], values[4], values[3])
         } else {
-            val match = Regex("Gültig\\s+ab\\s+\\w+\\s*:\\s*(\\d{2})\\.(\\d{2})\\.\\s*-\\s*(\\d{2})\\.(\\d{2})\\.(\\d{4})", RegexOption.IGNORE_CASE)
-                .find(text) ?: error("Rossmann: veröffentlichte Angebotsgültigkeit fehlt")
+            val match = Regex("Gültig\\s+(?:ab\\s+\\w+\\s*:|vom)\\s*(\\d{2})\\.(\\d{2})\\.\\s*[-–]\\s*(\\d{2})\\.(\\d{2})\\.(\\d{4})", RegexOption.IGNORE_CASE)
+                .find(text)
+            if (match == null) {
+                check(!Regex("gültig\\s+ab\\s+\\w+\\s*:|(?:täglich\\s+)?gültig\\s+vom\\s+\\d{2}\\.\\d{2}\\.\\s*[-–]", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+                    "Rossmann: veröffentlichte Angebotsgültigkeit nicht lesbar"
+                }
+                return null
+            }
             val values = match.groupValues.drop(1).map(String::toInt)
             val startYear = values[4] - if (values[1] > values[3]) 1 else 0
             java.time.LocalDate.of(startYear, values[1], values[0]) to java.time.LocalDate.of(values[4], values[3], values[2])
