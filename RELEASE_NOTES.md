@@ -1,3 +1,15 @@
+## 0.1.85
+
+### Deutsch
+
+- Der Android-Servermodus fragt nur die ausgewählten Händler ab. Bei „Alle Händler“ lädt er wie bisher das gesamte Sortiment. Die Rossmann-Artikelnummer bleibt beim Import erhalten, damit die App den zugehörigen Filialbestand direkt am Angebot anzeigen kann.
+- Schlägt bei Rossmann der zweite Browserabruf fehl, behält Docker/Web/MCP die bereits lesbaren Werbeartikel. Ohne bestätigten Angebotszeitraum erscheint „Gültigkeit unbestätigt“.
+
+### English
+
+- Android server mode requests the selected retailers. Choosing all retailers still loads the full catalogue. Rossmann article numbers are preserved during import so the app can show the corresponding store stock on the offer card.
+- If the second Rossmann browser request fails, Docker/Web/MCP retains the readable advertised items. Offers without a confirmed publication period remain marked as having unconfirmed validity.
+
 ## 0.1.84
 
 ### Deutsch
