@@ -92,8 +92,16 @@ class OfficialRossmannSource:
         # official page does not always publish. Coupon footnotes are not
         # evidence of a flyer-wide period. Malformed published banners still fail.
         page = start = end = None
+        retry_error = None
         for _attempt in range(2):
-            page = BeautifulSoup(self.renderer(self.OFFERS_URL), "html.parser")
+            try:
+                html = self.renderer(self.OFFERS_URL)
+            except ToolError as exc:
+                if page is None:
+                    raise
+                retry_error = exc
+                break
+            page = BeautifulSoup(html, "html.parser")
             text = page.get_text(" ", strip=True)
             start, end = self._validity(text)
             if start and end and start <= end:
@@ -152,6 +160,8 @@ class OfficialRossmannSource:
                 article_number=dan if re.fullmatch(r"[0-9]{6}", dan) else "",
             ))
         if not result:
+            if retry_error is not None:
+                raise retry_error
             raise ToolError("Rossmann lieferte keine lesbaren Werbeangebote")
         return result
 

@@ -37,6 +37,25 @@ class ServerProviderTest {
         }
     }
 
+    @Test fun `scoped server search keeps its selected retailer and stock reference across pages`() = runTest {
+        for (page in 1..2) {
+            server.enqueue(MockResponse().setBody("""
+                {"page":$page,"page_count":2,"offers":[{"offer_id":"$page","retailer":"Rossmann","product":"Produkt $page","regular_price":2.99,"article_number":"15444$page"}]}
+            """))
+        }
+        val result = ServerProvider(
+            server.url("/").toString(), "", OkHttpClient(), requestedRetailers = listOf("Rossmann"),
+        ).fetch(RetailerRequest("04209"))
+
+        assertEquals(listOf("Rossmann", "Rossmann"), result.offers.map { it.retailerId })
+        assertEquals(StockReference("Rossmann", "154441"), result.stockReferences["server:1"])
+        assertEquals(StockReference("Rossmann", "154442"), result.stockReferences["server:2"])
+        for (page in 1..2) {
+            val payload = server.takeRequest().body.readUtf8()
+            org.junit.Assert.assertTrue(payload.contains("\"retailers\":[\"Rossmann\"]"))
+        }
+    }
+
     @Test fun `server import preserves every program and simultaneous price and cashback choices`() = runTest {
         val programs = listOf("rewe_bonus", "lidl_plus", "penny_app", "netto_plus",
             "netto_scottie_plus", "kaufland_xtra", "edeka_app", "marktkauf_app",

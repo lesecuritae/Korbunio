@@ -65,6 +65,22 @@ def test_a_render_without_the_validity_banner_yet_is_retried_once():
     assert all((o.valid_from, o.valid_until) == ("2026-11-09", "2026-11-13") for o in offers)
 
 
+def test_a_failed_banner_retry_preserves_readable_undated_offers():
+    undated = HTML.replace("Gültig ab Montag: 09.11. - 13.11.2026", "")
+    calls = []
+
+    def renderer(_url):
+        calls.append(1)
+        if len(calls) == 2:
+            raise ToolError("Rossmann-Browserabruf fehlgeschlagen")
+        return undated
+
+    offers = OfficialRossmannSource(renderer).load("50939")
+    assert len(calls) == 2
+    assert len(offers) == 5
+    assert all(o.valid_from is None and o.valid_until is None for o in offers)
+
+
 def test_cards_without_the_product_card_testid_are_still_found_by_item_id():
     """Rossmann dropped data-testid="product-card" from the tiles when it moved this
     page onto its generic search-results template; data-item-id stayed on the same

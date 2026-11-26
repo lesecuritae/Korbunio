@@ -22,10 +22,9 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * Self-hosted Korbuino API. Without [retailerName] it returns the server's
- * consolidated result for every retailer (server mode). With it, it asks the
- * server for that one retailer, whose offers are stored under [localId]; the
- * server fetches with curl_cffi, so it gets through where the app is blocked.
+ * Self-hosted Korbuino API. Server mode batches [requestedRetailers] in one
+ * search; an empty list means every retailer. The single-retailer fallback
+ * uses [retailerName] and stores its offers under [localId].
  */
 class ServerProvider(
     private val baseUrl: String,
@@ -33,6 +32,7 @@ class ServerProvider(
     private val http: OkHttpClient,
     private val retailerName: String? = null,
     private val localId: String? = null,
+    private val requestedRetailers: List<String> = listOfNotNull(retailerName),
 ) : RetailerProvider {
     override val id = localId ?: "korbuino-server"
     override val displayName = retailerName ?: "Korbuino Server"
@@ -59,7 +59,7 @@ class ServerProvider(
                 put("offer_week", if (request.week == OfferWeek.NEXT) "next" else "current")
                 // Lets the app load product images itself, like for its own offers. Older servers ignore it.
                 put("include_image_urls", true)
-                putJsonArray("retailers") { retailerName?.let { add(JsonPrimitive(it)) } }
+                putJsonArray("retailers") { requestedRetailers.forEach { add(JsonPrimitive(it)) } }
                 // Page through the complete result in both server and fallback modes.
                 put("view", "all")
                 put("page", page)

@@ -564,10 +564,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val serverToken = secureStore.get("server_token").orEmpty()
             val http = NetworkClientFactory.create(getApplication())
+            val chosen = RetailerSelection.parse(current.retailerId, retailers.map { it.first })
             val providers = if (current.serverMode && current.serverUrl.isNotBlank()) {
-                listOf(ServerProvider(current.serverUrl, serverToken, http))
+                val names = chosen.mapNotNull(registry::byId).map { it.serverName() }.distinct()
+                listOf(ServerProvider(current.serverUrl, serverToken, http, requestedRetailers = names))
             } else {
-                val chosen = selectedRetailers()
                 val direct = if (chosen.isEmpty()) registry.all() else chosen.mapNotNull(registry::byId)
                 // With a server address set, blocked retailers (403) are retried through the server.
                 if (current.serverUrl.isBlank()) direct else direct.map { provider ->
