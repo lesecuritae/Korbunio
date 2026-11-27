@@ -5,18 +5,23 @@ import java.text.Normalizer
 /** Finds the loaded offers that belong to a shopping-list entry such as "Nutella". */
 object OfferMatcher {
     private val gameStewSubtype = Regex("""\b(?:wildschwein|hirsch|reh)[ -]?gulasch\b""")
+    private val ingredientQualifiers = setOf("mit", "ohne", "enthalt")
+    private val ingredientNote = Regex("""\b(?:mit|ohne|enth[äa]lt)\s+[^,;.!?…]+""", RegexOption.IGNORE_CASE)
+
     /**
-     * Offers whose name contains every word of [query], cheapest first. Case,
+     * Offers matching every word of [query], cheapest first. Case,
      * accents and ß are ignored, so "nutella" finds "Nutella Nuss-Nougat-Creme".
      */
     fun matches(query: String, offers: List<OfferDisplay>): List<OfferDisplay> {
         val words = normalize(query).split(' ').filter { it.length >= 2 }
         if (words.isEmpty()) return emptyList()
+        val searchIngredients = words.any(ingredientQualifiers::contains)
         // "energydrink", "Energy Drink" and "Energy-Drink" are one search, as in the server filter.
         val compactQuery = words.joinToString("")
         return offers
             .filter { offer ->
-                val haystack = normalize("${offer.productName} ${offer.brand} ${offer.offer.description} ${offer.offer.packSize.orEmpty()}")
+                val description = if (searchIngredients) offer.offer.description else ingredientNote.replace(offer.offer.description, " ")
+                val haystack = normalize("${offer.productName} ${offer.brand} $description ${offer.offer.packSize.orEmpty()}")
                 words.all { word -> word in haystack || (word == "wildgulasch" && gameStewSubtype.containsMatchIn(haystack)) } || (compactQuery.length >= 4 && compactQuery in haystack.replace(" ", ""))
             }
             .sortedBy { it.offer.priceCents }
