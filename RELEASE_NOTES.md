@@ -1,3 +1,13 @@
+## 0.1.86
+
+### Deutsch
+
+- Die Angebotssuche in Android, Web und MCP unterscheidet Produktangaben von Zutatenhinweisen. „Milch“ findet weiterhin H-Milch, aber keine Katzenpastete, nur weil in der Beschreibung „mit Milch“ steht. Bei einer ausdrücklichen Suche nach „mit Milch“ bleiben solche Hinweise auffindbar.
+
+### English
+
+- Offer search in Android, Web, and MCP distinguishes product information from ingredient notes. Searching for “Milch” still finds shelf-stable milk and skips cat food whose description only mentions milk as an ingredient. An explicit search for “mit Milch” still matches those notes.
+
 ## 0.1.85
 
 ### Deutsch

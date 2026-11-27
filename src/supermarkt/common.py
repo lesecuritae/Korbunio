@@ -137,9 +137,16 @@ def filter_offers(offers: Iterable[Offer], filter_text: str) -> list[Offer]:
     # General Wildgulasch may find a published subtype, never the reverse.
     def contains(word: str, text: str) -> bool:
         return word in text or (word == "wildgulasch" and bool(re.search(r"\b(?:wildschwein|hirsch|reh)[ -]?gulasch\b", text)))
+    # An ingredient note is not the product name. Keep those notes searchable when
+    # the query itself asks for the qualifier (such as "mit Milch").
+    qualifier = r"\b(?:mit|ohne|enthalt)\b"
+    search_ingredients = re.search(qualifier, query) is not None
     matches = []
     for offer in offers:
-        haystack = spelling(f"{offer.name} {offer.brand} {offer.description} {offer.retailer}")
+        description = spelling(offer.description)
+        if not search_ingredients:
+            description = re.sub(qualifier + r"\s+[^,;.!?…]+", " ", description)
+        haystack = f"{spelling(offer.name)} {spelling(offer.brand)} {description} {spelling(offer.retailer)}"
         if query in haystack or (compact and compact_query in re.sub(r"[\s\-‐‑–]+", "", haystack)) or (words and all(contains(word, haystack) for word in words)):
             matches.append(offer)
     return matches

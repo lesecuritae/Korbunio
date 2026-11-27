@@ -27,3 +27,32 @@ assert [o.name for o in filter_offers(offers, "lidl")] == ["Ehrmann Grand Desser
 assert [o.name for o in filter_offers(offers, "ehrmann")] == ["Ehrmann Grand Dessert"]
 assert len(filter_offers(offers, "  ")) == len(offers)
 print("Die Suche berücksichtigt die Warengruppe nicht: OK")
+
+
+def test_ingredient_mentions_do_not_match_a_product_search():
+    milk = offer("H-Milch", category="Molkereiprodukte & Eier")
+    patties = offer(
+        "ZooRoyal Junior Pastete",
+        category="Molkereiprodukte & Eier",
+        retailer="PENNY",
+        brand="ZooRoyal",
+        description="Reich an Kalb, mit Milch, je 150 g",
+    )
+    topping = offer("Schokocreme", description="Enthält Milch; 250 g")
+    sorbet = offer("Fruchtsorbet", description="Ohne Milch")
+    catalogue = [patties, topping, sorbet, milk]
+
+    assert filter_offers(catalogue, "Milch") == [milk]
+    assert filter_offers(catalogue, "Milch PENNY") == []
+    assert filter_offers(catalogue, "ZooRoyal Pastete") == [patties]
+    assert filter_offers(catalogue, "mit Milch") == [patties]
+    assert filter_offers(catalogue, "ohne Milch") == [sorbet]
+
+
+def test_product_details_remain_searchable_in_descriptions():
+    branded_milk = offer("Weihenstephan", description="Haltbare Milch, 1 l")
+    game = offer("Kania Wildgerichte", description="Mit Sauce; Sorte: Wildschwein")
+    catalogue = [branded_milk, game]
+
+    assert filter_offers(catalogue, "Milch") == [branded_milk]
+    assert filter_offers(catalogue, "Wildschwein") == [game]

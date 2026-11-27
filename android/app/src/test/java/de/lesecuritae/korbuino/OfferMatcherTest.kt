@@ -5,10 +5,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class OfferMatcherTest {
-    private fun offer(id: String, name: String, cents: Int) = OfferDisplay(
+    private fun offer(id: String, name: String, cents: Int, description: String = "") = OfferDisplay(
         offer = OfferEntity(
             id = id, retailerId = "rewe", productId = id, externalId = id,
-            priceCents = cents, sourceUrl = "https://example.org", cachedAt = 0L,
+            priceCents = cents, sourceUrl = "https://example.org", cachedAt = 0L, description = description,
         ),
         productName = name,
     )
@@ -47,6 +47,30 @@ class OfferMatcherTest {
         assertEquals(1, OfferMatcher.matches("monster", listOf(withBrand)).size)
         assertEquals(1, OfferMatcher.matches("energy", listOf(withBrand)).size)
         assertEquals(0, OfferMatcher.matches("monster", listOf(offer("2", "Ultra Zero", 99))).size)
+    }
+
+    @Test
+    fun ingredientMentionsAreOnlyFoundWhenRequestedExplicitly() {
+        val milk = offer("milk", "H-Milch", 109)
+        val pate = offer("pate", "ZooRoyal Junior Pastete", 35, "Reich an Kalb, mit Milch, je 150 g")
+        val spread = offer("spread", "Schokocreme", 239, "Enthält Milch; 250 g")
+        val sorbet = offer("sorbet", "Fruchtsorbet", 199, "Ohne Milch")
+        val catalogue = listOf(pate, spread, sorbet, milk)
+
+        assertEquals(listOf(milk), OfferMatcher.matches("Milch", catalogue))
+        assertEquals(listOf(pate), OfferMatcher.matches("mit Milch", catalogue))
+        assertEquals(listOf(sorbet), OfferMatcher.matches("ohne Milch", catalogue))
+        assertEquals(listOf(pate), OfferMatcher.matches("ZooRoyal Pastete", catalogue))
+    }
+
+    @Test
+    fun productDescriptionsAndPublishedVariantsRemainSearchable() {
+        val milk = offer("milk", "Weihenstephan", 109, "Haltbare Milch, 1 l")
+        val game = offer("game", "Kania Wildgerichte", 399, "Mit Sauce; Sorte: Wildschwein")
+        val catalogue = listOf(milk, game)
+
+        assertEquals(listOf(milk), OfferMatcher.matches("Milch", catalogue))
+        assertEquals(listOf(game), OfferMatcher.matches("Wildschwein", catalogue))
     }
 
     @Test
